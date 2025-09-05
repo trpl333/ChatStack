@@ -346,15 +346,17 @@ def get_ai_response(user_id, message, call_sid=None):
         
         payload = {
             "messages": messages,
-            "temperature": 0.6,
-            "max_tokens": 40  # Very short for speed
+            "temperature": 0.7,
+            "max_tokens": 25,  # Extremely short for speed
+            "top_p": 0.9,
+            "stream": False  # Ensure no streaming delay
         }
         
         # Add user_id as query parameter
         from urllib.parse import quote
         encoded_user_id = quote(user_id)
         resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={encoded_user_id}", 
-                           json=payload, timeout=5)  # Much faster timeout
+                           json=payload, timeout=3)  # Aggressive timeout for speed
         
         if resp.status_code == 200:
             data = resp.json()
