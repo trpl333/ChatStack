@@ -298,15 +298,24 @@ def text_to_speech(text, voice_id="21m00Tcm4TlvDq8ikWAM"):
 def get_ai_response(user_id, message):
     """Get AI response from NeuroSphere backend"""
     try:
-        resp = requests.post(f"{BACKEND_URL}/v1/chat", json={
-            "user_id": user_id,
-            "message": message
-        }, timeout=30)
+        # Format request properly for FastAPI backend
+        payload = {
+            "messages": [
+                {"role": "user", "content": message}
+            ],
+            "temperature": 0.7,
+            "max_tokens": 400
+        }
+        
+        # Add user_id as query parameter
+        resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={user_id}", 
+                           json=payload, timeout=30)
         
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("response", "I'm sorry, I couldn't process that.")
+            return data.get("output", "I'm sorry, I couldn't process that.")
         else:
+            logging.error(f"Backend error: {resp.status_code} - {resp.text}")
             return "I'm experiencing technical difficulties. Please try again."
     except Exception as e:
         logging.error(f"AI Response Error: {e}")
