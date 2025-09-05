@@ -369,9 +369,9 @@ def get_ai_response(user_id, message, call_sid=None):
         
         payload = {
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 25,  # Extremely short for speed
-            "top_p": 0.9,
+            "temperature": 0.3,  # Lower for more consistent memory usage
+            "max_tokens": 20,  # Even shorter for speed
+            "top_p": 0.8,
             "stream": False  # Ensure no streaming delay
         }
         
@@ -379,7 +379,7 @@ def get_ai_response(user_id, message, call_sid=None):
         from urllib.parse import quote
         encoded_user_id = quote(user_id)
         resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={encoded_user_id}", 
-                           json=payload, timeout=3)  # Aggressive timeout for speed
+                           json=payload, timeout=2)  # Even more aggressive timeout
         
         if resp.status_code == 200:
             data = resp.json()

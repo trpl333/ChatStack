@@ -102,7 +102,11 @@ def pack_prompt(
                 elif memory["key"] == "user_info" and "name" in memory["value"]:
                     relationship_context = f" (USER'S NAME: {memory['value'].get('name', 'Unknown')})"
             
-            memory_lines.append(f"- {memory['type']}:{memory['key']} → {summary}{relationship_context}")
+            # Highlight Kelly's job information specially
+            if "kelly" in memory['key'].lower() and any(word in str(value).lower() for word in ['teacher', 'job', 'profession']):
+                memory_lines.append(f"*** KELLY'S JOB: {memory['key']} → {summary}{relationship_context} ***")
+            else:
+                memory_lines.append(f"- {memory['type']}:{memory['key']} → {summary}{relationship_context}")
     
     memory_block = "\n".join(memory_lines) if memory_lines else "(none)"
     
