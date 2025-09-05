@@ -284,9 +284,9 @@ def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
             voice_id=voice_id,
             model_id="eleven_turbo_v2_5",
             voice_settings=VoiceSettings(
-                stability=0.6,  # Higher for more natural speech
-                similarity_boost=0.7,  # Higher for better voice matching
-                style=0.4,  # Add some style for more human-like delivery
+                stability=0.8,  # Even higher for slower, more stable speech
+                similarity_boost=0.8,  # Higher for better voice matching
+                style=0.2,  # Lower style for more natural pace
                 use_speaker_boost=True  # Enable for better quality
             )
         )
@@ -327,13 +327,13 @@ def get_personalized_greeting(user_id):
                             break
             
             if user_name:
-                return f"Welcome to NeuroSphere AI. I'm Samantha. Is this {user_name}?"
+                return f"Welcome to NeuroSphere AI... I'm Samantha... Who am I speaking with today?"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
     
     # Default greeting for new or unknown callers
-    return "Welcome to NeuroSphere AI. I'm Samantha. May I ask who's calling?"
+    return "Welcome to NeuroSphere AI... I'm Samantha... Who am I speaking with today?"
 
 def get_ai_response(user_id, message):
     """Get AI response from NeuroSphere backend"""
