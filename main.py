@@ -328,7 +328,7 @@ def get_personalized_greeting(user_id):
                         break
         
         if user_name:
-            return f"Hello {user_name}!"
+            return f"Hi, this is Samantha from Farmers Insurance. Is this {user_name}?"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
