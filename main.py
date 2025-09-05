@@ -1,10 +1,21 @@
 """
-NeuroSphere Orchestrator - Flask Web Interface
+NeuroSphere Orchestrator - Flask Web Interface with Phone AI
 """
 import os
 import requests
 import json
-from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash
+import io
+import base64
+from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response
+from twilio.rest import Client
+from twilio.twiml import TwiML
+from twilio.twiml.voice_response import VoiceResponse, Gather
+from elevenlabs import ElevenLabs, VoiceSettings
+import tempfile
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 
 # Set environment variables 
 os.environ.setdefault("DATABASE_URL", "postgresql://doadmin:AVNS_uS8rBktm7cJo7ToivuD@ai-memory-do-user-17983093-0.e.db.ondigitalocean.com:25060/defaultdb?sslmode=require")
@@ -36,6 +47,13 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "neurosphere-secret-key")
 
 BACKEND_URL = "http://127.0.0.1:8001"
+
+# Initialize Twilio and ElevenLabs clients
+twilio_client = Client(os.environ.get('TWILIO_ACCOUNT_SID'), os.environ.get('TWILIO_AUTH_TOKEN'))
+elevenlabs_client = ElevenLabs(api_key=os.environ.get('ELEVENLABS_API_KEY'))
+
+# Phone call session storage (in production, use Redis or database)
+call_sessions = {}
 
 # HTML templates
 ADMIN_TEMPLATE = """
@@ -254,6 +272,160 @@ def search_knowledge():
 def user_memories():
     """Redirect to admin with user_id"""
     return redirect(url_for('admin', user_id=request.args.get('user_id', '')))
+
+# ============ PHONE AI ENDPOINTS ============
+
+def text_to_speech(text, voice_id="21m00Tcm4TlvDq8ikWAM"):
+    """Convert text to speech using ElevenLabs"""
+    try:
+        # Using the correct ElevenLabs API method
+        audio = elevenlabs_client.text_to_speech.convert(
+            text=text,
+            voice_id=voice_id,
+            model_id="eleven_monolingual_v1",
+            voice_settings=VoiceSettings(
+                stability=0.71,
+                similarity_boost=0.5,
+                style=0.0,
+                use_speaker_boost=True
+            )
+        )
+        return audio
+    except Exception as e:
+        logging.error(f"TTS Error: {e}")
+        return None
+
+def get_ai_response(user_id, message):
+    """Get AI response from NeuroSphere backend"""
+    try:
+        resp = requests.post(f"{BACKEND_URL}/v1/chat", json={
+            "user_id": user_id,
+            "message": message
+        }, timeout=30)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("response", "I'm sorry, I couldn't process that.")
+        else:
+            return "I'm experiencing technical difficulties. Please try again."
+    except Exception as e:
+        logging.error(f"AI Response Error: {e}")
+        return "I'm sorry, I'm having trouble connecting right now."
+
+@app.route('/phone/incoming', methods=['POST'])
+def handle_incoming_call():
+    """Handle incoming phone calls from Twilio"""
+    from_number = request.form.get('From')
+    call_sid = request.form.get('CallSid')
+    
+    # Store call session
+    call_sessions[call_sid] = {
+        'user_id': from_number,
+        'call_count': 1
+    }
+    
+    logging.info(f"📞 Incoming call from {from_number}")
+    
+    response = VoiceResponse()
+    response.say("Hello! Welcome to NeuroSphere AI. I'm your auto insurance assistant. How can I help you today?")
+    
+    # Gather user speech
+    gather = Gather(
+        input='speech',
+        timeout=10,
+        speech_timeout=3,
+        action='/phone/process-speech',
+        method='POST'
+    )
+    response.append(gather)
+    
+    # Fallback if no speech detected
+    response.say("I didn't hear anything. Please try calling back.")
+    response.hangup()
+    
+    return str(response), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/phone/process-speech', methods=['POST'])
+def process_speech():
+    """Process speech input from caller"""
+    speech_result = request.form.get('SpeechResult')
+    call_sid = request.form.get('CallSid')
+    from_number = request.form.get('From')
+    
+    if not speech_result:
+        response = VoiceResponse()
+        response.say("I didn't catch that. Could you please repeat?")
+        
+        gather = Gather(
+            input='speech',
+            timeout=10,
+            speech_timeout=3,
+            action='/phone/process-speech',
+            method='POST'
+        )
+        response.append(gather)
+        response.hangup()
+        return str(response), 200, {'Content-Type': 'text/xml'}
+    
+    logging.info(f"🎤 Speech from {from_number}: {speech_result}")
+    
+    # Get AI response from NeuroSphere
+    user_id = from_number
+    ai_response = get_ai_response(user_id, speech_result)
+    
+    logging.info(f"🤖 AI Response: {ai_response}")
+    
+    # Generate TwiML response
+    response = VoiceResponse()
+    response.say(ai_response)
+    
+    # Ask if they want to continue
+    response.say("Would you like to ask me anything else?")
+    
+    gather = Gather(
+        input='speech',
+        timeout=10,
+        speech_timeout=3,
+        action='/phone/process-speech',
+        method='POST'
+    )
+    response.append(gather)
+    
+    # End call if no response
+    response.say("Thank you for calling NeuroSphere AI. Have a great day!")
+    response.hangup()
+    
+    return str(response), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/phone/status', methods=['POST'])
+def call_status():
+    """Handle call status updates"""
+    call_sid = request.form.get('CallSid')
+    call_status = request.form.get('CallStatus')
+    from_number = request.form.get('From')
+    
+    logging.info(f"📞 Call {call_sid} from {from_number}: {call_status}")
+    
+    # Clean up session when call ends
+    if call_status in ['completed', 'failed', 'busy', 'no-answer']:
+        call_sessions.pop(call_sid, None)
+    
+    return '', 200
+
+@app.route('/phone/test')
+def test_phone_system():
+    """Test endpoint to verify phone system is working"""
+    return jsonify({
+        "status": "Phone AI system ready",
+        "endpoints": {
+            "incoming": "/phone/incoming",
+            "speech": "/phone/process-speech", 
+            "status": "/phone/status"
+        },
+        "twilio_configured": bool(os.environ.get('TWILIO_ACCOUNT_SID')),
+        "elevenlabs_configured": bool(os.environ.get('ELEVENLABS_API_KEY')),
+        "backend_url": BACKEND_URL
+    })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
