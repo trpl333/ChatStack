@@ -423,7 +423,21 @@ def process_speech():
     
     if not speech_result:
         response = VoiceResponse()
-        response.say("I didn't catch that. Could you please repeat?")
+        # Use ElevenLabs for error message too
+        try:
+            error_audio = text_to_speech("Sorry, I didn't catch that. Could you repeat?")
+            if error_audio:
+                error_path = f"static/audio/error_{call_sid}.mp3"
+                with open(error_path, "wb") as f:
+                    for chunk in error_audio:
+                        f.write(chunk)
+                error_url = f"https://{request.host}/{error_path}"
+                response.play(error_url)
+            else:
+                response.say("I didn't catch that. Could you please repeat?")
+        except Exception as e:
+            logging.error(f"Error TTS Error: {e}")
+            response.say("I didn't catch that. Could you please repeat?")
         
         gather = Gather(
             input='speech',
@@ -466,8 +480,21 @@ def process_speech():
         logging.error(f"TTS Error: {e}")
         response.say(ai_response)
     
-    # Ask if they want to continue
-    response.say("Would you like to ask me anything else?")
+    # Ask if they want to continue (using ElevenLabs TTS)
+    try:
+        continue_audio = text_to_speech("Would you like to ask me anything else?")
+        if continue_audio:
+            continue_path = f"static/audio/continue_{call_sid}.mp3"
+            with open(continue_path, "wb") as f:
+                for chunk in continue_audio:
+                    f.write(chunk)
+            continue_url = f"https://{request.host}/{continue_path}"
+            response.play(continue_url)
+        else:
+            response.say("Would you like to ask me anything else?")
+    except Exception as e:
+        logging.error(f"Continue TTS Error: {e}")
+        response.say("Would you like to ask me anything else?")
     
     gather = Gather(
         input='speech',
@@ -478,8 +505,21 @@ def process_speech():
     )
     response.append(gather)
     
-    # End call if no response
-    response.say("Thank you for calling NeuroSphere AI. Have a great day!")
+    # End call if no response (using ElevenLabs TTS)
+    try:
+        goodbye_audio = text_to_speech("Thanks for calling, John! Have an awesome day!")
+        if goodbye_audio:
+            goodbye_path = f"static/audio/goodbye_{call_sid}.mp3"
+            with open(goodbye_path, "wb") as f:
+                for chunk in goodbye_audio:
+                    f.write(chunk)
+            goodbye_url = f"https://{request.host}/{goodbye_path}"
+            response.play(goodbye_url)
+        else:
+            response.say("Thanks for calling! Have a great day!")
+    except Exception as e:
+        logging.error(f"Goodbye TTS Error: {e}")
+        response.say("Thanks for calling! Have a great day!")
     response.hangup()
     
     return str(response), 200, {'Content-Type': 'text/xml'}
