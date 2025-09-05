@@ -295,6 +295,36 @@ def text_to_speech(text, voice_id="21m00Tcm4TlvDq8ikWAM"):
         logging.error(f"TTS Error: {e}")
         return None
 
+def get_personalized_greeting(user_id):
+    """Get personalized greeting based on user's stored information"""
+    try:
+        # Check if we know this user's name
+        resp = requests.get(f"{BACKEND_URL}/v1/memories", params={"user_id": user_id, "limit": 5}, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            memories = data.get("memories", [])
+            
+            # Look for user's name in stored memories
+            user_name = None
+            for memory in memories:
+                if memory.get("type") == "person" and "name" in str(memory.get("value", {})):
+                    value = memory.get("value", {})
+                    if isinstance(value, dict) and "name" in value:
+                        user_name = value["name"]
+                        break
+                    elif "John" in str(value):  # Fallback name extraction
+                        user_name = "John"
+                        break
+            
+            if user_name:
+                return f"Hello {user_name}! Welcome back to NeuroSphere AI. How can I help you today?"
+            
+    except Exception as e:
+        logging.error(f"Error getting personalized greeting: {e}")
+    
+    # Default greeting for new or unknown callers
+    return "Hello! Welcome to NeuroSphere AI. I'm your auto insurance assistant. How can I help you today?"
+
 def get_ai_response(user_id, message):
     """Get AI response from NeuroSphere backend"""
     try:
@@ -336,7 +366,8 @@ def handle_incoming_call():
     logging.info(f"📞 Incoming call from {from_number}")
     
     response = VoiceResponse()
-    response.say("Hello! Welcome to NeuroSphere AI. I'm your auto insurance assistant. How can I help you today?")
+    greeting = get_personalized_greeting(from_number)
+    response.say(greeting)
     
     # Gather user speech
     gather = Gather(

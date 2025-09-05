@@ -195,15 +195,23 @@ def extract_carry_kit_items(message_content: str) -> List[Dict[str, Any]]:
         })
     
     # Look for preference statements
-    preference_keywords = ["i prefer", "i like", "i don't like", "i hate", "my preference"]
+    preference_keywords = ["i prefer", "i like", "i don't like", "i hate", "my preference", "my favorite", "favorite"]
     for keyword in preference_keywords:
         if keyword in message_content.lower():
+            # Extract specific preference type
+            pref_type = "general"
+            if any(food in message_content.lower() for food in ["ice cream", "flavor", "food", "coffee", "drink"]):
+                pref_type = "food_drink"
+            elif any(hobby in message_content.lower() for hobby in ["music", "movie", "book", "sport", "game"]):
+                pref_type = "entertainment"
+            
             items.append({
                 "type": "preference",
-                "key": f"user_preference_{hash(message_content) % 10000}",
+                "key": f"user_preference_{pref_type}_{hash(message_content) % 10000}",
                 "value": {
                     "summary": message_content[:200],
-                    "preference_type": "general"
+                    "preference_type": pref_type,
+                    "content": message_content
                 },
                 "ttl_days": 365
             })
