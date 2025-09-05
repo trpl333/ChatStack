@@ -284,10 +284,10 @@ def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
             voice_id=voice_id,
             model_id="eleven_turbo_v2_5",
             voice_settings=VoiceSettings(
-                stability=0.4,  # Lower for faster generation
-                similarity_boost=0.3,  # Lower for speed
-                style=0.0,
-                use_speaker_boost=False  # Disable for speed
+                stability=0.6,  # Higher for more natural speech
+                similarity_boost=0.7,  # Higher for better voice matching
+                style=0.4,  # Add some style for more human-like delivery
+                use_speaker_boost=True  # Enable for better quality
             )
         )
         return audio
@@ -343,8 +343,8 @@ def get_ai_response(user_id, message):
             "messages": [
                 {"role": "user", "content": message}
             ],
-            "temperature": 0.7,
-            "max_tokens": 150
+            "temperature": 0.6,
+            "max_tokens": 100  # Shorter for faster responses
         }
         
         # Add user_id as query parameter
