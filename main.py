@@ -328,23 +328,33 @@ def get_personalized_greeting(user_id):
     # Default greeting for new or unknown callers
     return "Welcome to NeuroSphere A.I. I'm Samantha. It's my pleasure to help you."
 
-def get_ai_response(user_id, message):
-    """Get AI response from NeuroSphere backend"""
+def get_ai_response(user_id, message, call_sid=None):
+    """Get AI response from NeuroSphere backend with conversation context"""
     try:
         # Format request properly for FastAPI backend
+        # Get conversation history for continuity
+        call_history = call_sessions.get(call_sid, {}).get('conversation', [])
+        
+        # Build conversation context
+        messages = []
+        if call_history:
+            # Add recent conversation history for context
+            messages.extend(call_history[-4:])  # Last 4 exchanges for context
+        
+        # Add current message
+        messages.append({"role": "user", "content": message})
+        
         payload = {
-            "messages": [
-                {"role": "user", "content": message}
-            ],
+            "messages": messages,
             "temperature": 0.6,
-            "max_tokens": 60  # Even shorter for faster responses
+            "max_tokens": 40  # Very short for speed
         }
         
         # Add user_id as query parameter
         from urllib.parse import quote
         encoded_user_id = quote(user_id)
         resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={encoded_user_id}", 
-                           json=payload, timeout=8)  # Faster timeout
+                           json=payload, timeout=5)  # Much faster timeout
         
         if resp.status_code == 200:
             data = resp.json()
@@ -362,10 +372,11 @@ def handle_incoming_call():
     from_number = request.form.get('From')
     call_sid = request.form.get('CallSid')
     
-    # Store call session
+    # Store call session with conversation history
     call_sessions[call_sid] = {
         'user_id': from_number,
-        'call_count': 1
+        'call_count': 1,
+        'conversation': []
     }
     
     logging.info(f"📞 Incoming call from {from_number}")
@@ -396,8 +407,8 @@ def handle_incoming_call():
     # Gather user speech
     gather = Gather(
         input='speech',
-        timeout=10,
-        speech_timeout=3,
+        timeout=8,  # Reduced timeout
+        speech_timeout=2,  # Faster speech detection
         action='/phone/process-speech',
         method='POST'
     )
@@ -447,9 +458,19 @@ def process_speech():
     
     logging.info(f"🎤 Speech from {from_number}: {speech_result}")
     
-    # Get AI response from NeuroSphere
+    # Get AI response from NeuroSphere with conversation context
     user_id = from_number
-    ai_response = get_ai_response(user_id, speech_result)
+    ai_response = get_ai_response(user_id, speech_result, call_sid)
+    
+    # Store conversation history
+    if call_sid in call_sessions:
+        call_sessions[call_sid]['conversation'].extend([
+            {"role": "user", "content": speech_result},
+            {"role": "assistant", "content": ai_response}
+        ])
+        # Keep only last 10 exchanges (20 messages)
+        if len(call_sessions[call_sid]['conversation']) > 20:
+            call_sessions[call_sid]['conversation'] = call_sessions[call_sid]['conversation'][-20:]
     
     logging.info(f"🤖 AI Response: {ai_response}")
     
@@ -479,8 +500,8 @@ def process_speech():
     
     gather = Gather(
         input='speech',
-        timeout=10,
-        speech_timeout=3,
+        timeout=8,  # Reduced timeout
+        speech_timeout=2,  # Faster speech detection
         action='/phone/process-speech',
         method='POST'
     )
