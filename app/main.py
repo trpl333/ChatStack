@@ -131,6 +131,7 @@ async def health_check(mem_store: MemoryStore = Depends(get_memory_store)):
 async def chat_completion(
     request: ChatRequest,
     thread_id: str = "default",
+    user_id: Optional[str] = None,
     mem_store: MemoryStore = Depends(get_memory_store)
 ):
     """
@@ -174,14 +175,14 @@ async def chat_completion(
                         item["type"],
                         item["key"], 
                         item["value"],
-                        item.get("ttl_days", 365)
+                        ttl_days=item.get("ttl_days", 365)
                     )
                     logger.info(f"Stored carry-kit item: {item['type']}:{item['key']} -> {memory_id}")
                 except Exception as e:
                     logger.error(f"Failed to store carry-kit item: {e}")
         
-        # Retrieve relevant memories
-        retrieved_memories = mem_store.search(user_message, k=6)
+        # Retrieve relevant memories (user-specific + shared)
+        retrieved_memories = mem_store.search(user_message, user_id=user_id, k=6)
         logger.info(f"Retrieved {len(retrieved_memories)} relevant memories")
         
         # Convert messages to dict format for processing
@@ -322,6 +323,120 @@ async def delete_memory(
     except Exception as e:
         logger.error(f"Failed to delete memory {memory_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete memory")
+
+# User Memory Management Endpoints
+@app.post("/v1/memories/user")
+async def store_user_memory(
+    memory: MemoryObject,
+    user_id: str,
+    mem_store: MemoryStore = Depends(get_memory_store)
+):
+    """Store a memory for a specific user."""
+    try:
+        memory_id = mem_store.write(
+            memory.type,
+            memory.key,
+            memory.value,
+            user_id=user_id,
+            scope="user",
+            ttl_days=memory.ttl_days,
+            source=memory.source or "api"
+        )
+        
+        return {
+            "success": True,
+            "memory_id": memory_id,
+            "user_id": user_id,
+            "message": f"User memory stored: {memory.type}:{memory.key}"
+        }
+    except Exception as e:
+        logger.error(f"Failed to store user memory: {e}")
+        raise HTTPException(status_code=500, detail="Failed to store user memory")
+
+@app.post("/v1/memories/shared")
+async def store_shared_memory(
+    memory: MemoryObject,
+    mem_store: MemoryStore = Depends(get_memory_store)
+):
+    """Store a shared memory available to all users."""
+    try:
+        memory_id = mem_store.write(
+            memory.type,
+            memory.key,
+            memory.value,
+            user_id=None,
+            scope="shared",
+            ttl_days=memory.ttl_days,
+            source=memory.source or "admin"
+        )
+        
+        return {
+            "success": True,
+            "memory_id": memory_id,
+            "scope": "shared",
+            "message": f"Shared memory stored: {memory.type}:{memory.key}"
+        }
+    except Exception as e:
+        logger.error(f"Failed to store shared memory: {e}")
+        raise HTTPException(status_code=500, detail="Failed to store shared memory")
+
+@app.get("/v1/memories/user/{user_id}")
+async def get_user_memories(
+    user_id: str,
+    query: str = "",
+    limit: int = 10,
+    include_shared: bool = True,
+    mem_store: MemoryStore = Depends(get_memory_store)
+):
+    """Get memories for a specific user."""
+    try:
+        if query:
+            memories = mem_store.search(
+                query, 
+                user_id=user_id, 
+                k=limit,
+                include_shared=include_shared
+            )
+        else:
+            # Get recent memories for user
+            memories = mem_store.get_user_memories(user_id, limit=limit, include_shared=include_shared)
+        
+        return {
+            "user_id": user_id,
+            "memories": memories,
+            "count": len(memories)
+        }
+    except Exception as e:
+        logger.error(f"Failed to get user memories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user memories")
+
+@app.get("/v1/memories/shared")
+async def get_shared_memories(
+    query: str = "",
+    limit: int = 20,
+    mem_store: MemoryStore = Depends(get_memory_store)
+):
+    """Get shared memories available to all users."""
+    try:
+        if query:
+            memories = mem_store.search(
+                query, 
+                user_id=None, 
+                k=limit,
+                include_shared=True
+            )
+            # Filter to only shared memories
+            memories = [m for m in memories if m.get("scope") in ("shared", "global")]
+        else:
+            memories = mem_store.get_shared_memories(limit=limit)
+        
+        return {
+            "memories": memories,
+            "count": len(memories)
+        }
+    except Exception as e:
+        logger.error(f"Failed to get shared memories: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve shared memories")
 
 @app.get("/v1/tools")
 async def get_available_tools():

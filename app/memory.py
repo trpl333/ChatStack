@@ -77,7 +77,7 @@ class MemoryStore:
             logger.error(f"Failed to verify/install pgvector extension: {e}")
             raise
 
-    def write(self, memory_type: str, key: str, value: Dict[str, Any], ttl_days: int = 365, source: str = "orchestrator") -> str:
+    def write(self, memory_type: str, key: str, value: Dict[str, Any], user_id: Optional[str] = None, scope: str = "user", ttl_days: int = 365, source: str = "orchestrator") -> str:
         """
         Store a memory object in the database.
         
@@ -85,6 +85,8 @@ class MemoryStore:
             memory_type: Type of memory (person, preference, project, rule, moment, fact)
             key: Unique key/identifier for the memory
             value: Memory content as dictionary
+            user_id: User ID for user-scoped memories (None for shared)
+            scope: Memory scope ('user', 'shared', 'global')
             ttl_days: Time to live in days
             source: Source of the memory
             
@@ -99,11 +101,11 @@ class MemoryStore:
             with self.conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO memories (type, k, value_json, embedding, ttl_days, source)
-                    VALUES (%s, %s, %s, %s, %s, %s)
+                    INSERT INTO memories (type, k, value_json, embedding, user_id, scope, ttl_days, source)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                     """,
-                    (memory_type, key, Json(value), embedding, ttl_days, source)
+                    (memory_type, key, Json(value), embedding, user_id, scope, ttl_days, source)
                 )
                 result = cur.fetchone()
                 if result:
@@ -111,21 +113,24 @@ class MemoryStore:
                 else:
                     raise Exception("Failed to get memory ID")
                 
-            logger.info(f"Stored memory: {memory_type}:{key} with ID {memory_id}")
+            scope_info = f" [{scope}]" + (f" user:{user_id}" if user_id else "")
+            logger.info(f"Stored memory: {memory_type}:{key} with ID {memory_id}{scope_info}")
             return str(memory_id)
             
         except Exception as e:
             logger.error(f"Failed to write memory: {e}")
             raise
 
-    def search(self, query_text: str, k: int = 6, memory_types: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+    def search(self, query_text: str, user_id: Optional[str] = None, k: int = 6, memory_types: Optional[List[str]] = None, include_shared: bool = True) -> List[Dict[str, Any]]:
         """
         Search for relevant memories using vector similarity.
         
         Args:
             query_text: Text to search for
+            user_id: User ID to filter personal memories (None for no user filter)
             k: Number of results to return
             memory_types: Optional filter by memory types
+            include_shared: Whether to include shared/global memories
             
         Returns:
             List of memory objects with similarity scores
@@ -134,21 +139,34 @@ class MemoryStore:
             # Generate query embedding
             query_embedding = embed(query_text).tolist()
             
-            # Build query with optional type filtering
-            type_filter = ""
+            # Build query with filtering
+            filters = ["created_at > NOW() - INTERVAL '1 year'"]
             params = [query_embedding]
             
+            # User and scope filtering
+            if user_id is not None:
+                if include_shared:
+                    filters.append("(user_id = %s OR scope IN ('shared', 'global'))")
+                    params.append(user_id)
+                else:
+                    filters.append("user_id = %s")
+                    params.append(user_id)
+            elif include_shared:
+                filters.append("scope IN ('shared', 'global')")
+            
+            # Type filtering
             if memory_types:
-                type_filter = "AND type = ANY(%s)"
+                filters.append("type = ANY(%s)")
                 params.append(memory_types)
             
             params.append(query_embedding)
             params.append(k)
             
+            where_clause = " AND ".join(filters)
             query = f"""
-                SELECT id, type, k, value_json, embedding <-> %s::vector as distance
+                SELECT id, type, k, value_json, user_id, scope, embedding <-> %s::vector as distance
                 FROM memories
-                WHERE created_at > NOW() - INTERVAL '1 year' {type_filter}
+                WHERE {where_clause}
                 ORDER BY embedding <-> %s::vector
                 LIMIT %s
             """
@@ -164,6 +182,8 @@ class MemoryStore:
                     "type": row["type"],
                     "key": row["k"],
                     "value": row["value_json"],
+                    "user_id": row["user_id"],
+                    "scope": row["scope"],
                     "distance": float(row["distance"])
                 })
             
@@ -172,6 +192,102 @@ class MemoryStore:
             
         except Exception as e:
             logger.error(f"Failed to search memories: {e}")
+            return []
+    
+    def get_user_memories(self, user_id: str, limit: int = 10, include_shared: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get recent memories for a specific user.
+        
+        Args:
+            user_id: User ID to filter memories
+            limit: Maximum number of memories to return
+            include_shared: Whether to include shared memories
+            
+        Returns:
+            List of memory objects
+        """
+        try:
+            filters = []
+            params = []
+            
+            if include_shared:
+                filters.append("(user_id = %s OR scope IN ('shared', 'global'))")
+                params.append(user_id)
+            else:
+                filters.append("user_id = %s")
+                params.append(user_id)
+            
+            params.append(limit)
+            
+            where_clause = " AND ".join(filters)
+            query = f"""
+                SELECT id, type, k, value_json, user_id, scope, created_at
+                FROM memories
+                WHERE {where_clause}
+                ORDER BY created_at DESC
+                LIMIT %s
+            """
+            
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+            
+            results = []
+            for row in rows:
+                results.append({
+                    "id": str(row["id"]),
+                    "type": row["type"],
+                    "key": row["k"],
+                    "value": row["value_json"],
+                    "user_id": row["user_id"],
+                    "scope": row["scope"],
+                    "created_at": row["created_at"].isoformat()
+                })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to get user memories: {e}")
+            return []
+    
+    def get_shared_memories(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get recent shared memories available to all users.
+        
+        Args:
+            limit: Maximum number of memories to return
+            
+        Returns:
+            List of shared memory objects
+        """
+        try:
+            query = """
+                SELECT id, type, k, value_json, scope, created_at
+                FROM memories
+                WHERE scope IN ('shared', 'global')
+                ORDER BY created_at DESC
+                LIMIT %s
+            """
+            
+            with self.conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(query, [limit])
+                rows = cur.fetchall()
+            
+            results = []
+            for row in rows:
+                results.append({
+                    "id": str(row["id"]),
+                    "type": row["type"],
+                    "key": row["k"],
+                    "value": row["value_json"],
+                    "scope": row["scope"],
+                    "created_at": row["created_at"].isoformat()
+                })
+            
+            return results
+            
+        except Exception as e:
+            logger.error(f"Failed to get shared memories: {e}")
             return []
 
     def get_memory_by_id(self, memory_id: str) -> Optional[Dict[str, Any]]:
