@@ -3,6 +3,8 @@ import logging
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
 
 from app.models import ChatRequest, ChatResponse, MemoryObject
@@ -70,6 +72,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 def get_memory_store() -> MemoryStore:
     """Dependency to get memory store instance."""
     if memory_store is None:
@@ -106,6 +111,11 @@ async def root():
         "status": "running",
         "description": "ChatGPT-style AI with memory and tools"
     }
+
+@app.get("/admin")
+async def admin_interface():
+    """Serve the knowledge base admin interface."""
+    return FileResponse("static/admin.html")
 
 @app.get("/health")
 async def health_check(mem_store: MemoryStore = Depends(get_memory_store)):
@@ -175,6 +185,8 @@ async def chat_completion(
                         item["type"],
                         item["key"], 
                         item["value"],
+                        user_id=None,
+                        scope="user",
                         ttl_days=item.get("ttl_days", 365)
                     )
                     logger.info(f"Stored carry-kit item: {item['type']}:{item['key']} -> {memory_id}")
@@ -291,8 +303,10 @@ async def store_memory(
             memory.type,
             memory.key,
             memory.value,
-            memory.ttl_days,
-            memory.source
+            user_id=None,
+            scope="user",
+            ttl_days=memory.ttl_days,
+            source=memory.source
         )
         
         return {
