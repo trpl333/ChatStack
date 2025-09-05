@@ -5,9 +5,9 @@ Start script for NeuroSphere Orchestrator
 import os
 import uvicorn
 
-# Set default LLM configuration for local testing
-os.environ.setdefault("LLM_BASE_URL", "http://localhost:8000")  # Mock endpoint
-os.environ.setdefault("LLM_MODEL", "mock-model")
+# Set LLM configuration for RunPod endpoint
+os.environ.setdefault("LLM_BASE_URL", "https://5njnf4k2bc5t20-8000.proxy.runpod.net")
+os.environ.setdefault("LLM_MODEL", "Qwen/Qwen2-7B-Instruct")  # RunPod model with namespace
 os.environ.setdefault("EMBED_DIM", "768")
 
 # Import app after setting environment variables
