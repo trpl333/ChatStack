@@ -296,7 +296,7 @@ def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
         return None
 
 def get_personalized_greeting(user_id):
-    """Get personalized greeting based on user's stored information"""
+    """Get personalized greeting with user confirmation"""
     try:
         # Check if we know this user's name
         resp = requests.get(f"{BACKEND_URL}/v1/memories", params={"user_id": user_id, "limit": 5}, timeout=5)
@@ -327,13 +327,13 @@ def get_personalized_greeting(user_id):
                             break
             
             if user_name:
-                return f"Hello {user_name}! Welcome back to NeuroSphere AI. How can I help you today?"
+                return f"Welcome to NeuroSphere AI. I'm Samantha. Is this {user_name}?"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
     
     # Default greeting for new or unknown callers
-    return "Hello! Welcome to NeuroSphere AI. I'm your auto insurance assistant. How can I help you today?"
+    return "Welcome to NeuroSphere AI. I'm Samantha. May I ask who's calling?"
 
 def get_ai_response(user_id, message):
     """Get AI response from NeuroSphere backend"""
