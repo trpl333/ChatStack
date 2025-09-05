@@ -379,7 +379,7 @@ def get_ai_response(user_id, message, call_sid=None):
         from urllib.parse import quote
         encoded_user_id = quote(user_id)
         resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={encoded_user_id}", 
-                           json=payload, timeout=2)  # Even more aggressive timeout
+                           json=payload, timeout=8)  # Allow more time for external LLM service
         
         if resp.status_code == 200:
             data = resp.json()
