@@ -91,7 +91,18 @@ def pack_prompt(
             summary = summary[:197] + "..."
             
         if summary:
-            memory_lines.append(f"- {memory['type']}:{memory['key']} → {summary}")
+            # Make relationships clearer for the LLM
+            relationship_context = ""
+            if isinstance(memory.get("value"), dict):
+                rel = memory["value"].get("relationship")
+                if rel == "wife":
+                    relationship_context = f" (USER'S WIFE: {memory['value'].get('name', 'Unknown')})"
+                elif rel == "friend":
+                    relationship_context = f" (USER'S FRIEND: {memory['value'].get('name', 'Unknown')})"
+                elif memory["key"] == "user_info" and "name" in memory["value"]:
+                    relationship_context = f" (USER'S NAME: {memory['value'].get('name', 'Unknown')})"
+            
+            memory_lines.append(f"- {memory['type']}:{memory['key']} → {summary}{relationship_context}")
     
     memory_block = "\n".join(memory_lines) if memory_lines else "(none)"
     

@@ -194,7 +194,9 @@ async def chat_completion(
                     logger.error(f"Failed to store carry-kit item: {e}")
         
         # Retrieve relevant memories (user-specific + shared)
-        retrieved_memories = mem_store.search(user_message, user_id=user_id, k=6)
+        # Use higher k for relationship/family questions to ensure we capture all relevant info
+        search_k = 10 if any(word in user_message.lower() for word in ["wife", "husband", "family", "friend", "name", "who is"]) else 6
+        retrieved_memories = mem_store.search(user_message, user_id=user_id, k=search_k)
         logger.info(f"Retrieved {len(retrieved_memories)} relevant memories")
         
         # Convert messages to dict format for processing

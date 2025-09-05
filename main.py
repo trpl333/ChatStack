@@ -304,17 +304,27 @@ def get_personalized_greeting(user_id):
             data = resp.json()
             memories = data.get("memories", [])
             
-            # Look for user's name in stored memories
+            # Look for user's name in stored memories (prioritize user info, not friends/family)
             user_name = None
+            # First pass: look for user-specific info (not relationships)
             for memory in memories:
-                if memory.get("type") == "person" and "name" in str(memory.get("value", {})):
+                if memory.get("type") == "person" and memory.get("key") == "user_info":
                     value = memory.get("value", {})
                     if isinstance(value, dict) and "name" in value:
                         user_name = value["name"]
                         break
-                    elif "John" in str(value):  # Fallback name extraction
-                        user_name = "John"
-                        break
+            
+            # Second pass: look for any person with name if no user_info found
+            if not user_name:
+                for memory in memories:
+                    if memory.get("type") == "person" and "name" in str(memory.get("value", {})):
+                        value = memory.get("value", {})
+                        # Skip relationship entries (friends, family)
+                        if isinstance(value, dict) and value.get("relationship") in ["friend", "wife", "husband"]:
+                            continue
+                        if isinstance(value, dict) and "name" in value:
+                            user_name = value["name"]
+                            break
             
             if user_name:
                 return f"Hello {user_name}! Welcome back to NeuroSphere AI. How can I help you today?"
