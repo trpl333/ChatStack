@@ -377,7 +377,26 @@ def handle_incoming_call():
     
     response = VoiceResponse()
     greeting = get_personalized_greeting(from_number)
-    response.say(greeting)
+    
+    # Use ElevenLabs TTS instead of default Twilio voice
+    try:
+        audio = text_to_speech(greeting)
+        if audio:
+            # Save audio to file and play it
+            audio_path = f"static/audio/greeting_{call_sid}.mp3"
+            with open(audio_path, "wb") as f:
+                for chunk in audio:
+                    f.write(chunk)
+            
+            # Use Play instead of Say for custom voice
+            audio_url = f"https://{request.host}/{audio_path}"
+            response.play(audio_url)
+        else:
+            # Fallback to default voice if ElevenLabs fails
+            response.say(greeting)
+    except Exception as e:
+        logging.error(f"TTS Error: {e}")
+        response.say(greeting)
     
     # Gather user speech
     gather = Gather(
@@ -425,9 +444,27 @@ def process_speech():
     
     logging.info(f"🤖 AI Response: {ai_response}")
     
-    # Generate TwiML response
+    # Generate TwiML response with ElevenLabs TTS
     response = VoiceResponse()
-    response.say(ai_response)
+    
+    try:
+        audio = text_to_speech(ai_response)
+        if audio:
+            # Save audio to file and play it
+            audio_path = f"static/audio/response_{call_sid}_{hash(ai_response) % 10000}.mp3"
+            with open(audio_path, "wb") as f:
+                for chunk in audio:
+                    f.write(chunk)
+            
+            # Use Play instead of Say for custom voice
+            audio_url = f"https://{request.host}/{audio_path}"
+            response.play(audio_url)
+        else:
+            # Fallback to default voice if ElevenLabs fails
+            response.say(ai_response)
+    except Exception as e:
+        logging.error(f"TTS Error: {e}")
+        response.say(ai_response)
     
     # Ask if they want to continue
     response.say("Would you like to ask me anything else?")
