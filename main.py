@@ -276,18 +276,21 @@ def user_memories():
 # ============ PHONE AI ENDPOINTS ============
 
 def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
-    """Convert text to speech using ElevenLabs"""
+    """Convert text to speech using ElevenLabs with slower speech"""
     try:
-        # Using the correct ElevenLabs API method
+        # Add SSML pauses for slower speech
+        ssml_text = text.replace(". ", ".<break time='800ms'/> ").replace("AI", "A.I.<break time='500ms'/>")
+        
+        # Using the correct ElevenLabs API method with slower settings
         audio = elevenlabs_client.text_to_speech.convert(
-            text=text,
+            text=ssml_text,
             voice_id=voice_id,
-            model_id="eleven_turbo_v2_5",
+            model_id="eleven_multilingual_v2",  # Slower model
             voice_settings=VoiceSettings(
-                stability=0.8,  # Even higher for slower, more stable speech
-                similarity_boost=0.8,  # Higher for better voice matching
-                style=0.2,  # Lower style for more natural pace
-                use_speaker_boost=True  # Enable for better quality
+                stability=0.9,  # Maximum stability for slow speech
+                similarity_boost=0.9,  # Maximum similarity
+                style=0.0,  # No style for natural pace
+                use_speaker_boost=False  # Disable for slower generation
             )
         )
         return audio
@@ -327,13 +330,13 @@ def get_personalized_greeting(user_id):
                             break
             
             if user_name:
-                return f"Welcome to NeuroSphere AI... I'm Samantha... Who am I speaking with today?"
+                return f"Welcome to NeuroSphere AI. I'm Samantha. Who am I speaking with today?"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
     
     # Default greeting for new or unknown callers
-    return "Welcome to NeuroSphere AI... I'm Samantha... Who am I speaking with today?"
+    return "Welcome to NeuroSphere A.I. I'm Samantha. Who am I speaking with today?"
 
 def get_ai_response(user_id, message):
     """Get AI response from NeuroSphere backend"""
