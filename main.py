@@ -301,36 +301,26 @@ def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
 def get_personalized_greeting(user_id):
     """Get personalized greeting with user confirmation"""
     try:
-        # Check if we know this user's name
-        resp = requests.get(f"{BACKEND_URL}/v1/memories", params={"user_id": user_id, "limit": 5}, timeout=5)
-        if resp.status_code == 200:
-            data = resp.json()
-            memories = data.get("memories", [])
-            
-            # Look for user's name in stored memories (prioritize user info, not friends/family)
-            user_name = None
-            # First pass: look for user-specific info (not relationships)
-            for memory in memories:
-                if memory.get("type") == "person" and memory.get("key") == "user_info":
-                    value = memory.get("value", {})
-                    if isinstance(value, dict) and "name" in value:
-                        user_name = value["name"]
-                        break
-            
-            # Second pass: look for any person with name if no user_info found
-            if not user_name:
-                for memory in memories:
-                    if memory.get("type") == "person" and "name" in str(memory.get("value", {})):
-                        value = memory.get("value", {})
-                        # Skip relationship entries (friends, family)
-                        if isinstance(value, dict) and value.get("relationship") in ["friend", "wife", "husband"]:
-                            continue
-                        if isinstance(value, dict) and "name" in value:
-                            user_name = value["name"]
-                            break
-            
-            if user_name:
-                return f"Hello {user_name}!"
+        # Use direct memory access instead of API
+        from app.memory import MemoryStore
+        mem_store = MemoryStore()
+        
+        # Search for the user's name
+        memories = mem_store.search("name John", user_id=user_id, k=10)
+        
+        user_name = None
+        # Look for user's name in stored memories
+        for memory in memories:
+            value = memory.get("value", {})
+            if isinstance(value, dict) and "name" in value:
+                # Skip relationship entries (friends, family)
+                if value.get("relationship") in ["friend", "wife", "husband"]:
+                    continue
+                user_name = value["name"]
+                break
+        
+        if user_name:
+            return f"Hello {user_name}!"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
@@ -347,12 +337,14 @@ def get_ai_response(user_id, message):
                 {"role": "user", "content": message}
             ],
             "temperature": 0.6,
-            "max_tokens": 100  # Shorter for faster responses
+            "max_tokens": 60  # Even shorter for faster responses
         }
         
         # Add user_id as query parameter
-        resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={user_id}", 
-                           json=payload, timeout=15)
+        from urllib.parse import quote
+        encoded_user_id = quote(user_id)
+        resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={encoded_user_id}", 
+                           json=payload, timeout=8)  # Faster timeout
         
         if resp.status_code == 200:
             data = resp.json()
@@ -483,21 +475,7 @@ def process_speech():
         logging.error(f"TTS Error: {e}")
         response.say(ai_response)
     
-    # Ask if they want to continue (using ElevenLabs TTS)
-    try:
-        continue_audio = text_to_speech("Would you like to ask me anything else?")
-        if continue_audio:
-            continue_path = f"static/audio/continue_{call_sid}.mp3"
-            with open(continue_path, "wb") as f:
-                for chunk in continue_audio:
-                    f.write(chunk)
-            continue_url = f"https://{request.host}/{continue_path}"
-            response.play(continue_url)
-        else:
-            response.say("Would you like to ask me anything else?")
-    except Exception as e:
-        logging.error(f"Continue TTS Error: {e}")
-        response.say("Would you like to ask me anything else?")
+    # Skip the "anything else" question - just wait for user input
     
     gather = Gather(
         input='speech',
