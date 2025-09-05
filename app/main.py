@@ -275,13 +275,18 @@ async def chat_completion(
 async def get_memories(
     limit: int = 50,
     memory_type: Optional[str] = None,
+    user_id: Optional[str] = None,
     mem_store: MemoryStore = Depends(get_memory_store)
 ):
     """Get stored memories with optional filtering."""
     try:
-        # Simple query to get recent memories
-        query = "general" if not memory_type else memory_type
-        memories = mem_store.search(query, k=limit)
+        if user_id:
+            # Get user-specific memories
+            memories = mem_store.get_user_memories(user_id, limit=limit, include_shared=True)
+        else:
+            # Simple query to get recent memories
+            query = "general" if not memory_type else memory_type
+            memories = mem_store.search(query, k=limit)
         
         return {
             "memories": memories,
