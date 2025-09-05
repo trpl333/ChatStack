@@ -330,13 +330,13 @@ def get_personalized_greeting(user_id):
                             break
             
             if user_name:
-                return f"Welcome to NeuroSphere AI. I'm Samantha. Who am I speaking with today?"
+                return f"Hello {user_name}!"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
     
     # Default greeting for new or unknown callers
-    return "Welcome to NeuroSphere A.I. I'm Samantha. Who am I speaking with today?"
+    return "Welcome to NeuroSphere A.I. I'm Samantha. It's my pleasure to help you."
 
 def get_ai_response(user_id, message):
     """Get AI response from NeuroSphere backend"""
