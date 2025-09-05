@@ -217,16 +217,16 @@ def extract_carry_kit_items(message_content: str) -> List[Dict[str, Any]]:
             })
             break
     
-    # Look for personal information
-    person_keywords = ["my name is", "i am", "i work", "my job", "my role"]
+    # Look for personal information and relationships
+    person_keywords = ["my name is", "i am", "i work", "my job", "my role", "my wife", "my husband", "my partner", "my friend", "my family"]
     for keyword in person_keywords:
         if keyword in message_content.lower():
             items.append({
                 "type": "person",
-                "key": "user_info",
+                "key": "user_info" if "my name" in keyword else "relationship_info",
                 "value": {
                     "summary": message_content[:200],
-                    "info_type": "personal"
+                    "info_type": "personal" if "my name" in keyword else "relationship"
                 },
                 "ttl_days": 730
             })
