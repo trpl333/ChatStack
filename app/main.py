@@ -195,7 +195,7 @@ async def chat_completion(
         
         # Retrieve relevant memories (user-specific + shared)
         # Use higher k for relationship/family questions to ensure we capture all relevant info
-        search_k = 10 if any(word in user_message.lower() for word in ["wife", "husband", "family", "friend", "name", "who is"]) else 6
+        search_k = 15 if any(word in user_message.lower() for word in ["wife", "husband", "family", "friend", "name", "who is", "kelly", "job", "work", "teacher"]) else 6
         retrieved_memories = mem_store.search(user_message, user_id=user_id, k=search_k)
         logger.info(f"Retrieved {len(retrieved_memories)} relevant memories")
         
