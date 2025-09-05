@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 # Environment configuration
 BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8001")
-MODEL = os.environ.get("LLM_MODEL", "Qwen2-7B-Instruct")
+MODEL = os.environ.get("LLM_MODEL", "tiiuae/falcon-7b-instruct")
 API_KEY = os.environ.get("LLM_API_KEY")
 
 # Request headers
