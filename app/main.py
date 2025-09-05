@@ -177,7 +177,7 @@ async def chat_completion(
             logger.info("Safety mode activated")
         
         # Process carry-kit items for memory storage
-        if should_store_memory(user_message):
+        if should_remember(user_message):
             carry_kit_items = extract_carry_kit_items(user_message)
             for item in carry_kit_items:
                 try:
@@ -185,11 +185,11 @@ async def chat_completion(
                         item["type"],
                         item["key"], 
                         item["value"],
-                        user_id=None,
+                        user_id=user_id,  # Use the actual user_id
                         scope="user",
                         ttl_days=item.get("ttl_days", 365)
                     )
-                    logger.info(f"Stored carry-kit item: {item['type']}:{item['key']} -> {memory_id}")
+                    logger.info(f"Stored carry-kit item for user {user_id}: {item['type']}:{item['key']} -> {memory_id}")
                 except Exception as e:
                     logger.error(f"Failed to store carry-kit item: {e}")
         
