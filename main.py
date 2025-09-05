@@ -275,14 +275,14 @@ def user_memories():
 
 # ============ PHONE AI ENDPOINTS ============
 
-def text_to_speech(text, voice_id="21m00Tcm4TlvDq8ikWAM"):
+def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
     """Convert text to speech using ElevenLabs"""
     try:
         # Using the correct ElevenLabs API method
         audio = elevenlabs_client.text_to_speech.convert(
             text=text,
             voice_id=voice_id,
-            model_id="eleven_monolingual_v1",
+            model_id="eleven_turbo_v2_5",
             voice_settings=VoiceSettings(
                 stability=0.71,
                 similarity_boost=0.5,
@@ -344,12 +344,12 @@ def get_ai_response(user_id, message):
                 {"role": "user", "content": message}
             ],
             "temperature": 0.7,
-            "max_tokens": 400
+            "max_tokens": 150
         }
         
         # Add user_id as query parameter
         resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={user_id}", 
-                           json=payload, timeout=30)
+                           json=payload, timeout=15)
         
         if resp.status_code == 200:
             data = resp.json()
