@@ -305,19 +305,27 @@ def get_personalized_greeting(user_id):
         from app.memory import MemoryStore
         mem_store = MemoryStore()
         
-        # Search for the user's name
-        memories = mem_store.search("name John", user_id=user_id, k=10)
+        # Search for any user name, not just "John"
+        memories = mem_store.search("name", user_id=user_id, k=10)
         
         user_name = None
         # Look for user's name in stored memories
         for memory in memories:
             value = memory.get("value", {})
-            if isinstance(value, dict) and "name" in value:
-                # Skip relationship entries (friends, family)
-                if value.get("relationship") in ["friend", "wife", "husband"]:
-                    continue
-                user_name = value["name"]
-                break
+            if isinstance(value, dict):
+                # Check for direct name field
+                if "name" in value and value.get("relationship") not in ["friend", "wife", "husband"]:
+                    user_name = value["name"]
+                    break
+                # Check for name in summary field
+                elif "summary" in value and "name is" in value["summary"].lower():
+                    summary = value["summary"]
+                    # Extract name from patterns like "My name is Jack Peterson"
+                    import re
+                    name_match = re.search(r'name is (\w+(?:\s+\w+)?)', summary, re.IGNORECASE)
+                    if name_match:
+                        user_name = name_match.group(1)
+                        break
         
         if user_name:
             return f"Hello {user_name}!"
