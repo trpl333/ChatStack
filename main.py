@@ -333,8 +333,23 @@ def get_personalized_greeting(user_id):
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
     
-    # Default greeting for new or unknown callers
-    return "Welcome to NeuroSphere A.I. I'm Samantha. It's my pleasure to help you."
+    # Default greeting for new or unknown callers with time-based greeting
+    from datetime import datetime
+    import pytz
+    
+    # Get current time (assuming Pacific Time for the business)
+    pst = pytz.timezone('US/Pacific')
+    current_time = datetime.now(pst)
+    hour = current_time.hour
+    
+    if 5 <= hour < 12:
+        time_greeting = "Good morning"
+    elif 12 <= hour < 17:
+        time_greeting = "Good afternoon"
+    else:
+        time_greeting = "Good evening"
+    
+    return f"{time_greeting}, this is Samantha from Farmers Insurance. How can I help you?"
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
