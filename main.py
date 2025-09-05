@@ -370,7 +370,7 @@ def get_ai_response(user_id, message, call_sid=None):
         payload = {
             "messages": messages,
             "temperature": 0.3,  # Lower for more consistent memory usage
-            "max_tokens": 20,  # Even shorter for speed
+            "max_tokens": 150,  # Allow complete responses but keep reasonably short
             "top_p": 0.8,
             "stream": False  # Ensure no streaming delay
         }
