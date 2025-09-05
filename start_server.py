@@ -10,6 +10,9 @@ os.environ.setdefault("LLM_BASE_URL", "https://5njnf4k2bc5t20-8000.proxy.runpod.
 os.environ.setdefault("LLM_MODEL", "Qwen/Qwen2-7B-Instruct")  # RunPod model with namespace
 os.environ.setdefault("EMBED_DIM", "768")
 
+# Set Digital Ocean database URL
+os.environ.setdefault("DATABASE_URL", "postgresql://doadmin:AVNS_uS8rBktm7cJo7ToivuD@ai-memory-do-user-17983093-0.e.db.ondigitalocean.com:25060/defaultdb?sslmode=require")
+
 # Import app after setting environment variables
 from app.main import app
 
