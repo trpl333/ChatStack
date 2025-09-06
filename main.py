@@ -364,7 +364,7 @@ def get_ai_response(user_id, message, call_sid=None):
         final_messages = [system_message, {"role": "user", "content": message}]
         
         payload = {
-            "model": "tiiuae/falcon-7b-instruct",
+            "model": "mistralai/Mistral-7B-Instruct-v0.2",
             "messages": final_messages,
             "temperature": 0.1,  # Make it very deterministic
             "max_tokens": 25,  # Force very short responses
