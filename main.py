@@ -582,8 +582,87 @@ def process_speech():
     
     logging.info(f"🎤 Speech from {from_number}: {speech_result}")
     
-    # Get AI response from NeuroSphere with conversation context
+    # Save new information to memory before generating response
     user_id = from_number
+    try:
+        from app.memory import MemoryStore
+        from app.packer import should_remember, extract_carry_kit_items
+        
+        # Check if this message contains information worth remembering
+        if should_remember(speech_result):
+            mem_store = MemoryStore()
+            carry_kit_items = extract_carry_kit_items(speech_result)
+            
+            for item in carry_kit_items:
+                try:
+                    memory_id = mem_store.write(
+                        item["type"],
+                        item["key"], 
+                        item["value"],
+                        user_id=user_id,
+                        scope="user",
+                        ttl_days=item.get("ttl_days", 365)
+                    )
+                    logging.info(f"💾 Stored memory: {item['type']}:{item['key']} -> {memory_id}")
+                except Exception as e:
+                    logging.error(f"Failed to store memory item: {e}")
+        
+        # Also look for specific information that should be learned
+        message_lower = speech_result.lower()
+        mem_store = MemoryStore()
+        
+        # Birthday information
+        if ("birthday" in message_lower or "born" in message_lower):
+            if "jack" in message_lower or "colin" in message_lower:
+                name = "Jack" if "jack" in message_lower else "Colin"
+                mem_store.store({
+                    "type": "fact",
+                    "key": f"{name.lower()}_birthday_inquiry",
+                    "value": {
+                        "summary": f"User asked about {name}'s birthday",
+                        "context": speech_result,
+                        "name": name,
+                        "relationship": "son"
+                    },
+                    "user_id": user_id,
+                    "scope": "user"
+                })
+                logging.info(f"💾 Stored birthday inquiry for {name}")
+        
+        # Look for new family information
+        if any(phrase in message_lower for phrase in ["my son", "my daughter", "my child"]):
+            mem_store.store({
+                "type": "person",
+                "key": f"family_info_{hash(speech_result) % 1000}",
+                "value": {
+                    "summary": speech_result[:200],
+                    "context": "family information shared during call",
+                    "relationship": "family"
+                },
+                "user_id": user_id,
+                "scope": "user"
+            })
+            logging.info(f"💾 Stored family information")
+            
+        # Look for job/work information
+        if any(phrase in message_lower for phrase in ["work at", "job", "profession", "career"]):
+            mem_store.store({
+                "type": "person",
+                "key": f"work_info_{hash(speech_result) % 1000}",
+                "value": {
+                    "summary": speech_result[:200],
+                    "context": "work information shared during call",
+                    "info_type": "professional"
+                },
+                "user_id": user_id,
+                "scope": "user"
+            })
+            logging.info(f"💾 Stored work information")
+                    
+    except Exception as e:
+        logging.error(f"Memory saving error: {e}")
+    
+    # Get AI response from NeuroSphere with conversation context
     ai_response = get_ai_response(user_id, speech_result, call_sid)
     
     # Store conversation history
