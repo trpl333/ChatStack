@@ -418,6 +418,15 @@ def get_ai_response(user_id, message, call_sid=None):
                                 memory_items.append(f"REMEMBER: Wife {name} works as {job_info}")
                             else:
                                 memory_items.append(f"REMEMBER: Wife's name is {name}")
+                        elif name and value.get("relationship") in ["son", "sons", "twin sons"]:
+                            memory_items.append(f"REMEMBER: Son named {name}")
+                        elif value.get("sons") or value.get("names"):
+                            # Handle twin sons specifically
+                            sons = value.get("sons") or value.get("names")
+                            if isinstance(sons, str):
+                                memory_items.append(f"REMEMBER: Sons are {sons}")
+                            elif isinstance(sons, list):
+                                memory_items.append(f"REMEMBER: Sons are {', '.join(sons)}")
                         elif name and value.get("relationship") == "friend":
                             memory_items.append(f"REMEMBER: Friend named {name}")
                         elif name:
