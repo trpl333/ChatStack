@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NeuroSphere Phone System Admin</title>
+    <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
+    <style>
+        .admin-section { margin-bottom: 2rem; padding: 1.5rem; border-radius: 8px; background: var(--bs-dark); }
+        .voice-sample { margin: 0.5rem 0; }
+        .current-setting { color: var(--bs-success); font-weight: bold; }
+        .setting-group { border-left: 3px solid var(--bs-primary); padding-left: 1rem; margin: 1rem 0; }
+    </style>
+</head>
+<body>
+    <div class="container py-4">
+        <h1 class="mb-4">🎛️ NeuroSphere Phone System Admin</h1>
+        
+        <!-- Voice Settings -->
+        <div class="admin-section">
+            <h3>🎤 Voice Settings</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">ElevenLabs Voice</label>
+                    <select class="form-select" id="voiceSelect">
+                        <option value="dnRitNTYKgyEUEizTqqH" selected>Sol (Current)</option>
+                        <option value="21m00Tcm4TlvDq8ikWAM">Rachel - Natural & Versatile</option>
+                        <option value="AZnzlk1XvdvUeBnXmlld">Domi - Strong & Professional</option>
+                        <option value="EXAVITQu4vr4xnSDxMaL">Bella - Friendly & Warm</option>
+                        <option value="ErXwobaYiN019PkySvjV">Antoni - Professional Male</option>
+                        <option value="MF3mGyEYCl7XYWbV9V6O">Elli - Energetic Female</option>
+                        <option value="TxGEqnHWrfWFTfGW9XjX">Josh - Deep Male Voice</option>
+                        <option value="VR6AewLTigWG4xSOukaG">Arnold - Crisp & Clear</option>
+                        <option value="pNInz6obpgDQGcFmaJgB">Adam - Professional Narrator</option>
+                        <option value="yoZ06aMxZJJ28mfd3POQ">Sam - Casual & Friendly</option>
+                    </select>
+                    <button class="btn btn-primary mt-2" onclick="testVoice()">🔊 Test Voice</button>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Voice Settings</label>
+                    <div class="setting-group">
+                        <div class="mb-2">
+                            <label>Stability: <span id="stabilityValue">0.71</span></label>
+                            <input type="range" class="form-range" min="0" max="1" step="0.01" value="0.71" id="stability">
+                        </div>
+                        <div class="mb-2">
+                            <label>Clarity: <span id="clarityValue">0.5</span></label>
+                            <input type="range" class="form-range" min="0" max="1" step="0.01" value="0.5" id="clarity">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success" onclick="updateVoice()">💾 Update Voice Settings</button>
+        </div>
+
+        <!-- Personality Settings -->
+        <div class="admin-section">
+            <h3>🧠 AI Personality & Instructions</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Personality Preset</label>
+                    <select class="form-select" id="personalityPreset" onchange="loadPersonality()">
+                        <option value="farmers">Farmers Insurance Agent (Current)</option>
+                        <option value="professional">Professional & Formal</option>
+                        <option value="friendly">Friendly & Casual</option>
+                        <option value="sales">Sales-Focused</option>
+                        <option value="support">Customer Support</option>
+                        <option value="custom">Custom Instructions</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Response Length</label>
+                    <select class="form-select" id="responseLength">
+                        <option value="25">Very Short (25 tokens)</option>
+                        <option value="50" selected>Short (50 tokens)</option>
+                        <option value="100">Medium (100 tokens)</option>
+                        <option value="150">Long (150 tokens)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mt-3">
+                <label class="form-label">Custom Instructions</label>
+                <textarea class="form-control" rows="4" id="customInstructions" placeholder="Enter custom personality instructions...">You are Samantha from Farmers Insurance. Be helpful and professional. Only use information you remember about the caller.</textarea>
+            </div>
+            <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Personality</button>
+        </div>
+
+        <!-- Call Routing -->
+        <div class="admin-section">
+            <h3>📞 Call Routing & Actions</h3>
+            <div class="row">
+                <div class="col-md-12">
+                    <h5>Quick Actions</h5>
+                    <div class="setting-group">
+                        <div class="mb-3">
+                            <label class="form-label">Billing Department</label>
+                            <input type="tel" class="form-control" id="billingNumber" value="1-888-327-6377" placeholder="1-888-XXX-XXXX">
+                            <small class="text-muted">When users mention "pay bill" or "billing", transfer here</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Claims Department</label>
+                            <input type="tel" class="form-control" id="claimsNumber" value="1-800-435-7764" placeholder="1-800-XXX-XXXX">
+                            <small class="text-muted">When users mention "claim" or "accident", transfer here</small>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">General Support</label>
+                            <input type="tel" class="form-control" id="supportNumber" value="1-888-327-6377" placeholder="1-888-XXX-XXXX">
+                            <small class="text-muted">For complex issues Samantha can't handle</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h5>Trigger Keywords</h5>
+                <div class="row">
+                    <div class="col-md-4">
+                        <label class="form-label">Billing Keywords</label>
+                        <textarea class="form-control" rows="3" id="billingKeywords">pay bill, billing, payment, invoice, account balance, autopay</textarea>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Claims Keywords</label>
+                        <textarea class="form-control" rows="3" id="claimsKeywords">claim, accident, damage, injury, file claim, incident</textarea>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Transfer Keywords</label>
+                        <textarea class="form-control" rows="3" id="transferKeywords">speak to human, transfer me, representative, agent, manager</textarea>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success mt-2" onclick="updateRouting()">💾 Update Call Routing</button>
+        </div>
+
+        <!-- System Status -->
+        <div class="admin-section">
+            <h3>📊 System Status</h3>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card bg-secondary">
+                        <div class="card-body">
+                            <h6>Current Model</h6>
+                            <p class="current-setting" id="currentModel">Mistral-7B-Instruct-v0.2</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-secondary">
+                        <div class="card-body">
+                            <h6>Phone Number</h6>
+                            <p class="current-setting">+1 (949) 707-1290</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card bg-secondary">
+                        <div class="card-body">
+                            <h6>Total Memories</h6>
+                            <p class="current-setting" id="memoryCount">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-info mt-2" onclick="refreshStatus()">🔄 Refresh Status</button>
+        </div>
+
+        <!-- Test Panel -->
+        <div class="admin-section">
+            <h3>🧪 Test Panel</h3>
+            <div class="row">
+                <div class="col-md-8">
+                    <input type="text" class="form-control" id="testMessage" placeholder="Enter test message..." value="Hi, my name is John. How are you doing today?">
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-primary" onclick="testAI()">🤖 Test AI Response</button>
+                </div>
+            </div>
+            <div class="mt-3">
+                <div class="card bg-secondary">
+                    <div class="card-body">
+                        <h6>AI Response:</h6>
+                        <p id="testResponse">Click "Test AI Response" to see how Samantha responds</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Voice and personality management
+        function loadPersonality() {
+            const preset = document.getElementById('personalityPreset').value;
+            const instructions = document.getElementById('customInstructions');
+            
+            const presets = {
+                farmers: "You are Samantha from Farmers Insurance. Be helpful and professional. Answer questions about insurance and help customers with their needs.",
+                professional: "You are a professional AI assistant. Maintain a formal, courteous tone. Provide accurate, helpful information.",
+                friendly: "You are a friendly AI assistant. Be warm, conversational, and approachable while remaining helpful.",
+                sales: "You are a sales-focused assistant. Identify customer needs and guide them toward appropriate solutions.",
+                support: "You are a customer support specialist. Focus on problem-solving and providing excellent service.",
+                custom: ""
+            };
+            
+            if (preset !== 'custom') {
+                instructions.value = presets[preset];
+            }
+        }
+
+        function testVoice() {
+            const voiceId = document.getElementById('voiceSelect').value;
+            const testText = "Hi, this is Samantha from Farmers Insurance. How can I help you today?";
+            
+            fetch('/test-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voice_id: voiceId, text: testText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Voice test sent! Check your speakers.');
+                } else {
+                    alert('Voice test failed: ' + data.error);
+                }
+            });
+        }
+
+        function testAI() {
+            const message = document.getElementById('testMessage').value;
+            const responseDiv = document.getElementById('testResponse');
+            
+            responseDiv.textContent = 'Testing...';
+            
+            fetch('/test-ai', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseDiv.textContent = data.response || 'Test failed';
+            })
+            .catch(error => {
+                responseDiv.textContent = 'Error: ' + error.message;
+            });
+        }
+
+        function updateVoice() {
+            const settings = {
+                voice_id: document.getElementById('voiceSelect').value,
+                stability: document.getElementById('stability').value,
+                clarity: document.getElementById('clarity').value
+            };
+            
+            fetch('/update-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.success ? 'Voice settings updated!' : 'Update failed: ' + data.error);
+            });
+        }
+
+        function updatePersonality() {
+            const settings = {
+                instructions: document.getElementById('customInstructions').value,
+                max_tokens: parseInt(document.getElementById('responseLength').value)
+            };
+            
+            fetch('/update-personality', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.success ? 'Personality updated!' : 'Update failed: ' + data.error);
+            });
+        }
+
+        function updateRouting() {
+            const settings = {
+                billing_number: document.getElementById('billingNumber').value,
+                claims_number: document.getElementById('claimsNumber').value,
+                support_number: document.getElementById('supportNumber').value,
+                billing_keywords: document.getElementById('billingKeywords').value,
+                claims_keywords: document.getElementById('claimsKeywords').value,
+                transfer_keywords: document.getElementById('transferKeywords').value
+            };
+            
+            fetch('/update-routing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.success ? 'Call routing updated!' : 'Update failed: ' + data.error);
+            });
+        }
+
+        function refreshStatus() {
+            fetch('/admin-status')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('currentModel').textContent = data.model || 'Unknown';
+                document.getElementById('memoryCount').textContent = data.memory_count || '0';
+            });
+        }
+
+        // Update range displays
+        document.getElementById('stability').oninput = function() {
+            document.getElementById('stabilityValue').textContent = this.value;
+        };
+        
+        document.getElementById('clarity').oninput = function() {
+            document.getElementById('clarityValue').textContent = this.value;
+        };
+
+        // Load initial status
+        refreshStatus();
+    </script>
+</body>
+</html>

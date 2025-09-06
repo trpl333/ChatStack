@@ -55,6 +55,24 @@ elevenlabs_client = ElevenLabs(api_key=os.environ.get('ELEVENLABS_API_KEY'))
 # Phone call session storage (in production, use Redis or database)
 call_sessions = {}
 
+# Admin-configurable settings
+VOICE_ID = "dnRitNTYKgyEUEizTqqH"  # Sol's voice (configurable via admin)
+VOICE_SETTINGS = {"stability": 0.71, "clarity_boost": 0.5}
+AI_INSTRUCTIONS = "You are Samantha from Farmers Insurance. Be helpful and professional."
+MAX_TOKENS = 25
+
+# Call routing settings (configurable via admin)
+ROUTING_NUMBERS = {
+    "billing": "1-888-327-6377",
+    "claims": "1-800-435-7764", 
+    "support": "1-888-327-6377"
+}
+ROUTING_KEYWORDS = {
+    "billing": ["pay bill", "billing", "payment", "invoice", "account balance", "autopay"],
+    "claims": ["claim", "accident", "damage", "injury", "file claim", "incident"],
+    "transfer": ["speak to human", "transfer me", "representative", "agent", "manager"]
+}
+
 # HTML templates
 ADMIN_TEMPLATE = """
 <!DOCTYPE html>
@@ -275,7 +293,7 @@ def user_memories():
 
 # ============ PHONE AI ENDPOINTS ============
 
-def text_to_speech(text, voice_id="dnRitNTYKgyEUEizTqqH"):
+def text_to_speech(text, voice_id=None):
     """Convert text to speech using ElevenLabs with slower speech"""
     try:
         # Add SSML pauses for slower speech
@@ -357,8 +375,8 @@ def get_ai_response(user_id, message, call_sid=None):
         # Keep it simple - no conversation history to avoid confusion
         # Just process the current message directly
         
-        # Ultra-simple prompt to stop hallucination
-        system_message = {"role": "system", "content": "You are Samantha. Answer the user's question directly in 1-2 sentences. Do not create fake conversations."}
+        # Use configurable system prompt
+        system_message = {"role": "system", "content": AI_INSTRUCTIONS}
         
         # Only use the current user message
         final_messages = [system_message, {"role": "user", "content": message}]
@@ -367,7 +385,7 @@ def get_ai_response(user_id, message, call_sid=None):
             "model": "mistralai/Mistral-7B-Instruct-v0.2",
             "messages": final_messages,
             "temperature": 0.1,  # Make it very deterministic
-            "max_tokens": 25,  # Force very short responses
+            "max_tokens": MAX_TOKENS,  # Configurable response length
             "top_p": 0.8,
             "stream": False
         }
@@ -578,6 +596,120 @@ def test_phone_system():
         "elevenlabs_configured": bool(os.environ.get('ELEVENLABS_API_KEY')),
         "backend_url": BACKEND_URL
     })
+
+# ============ ADMIN API ENDPOINTS ============
+
+@app.route('/admin-control')
+def admin_control():
+    """Serve the admin control interface"""
+    try:
+        with open('static/admin-control.html', 'r') as f:
+            return f.read()
+    except FileNotFoundError:
+        return "Admin control interface not found", 404
+
+@app.route('/test-voice', methods=['POST'])
+def test_voice():
+    """Test voice configuration"""
+    try:
+        data = request.get_json()
+        voice_id = data.get('voice_id', VOICE_ID)
+        text = data.get('text', "This is a test of the voice settings.")
+        
+        # Generate test audio
+        audio = text_to_speech(text, voice_id)
+        if audio:
+            return jsonify({"success": True})
+        else:
+            return jsonify({"success": False, "error": "Voice generation failed"})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/test-ai', methods=['POST'])
+def test_ai():
+    """Test AI response"""
+    try:
+        data = request.get_json()
+        message = data.get('message', 'Hello')
+        
+        response = get_ai_response("test-user", message)
+        return jsonify({"response": response})
+    except Exception as e:
+        return jsonify({"response": f"Error: {str(e)}"})
+
+@app.route('/update-voice', methods=['POST'])
+def update_voice():
+    """Update voice settings"""
+    global VOICE_ID, VOICE_SETTINGS
+    try:
+        data = request.get_json()
+        VOICE_ID = data.get('voice_id', VOICE_ID)
+        VOICE_SETTINGS['stability'] = float(data.get('stability', 0.71))
+        VOICE_SETTINGS['clarity_boost'] = float(data.get('clarity', 0.5))
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update-personality', methods=['POST'])
+def update_personality():
+    """Update AI personality settings"""
+    global AI_INSTRUCTIONS, MAX_TOKENS
+    try:
+        data = request.get_json()
+        AI_INSTRUCTIONS = data.get('instructions', AI_INSTRUCTIONS)
+        MAX_TOKENS = int(data.get('max_tokens', MAX_TOKENS))
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update-routing', methods=['POST'])
+def update_routing():
+    """Update call routing settings"""
+    global ROUTING_NUMBERS, ROUTING_KEYWORDS
+    try:
+        data = request.get_json()
+        ROUTING_NUMBERS['billing'] = data.get('billing_number', ROUTING_NUMBERS['billing'])
+        ROUTING_NUMBERS['claims'] = data.get('claims_number', ROUTING_NUMBERS['claims'])
+        ROUTING_NUMBERS['support'] = data.get('support_number', ROUTING_NUMBERS['support'])
+        
+        # Update keywords
+        if data.get('billing_keywords'):
+            ROUTING_KEYWORDS['billing'] = [kw.strip() for kw in data.get('billing_keywords', '').split(',') if kw.strip()]
+        if data.get('claims_keywords'):
+            ROUTING_KEYWORDS['claims'] = [kw.strip() for kw in data.get('claims_keywords', '').split(',') if kw.strip()]
+        if data.get('transfer_keywords'):
+            ROUTING_KEYWORDS['transfer'] = [kw.strip() for kw in data.get('transfer_keywords', '').split(',') if kw.strip()]
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/admin-status')
+def admin_status():
+    """Get current system status"""
+    try:
+        from app.memory import MemoryStore
+        mem_store = MemoryStore()
+        
+        # Count total memories (simplified)
+        memories = mem_store.search("", k=1000)
+        memory_count = len(memories)
+        
+        return jsonify({
+            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "memory_count": memory_count,
+            "voice_id": VOICE_ID,
+            "max_tokens": MAX_TOKENS
+        })
+    except Exception as e:
+        return jsonify({
+            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "memory_count": "Error",
+            "voice_id": VOICE_ID,
+            "max_tokens": MAX_TOKENS
+        })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
