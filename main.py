@@ -59,7 +59,7 @@ call_sessions = {}
 VOICE_ID = "dnRitNTYKgyEUEizTqqH"  # Sol's voice (configurable via admin)
 VOICE_SETTINGS = {"stability": 0.71, "clarity_boost": 0.5}
 AI_INSTRUCTIONS = "You are Samantha from Farmers Insurance. Be helpful and professional."
-MAX_TOKENS = 25
+MAX_TOKENS = 75  # Allow longer, more natural responses
 
 # Call routing settings (configurable via admin)
 ROUTING_NUMBERS = {
@@ -379,11 +379,38 @@ def get_ai_response(user_id, message, call_sid=None):
         # Keep it simple - no conversation history to avoid confusion
         # Just process the current message directly
         
-        # Use configurable system prompt
-        system_message = {"role": "system", "content": AI_INSTRUCTIONS}
+        # Build conversation context with memory
+        conversation_history = call_sessions.get(call_sid, {}).get('conversation', [])
         
-        # Only use the current user message
-        final_messages = [system_message, {"role": "user", "content": message}]
+        # Get relevant memories about the user
+        memory_context = ""
+        try:
+            from app.memory import MemoryStore
+            mem_store = MemoryStore()
+            memories = mem_store.search(f"user {user_id}", user_id=user_id, k=5)
+            
+            if memories:
+                memory_items = []
+                for memory in memories[:3]:  # Use top 3 memories
+                    value = memory.get("value", {})
+                    if isinstance(value, dict) and value.get("summary"):
+                        memory_items.append(f"***{value['summary']}***")
+                if memory_items:
+                    memory_context = "\\n\\nWhat I remember about this caller: " + " | ".join(memory_items)
+        except:
+            pass
+        
+        # Enhanced system prompt with memory
+        system_prompt = f"{AI_INSTRUCTIONS}{memory_context}\\n\\nKeep responses natural and conversational. Don't repeat the same greeting."
+        system_message = {"role": "system", "content": system_prompt}
+        
+        # Include recent conversation for continuity
+        messages = [system_message]
+        if conversation_history:
+            messages.extend(conversation_history[-4:])  # Last 4 exchanges
+        messages.append({"role": "user", "content": message})
+        
+        final_messages = messages
         
         payload = {
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
