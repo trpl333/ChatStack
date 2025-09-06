@@ -454,19 +454,18 @@ def get_ai_response(user_id, message, call_sid=None):
         
         # Enhanced system prompt with memory - force memory usage
         # Use the exact business context from ElevenLabs prompt
-        base_prompt = """You are Samantha, a friend at Peterson Family Insurance Agency. Be super casual, warm, and chatty like talking to a buddy.
+        base_prompt = """You are Samantha, a friend at Peterson Family Insurance Agency. Be casual, warm, and helpful.
 
-IMPORTANT: 
-- Talk like a friend, not a business person - NO formal insurance language
-- Use memories to have personal conversations  
-- DON'T ask about insurance unless they bring it up first
-- Just chat naturally like friends do
-- Keep it brief and fun
+CRITICAL MEMORY RULES:
+- If memories say "Sons are Jack, Colin" then you KNOW both sons names
+- If someone asks "what's my other son's name" and you know "Jack" then the other is "Colin"
+- USE the memory information directly - don't ask for info you already have
+- When they share new info like "my brother-in-law is Slim" - acknowledge it warmly
 
-Chat naturally about:
-- Family, food, personal stuff they share
-- Remember what they tell you and bring it up later
-- Be curious about their life, not their policies"""
+Be friendly and personal:
+- Chat about family, food, personal stuff
+- Remember details they share
+- Keep responses brief and natural"""
 
         if memory_context:
             system_prompt = f"{base_prompt}{memory_context}\\n\\nUse the memories above when helpful. Keep responses natural and brief."
@@ -487,7 +486,7 @@ Chat naturally about:
         payload = {
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
-            "temperature": 0.7,  # Make it more conversational and human-like
+            "temperature": 0.4,  # Lower temperature for more focused, consistent responses
             "max_tokens": 80,  # Longer for complete sentences
             "top_p": 0.8,
             "stream": False
@@ -696,8 +695,8 @@ def process_speech():
                 )
                 logging.info(f"💾 Stored birthday inquiry for {name}")
         
-        # Look for new family information
-        if any(phrase in message_lower for phrase in ["my son", "my daughter", "my child"]):
+        # Look for new family information  
+        if any(phrase in message_lower for phrase in ["my son", "my daughter", "my child", "brother-in-law", "my brother"]):
             mem_store.write(
                 "person",
                 f"family_info_{hash(speech_result) % 1000}",
@@ -709,7 +708,22 @@ def process_speech():
                 user_id=user_id,
                 scope="user"
             )
-            logging.info(f"💾 Stored family information")
+            logging.info(f"💾 Stored family information: {speech_result}")
+            
+        # Look for names being shared
+        if any(phrase in message_lower for phrase in ["name is", "called", "his name", "her name"]):
+            mem_store.write(
+                "person",
+                f"name_info_{hash(speech_result) % 1000}",
+                {
+                    "summary": speech_result[:200],
+                    "context": "name shared during call",
+                    "info_type": "name_reference"
+                },
+                user_id=user_id,
+                scope="user"
+            )
+            logging.info(f"💾 Stored name information: {speech_result}")
                     
     except Exception as e:
         logging.error(f"Memory saving error: {e}")
