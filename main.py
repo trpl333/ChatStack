@@ -375,15 +375,19 @@ def get_ai_response(user_id, message, call_sid=None):
             "stream": False  # Ensure no streaming delay
         }
         
-        # Add user_id as query parameter
-        from urllib.parse import quote
-        encoded_user_id = quote(user_id)
-        resp = requests.post(f"{BACKEND_URL}/v1/chat?user_id={encoded_user_id}", 
+        # Add model to payload for direct RunPod connection
+        payload["model"] = "tiiuae/falcon-7b-instruct"
+        
+        # Connect directly to RunPod Falcon endpoint
+        resp = requests.post(f"{BACKEND_URL}/v1/chat/completions", 
                            json=payload, timeout=8)  # Allow more time for external LLM service
         
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("output", "I'm sorry, I couldn't process that.")
+            # Extract response from OpenAI-compatible format
+            if "choices" in data and len(data["choices"]) > 0:
+                return data["choices"][0]["message"]["content"]
+            return "I'm sorry, I couldn't process that."
         else:
             logging.error(f"Backend error: {resp.status_code} - {resp.text}")
             return "I'm experiencing technical difficulties. Please try again."
