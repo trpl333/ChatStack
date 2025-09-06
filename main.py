@@ -57,8 +57,10 @@ call_sessions = {}
 
 # Admin-configurable settings
 VOICE_ID = "dnRitNTYKgyEUEizTqqH"  # Sol's voice (configurable via admin)
-VOICE_SETTINGS = {"stability": 0.71, "clarity_boost": 0.5}
-AI_INSTRUCTIONS = "You are Samantha from Farmers Insurance. Be helpful and professional."
+# Voice settings - configurable via admin
+voice_settings = {"stability": 0.71, "clarity_boost": 0.5}
+ai_instructions = "You are Samantha from Peterson Family Insurance Agency. Be casual and friendly."
+current_voice_id = "dnRitNTYKgyEUEizTqqH"  # Default voice
 MAX_TOKENS = 75  # Allow longer, more natural responses
 
 # Call routing settings (updated for Peterson Family Insurance Agency)
@@ -440,7 +442,11 @@ def get_ai_response(user_id, message, call_sid=None):
         # Use the exact business context from ElevenLabs prompt
         base_prompt = """You are Samantha from Peterson Family Insurance Agency. Be casual, friendly and helpful. 
 
-IMPORTANT: Pay attention to names. If talking to John, don't call him Kelly. Use stored memories to answer questions about people.
+IMPORTANT: 
+- Pay attention to names. If talking to John, don't call him Kelly. 
+- Use stored memories to answer questions about people.
+- DON'T end every response with "Is there anything else I can help you with" - just answer naturally and stop.
+- Keep responses brief (1-2 sentences max).
 
 Workflow:
 - Ask: "Are you calling about a quote, existing policy, or something else?"
@@ -611,53 +617,54 @@ def process_speech():
         message_lower = speech_result.lower()
         mem_store = MemoryStore()
         
+        # Food preferences (like pizza)
+        if any(phrase in message_lower for phrase in ["i like", "my favorite", "love", "prefer"]):
+            if any(food in message_lower for food in ["pizza", "mushroom", "pepperoni", "cheese", "sausage"]):
+                mem_store.write(
+                    "preference",
+                    f"food_preference_{hash(speech_result) % 1000}",
+                    {
+                        "summary": f"John likes {speech_result.replace('I like', '').replace('my favorite', '').strip()}",
+                        "category": "food",
+                        "preference_type": "food_preference"
+                    },
+                    user_id=user_id,
+                    scope="user"
+                )
+                logging.info(f"💾 Stored food preference: {speech_result}")
+        
         # Birthday information
         if ("birthday" in message_lower or "born" in message_lower):
             if "jack" in message_lower or "colin" in message_lower:
                 name = "Jack" if "jack" in message_lower else "Colin"
-                mem_store.store({
-                    "type": "fact",
-                    "key": f"{name.lower()}_birthday_inquiry",
-                    "value": {
+                mem_store.write(
+                    "fact",
+                    f"{name.lower()}_birthday_inquiry",
+                    {
                         "summary": f"User asked about {name}'s birthday",
                         "context": speech_result,
                         "name": name,
                         "relationship": "son"
                     },
-                    "user_id": user_id,
-                    "scope": "user"
-                })
+                    user_id=user_id,
+                    scope="user"
+                )
                 logging.info(f"💾 Stored birthday inquiry for {name}")
         
         # Look for new family information
         if any(phrase in message_lower for phrase in ["my son", "my daughter", "my child"]):
-            mem_store.store({
-                "type": "person",
-                "key": f"family_info_{hash(speech_result) % 1000}",
-                "value": {
+            mem_store.write(
+                "person",
+                f"family_info_{hash(speech_result) % 1000}",
+                {
                     "summary": speech_result[:200],
                     "context": "family information shared during call",
                     "relationship": "family"
                 },
-                "user_id": user_id,
-                "scope": "user"
-            })
+                user_id=user_id,
+                scope="user"
+            )
             logging.info(f"💾 Stored family information")
-            
-        # Look for job/work information
-        if any(phrase in message_lower for phrase in ["work at", "job", "profession", "career"]):
-            mem_store.store({
-                "type": "person",
-                "key": f"work_info_{hash(speech_result) % 1000}",
-                "value": {
-                    "summary": speech_result[:200],
-                    "context": "work information shared during call",
-                    "info_type": "professional"
-                },
-                "user_id": user_id,
-                "scope": "user"
-            })
-            logging.info(f"💾 Stored work information")
                     
     except Exception as e:
         logging.error(f"Memory saving error: {e}")
