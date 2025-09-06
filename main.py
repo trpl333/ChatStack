@@ -61,15 +61,18 @@ VOICE_SETTINGS = {"stability": 0.71, "clarity_boost": 0.5}
 AI_INSTRUCTIONS = "You are Samantha from Farmers Insurance. Be helpful and professional."
 MAX_TOKENS = 75  # Allow longer, more natural responses
 
-# Call routing settings (configurable via admin)
+# Call routing settings (updated for Peterson Family Insurance Agency)
 ROUTING_NUMBERS = {
     "billing": "1-888-327-6377",
     "claims": "1-800-435-7764", 
-    "support": "1-888-327-6377"
+    "colin": "1-888-327-6377",  # Colin's number
+    "milissa": "1-888-327-6377"  # Milissa for Farmers service advantage team
 }
 ROUTING_KEYWORDS = {
-    "billing": ["pay bill", "billing", "payment", "invoice", "account balance", "autopay"],
+    "billing": ["billing", "payment", "premium", "pay bill", "account balance", "autopay"],
     "claims": ["claim", "accident", "damage", "injury", "file claim", "incident"],
+    "colin": ["colin", "ask for colin", "speak to colin"],
+    "farmers_service": ["farmers service advantage", "service advantage team"],
     "transfer": ["speak to human", "transfer me", "representative", "agent", "manager"]
 }
 
@@ -350,7 +353,7 @@ def get_personalized_greeting(user_id):
                         break
         
         if user_name:
-            return f"Hi, this is Samantha from Farmers Insurance. Is this {user_name}?"
+            return f"Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?"
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
@@ -371,7 +374,7 @@ def get_personalized_greeting(user_id):
     else:
         time_greeting = "Good evening"
     
-    return f"{time_greeting}, this is Samantha from Farmers Insurance. How can I help you?"
+    return f"{time_greeting}, this is Samantha from Peterson Family Insurance Agency. Are you calling about a quote, an existing policy, or something else?"
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
@@ -430,10 +433,21 @@ def get_ai_response(user_id, message, call_sid=None):
             logging.error(f"Memory integration error: {e}")
         
         # Enhanced system prompt with memory - force memory usage
+        # Use the exact business context from ElevenLabs prompt
+        base_prompt = """You are Samantha, a family member at the Peterson Family Insurance Agency and "The Insurance Doctors" with Farmers Insurance. Be casual, friendly and helpful. Stay in a good mood.
+
+Key workflow:
+- First ask: "Are you calling about a quote, an existing policy, or something else?"
+- For existing policies: clarify if they need help with billing, claims, renewal, changes, or general questions
+- For policy information requests: "I don't have access to policy details, but I can transfer you to someone who does"
+- Never make up information you don't know
+- If caller asks for Colin, say you'll try to find him and transfer the call
+- For billing transfers: tell them to have policy info ready, or say "representative" twice for live agent"""
+
         if memory_context:
-            system_prompt = f"You are Samantha, a friendly AI assistant for Farmers Insurance. Speak naturally like a helpful person, not a robot.{memory_context}\\n\\nUse the memories above to answer questions. Be warm and conversational."
+            system_prompt = f"{base_prompt}{memory_context}\\n\\nUse the memories above when helpful. Keep responses natural and brief."
         else:
-            system_prompt = f"You are Samantha, a friendly AI assistant for Farmers Insurance. Speak naturally like a helpful person, not a robot. Be warm and conversational."
+            system_prompt = f"{base_prompt}\\n\\nKeep responses natural and brief."
         
         system_message = {"role": "system", "content": system_prompt}
         logging.info(f"System prompt: {system_prompt[:200]}...")
