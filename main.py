@@ -420,13 +420,15 @@ def get_ai_response(user_id, message, call_sid=None):
                                 memory_items.append(f"REMEMBER: Wife's name is {name}")
                         elif name and value.get("relationship") in ["son", "sons", "twin sons"]:
                             memory_items.append(f"REMEMBER: Son named {name}")
-                        elif value.get("sons") or value.get("names"):
+                        elif value.get("sons") or value.get("names") or value.get("relationship") in ["twin sons", "sons"]:
                             # Handle twin sons specifically
                             sons = value.get("sons") or value.get("names")
                             if isinstance(sons, str):
                                 memory_items.append(f"REMEMBER: Sons are {sons}")
                             elif isinstance(sons, list):
                                 memory_items.append(f"REMEMBER: Sons are {', '.join(sons)}")
+                            elif value.get("description") and "jack" in value.get("description", "").lower():
+                                memory_items.append(f"REMEMBER: {value.get('description')}")
                         elif name and value.get("relationship") == "friend":
                             memory_items.append(f"REMEMBER: Friend named {name}")
                         elif name:
@@ -734,6 +736,21 @@ def process_speech():
                 scope="user"
             )
             logging.info(f"💾 Stored name information: {speech_result}")
+            
+        # Look for books/reading interests
+        if any(phrase in message_lower for phrase in ["book", "read", "reading", "novel", "author"]):
+            mem_store.write(
+                "preference",
+                f"reading_interest_{hash(speech_result) % 1000}",
+                {
+                    "summary": speech_result[:200],
+                    "context": "books and reading interests",
+                    "preference_type": "reading"
+                },
+                user_id=user_id,
+                scope="user"
+            )
+            logging.info(f"💾 Stored reading interest: {speech_result}")
                     
     except Exception as e:
         logging.error(f"Memory saving error: {e}")
