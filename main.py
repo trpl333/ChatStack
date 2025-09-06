@@ -302,8 +302,8 @@ def user_memories():
 def text_to_speech(text, voice_id=None):
     """Convert text to speech using ElevenLabs with slower speech"""
     try:
-        # Add SSML pauses for slower speech
-        ssml_text = text.replace(". ", ".<break time='800ms'/> ").replace("AI", "A.I.<break time='500ms'/>")
+        # Optimize for speed - minimal SSML processing
+        ssml_text = text.replace("AI", "A.I.")
         
         # Use global voice settings or provided voice_id
         if voice_id is None:
@@ -313,12 +313,12 @@ def text_to_speech(text, voice_id=None):
         audio = elevenlabs_client.text_to_speech.convert(
             text=ssml_text,
             voice_id=voice_id,
-            model_id="eleven_multilingual_v2",  # Slower model
+            model_id="eleven_turbo_v2_5",  # Fastest model available
             voice_settings=VoiceSettings(
                 stability=VOICE_SETTINGS["stability"],
                 similarity_boost=VOICE_SETTINGS["clarity_boost"],
-                style=0.0,  # No style for natural pace
-                use_speaker_boost=False  # Disable for slower generation
+                style=0.0,  # No style processing for speed
+                use_speaker_boost=False  # Disable speaker boost for faster generation
             )
         )
         return audio
@@ -499,7 +499,7 @@ PERSONALITY TRAITS:
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
             "temperature": 0.7,  # Higher temperature for more human-like variability
-            "max_tokens": 100,  # Longer for natural, conversational responses
+            "max_tokens": 60,  # Shorter responses = faster voice synthesis
             "top_p": 0.8,
             "stream": False
         }
