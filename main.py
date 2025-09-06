@@ -354,28 +354,20 @@ def get_personalized_greeting(user_id):
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
     try:
-        # Format request properly for FastAPI backend
-        # Get conversation history for continuity
-        call_history = call_sessions.get(call_sid, {}).get('conversation', [])
+        # Keep it simple - no conversation history to avoid confusion
+        # Just process the current message directly
         
-        # Build conversation context
-        messages = []
-        if call_history:
-            # Add recent conversation history for context
-            messages.extend(call_history[-4:])  # Last 4 exchanges for context
+        # Clear, direct system prompt to prevent hallucination
+        system_message = {"role": "system", "content": "You are Samantha, an AI assistant for Farmers Insurance. Respond naturally to the caller's question. Give short, direct answers. Do not roleplay conversations or create fake dialogue."}
         
-        # Add current message
-        messages.append({"role": "user", "content": message})
-        
-        # Simple system prompt to avoid confusion
-        system_message = {"role": "system", "content": "You are Samantha from Farmers Insurance. Be helpful and professional. Only use information you remember about the caller."}
-        final_messages = [system_message] + messages
+        # Only use the current user message to avoid confusion
+        final_messages = [system_message, {"role": "user", "content": message}]
         
         payload = {
             "model": "tiiuae/falcon-7b-instruct",
             "messages": final_messages,
             "temperature": 0.3,
-            "max_tokens": 150,
+            "max_tokens": 50,  # Keep responses very short
             "top_p": 0.8,
             "stream": False
         }
