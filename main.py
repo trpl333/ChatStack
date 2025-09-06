@@ -357,17 +357,17 @@ def get_ai_response(user_id, message, call_sid=None):
         # Keep it simple - no conversation history to avoid confusion
         # Just process the current message directly
         
-        # Clear, direct system prompt to prevent hallucination
-        system_message = {"role": "system", "content": "You are Samantha, an AI assistant for Farmers Insurance. Respond naturally to the caller's question. Give short, direct answers. Do not roleplay conversations or create fake dialogue."}
+        # Ultra-simple prompt to stop hallucination
+        system_message = {"role": "system", "content": "You are Samantha. Answer the user's question directly in 1-2 sentences. Do not create fake conversations."}
         
-        # Only use the current user message to avoid confusion
+        # Only use the current user message
         final_messages = [system_message, {"role": "user", "content": message}]
         
         payload = {
             "model": "tiiuae/falcon-7b-instruct",
             "messages": final_messages,
-            "temperature": 0.3,
-            "max_tokens": 50,  # Keep responses very short
+            "temperature": 0.1,  # Make it very deterministic
+            "max_tokens": 25,  # Force very short responses
             "top_p": 0.8,
             "stream": False
         }
