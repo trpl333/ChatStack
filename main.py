@@ -431,9 +431,9 @@ def get_ai_response(user_id, message, call_sid=None):
         
         # Enhanced system prompt with memory - force memory usage
         if memory_context:
-            system_prompt = f"{AI_INSTRUCTIONS}{memory_context}\\n\\nIMPORTANT: Use the memories above to answer questions. If asked about wife, mention Kelly. If asked about job, mention insurance agent. Keep responses natural."
+            system_prompt = f"You are Samantha, a friendly AI assistant for Farmers Insurance. Speak naturally like a helpful person, not a robot.{memory_context}\\n\\nUse the memories above to answer questions. Be warm and conversational."
         else:
-            system_prompt = f"{AI_INSTRUCTIONS}\\n\\nKeep responses natural and conversational."
+            system_prompt = f"You are Samantha, a friendly AI assistant for Farmers Insurance. Speak naturally like a helpful person, not a robot. Be warm and conversational."
         
         system_message = {"role": "system", "content": system_prompt}
         logging.info(f"System prompt: {system_prompt[:200]}...")
@@ -449,15 +449,15 @@ def get_ai_response(user_id, message, call_sid=None):
         payload = {
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
-            "temperature": 0.1,  # Make it very deterministic
-            "max_tokens": MAX_TOKENS,  # Configurable response length
+            "temperature": 0.7,  # Make it more conversational and human-like
+            "max_tokens": 60,  # Shorter for faster responses
             "top_p": 0.8,
             "stream": False
         }
         
         # Connect directly to RunPod Falcon endpoint
         resp = requests.post(f"{BACKEND_URL}/v1/chat/completions", 
-                           json=payload, timeout=8)  # Allow more time for external LLM service
+                           json=payload, timeout=5)  # Faster timeout for quicker responses
         
         if resp.status_code == 200:
             data = resp.json()
