@@ -299,14 +299,18 @@ def text_to_speech(text, voice_id=None):
         # Add SSML pauses for slower speech
         ssml_text = text.replace(". ", ".<break time='800ms'/> ").replace("AI", "A.I.<break time='500ms'/>")
         
-        # Using the correct ElevenLabs API method with slower settings
+        # Use global voice settings or provided voice_id
+        if voice_id is None:
+            voice_id = VOICE_ID
+            
+        # Using the correct ElevenLabs API method with configurable settings
         audio = elevenlabs_client.text_to_speech.convert(
             text=ssml_text,
             voice_id=voice_id,
             model_id="eleven_multilingual_v2",  # Slower model
             voice_settings=VoiceSettings(
-                stability=0.9,  # Maximum stability for slow speech
-                similarity_boost=0.9,  # Maximum similarity
+                stability=VOICE_SETTINGS["stability"],
+                similarity_boost=VOICE_SETTINGS["clarity_boost"],
                 style=0.0,  # No style for natural pace
                 use_speaker_boost=False  # Disable for slower generation
             )
@@ -382,7 +386,7 @@ def get_ai_response(user_id, message, call_sid=None):
         final_messages = [system_message, {"role": "user", "content": message}]
         
         payload = {
-            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
             "temperature": 0.1,  # Make it very deterministic
             "max_tokens": MAX_TOKENS,  # Configurable response length
@@ -698,14 +702,14 @@ def admin_status():
         memory_count = len(memories)
         
         return jsonify({
-            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "memory_count": memory_count,
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS
         })
     except Exception as e:
         return jsonify({
-            "model": "mistralai/Mistral-7B-Instruct-v0.2",
+            "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "memory_count": "Error",
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS
