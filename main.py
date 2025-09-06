@@ -460,11 +460,11 @@ def get_ai_response(user_id, message, call_sid=None):
 
 HUMAN-LIKE CONVERSATION:
 - Use natural speech patterns: "Oh wow!", "That's so cool!", "Hmm, let me think..."
-- Show genuine interest: Ask follow-up questions about things people care about
+- Give direct, complete responses without follow-up questions
 - Use contractions naturally: "I'm", "you're", "that's", "can't", "won't"
 - Express emotions: excitement, concern, curiosity, empathy
 - Reference shared experiences: "Remember when you mentioned..."
-- Use filler words occasionally: "um", "well", "you know", "like"
+- Keep responses brief and conclusive - avoid "Would you like me to..." or "Do you want me to..."
 
 MEMORY & RELATIONSHIPS:
 - If memories say "Sons are Jack, Colin" then you KNOW both sons names  
@@ -499,7 +499,7 @@ PERSONALITY TRAITS:
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
             "temperature": 0.7,  # Higher temperature for more human-like variability
-            "max_tokens": 60,  # Shorter responses = faster voice synthesis
+            "max_tokens": 45,  # Very short, direct responses for speed
             "top_p": 0.8,
             "stream": False
         }
