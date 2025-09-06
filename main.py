@@ -19,8 +19,8 @@ logging.basicConfig(level=logging.INFO)
 
 # Set environment variables 
 os.environ.setdefault("DATABASE_URL", "postgresql://doadmin:AVNS_uS8rBktm7cJo7ToivuD@ai-memory-do-user-17983093-0.e.db.ondigitalocean.com:25060/defaultdb?sslmode=require")
-os.environ.setdefault("LLM_BASE_URL", "https://5njnf4k2bc5t20-8000.proxy.runpod.net")
-os.environ.setdefault("LLM_MODEL", "Qwen/Qwen2-7B-Instruct")
+os.environ.setdefault("LLM_BASE_URL", "https://jndqcycci1teab-8000.proxy.runpod.net")
+os.environ.setdefault("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
 os.environ.setdefault("EMBED_DIM", "768")
 
 # Start FastAPI backend server
@@ -46,7 +46,7 @@ backend_thread.start()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "neurosphere-secret-key")
 
-BACKEND_URL = "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
+BACKEND_URL = "https://jndqcycci1teab-8000.proxy.runpod.net"
 
 # Initialize Twilio and ElevenLabs clients
 twilio_client = Client(os.environ.get('TWILIO_ACCOUNT_SID'), os.environ.get('TWILIO_AUTH_TOKEN'))
