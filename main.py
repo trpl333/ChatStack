@@ -435,6 +435,10 @@ def get_ai_response(user_id, message, call_sid=None):
                             memory_items.append(f"REMEMBER: Job is {job}")
                         elif value.get("car"):
                             memory_items.append(f"REMEMBER: Drives a {value.get('car')}")
+                        elif value.get("task_type") == "shopping":
+                            memory_items.append(f"REMEMBER: Shopping task - {value.get('summary', '')}")
+                        elif value.get("context") == "plans and activities":
+                            memory_items.append(f"REMEMBER: Plans - {value.get('summary', '')}")
                         
                         # Also check if it's a simple string value
                     elif isinstance(value, str) and value.strip():
@@ -484,7 +488,7 @@ Chat naturally about:
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
             "temperature": 0.7,  # Make it more conversational and human-like
-            "max_tokens": 40,  # Even shorter for faster responses
+            "max_tokens": 80,  # Longer for complete sentences
             "top_p": 0.8,
             "stream": False
         }
@@ -627,6 +631,22 @@ def process_speech():
         message_lower = speech_result.lower()
         mem_store = MemoryStore()
         
+        # Store shopping/task information
+        if any(phrase in message_lower for phrase in ["need to get", "going to", "have to get", "need from"]):
+            if any(place in message_lower for place in ["costco", "store", "shopping", "market"]):
+                mem_store.write(
+                    "task",
+                    f"shopping_task_{hash(speech_result) % 1000}",
+                    {
+                        "summary": f"John needs to: {speech_result}",
+                        "context": "shopping/errands",
+                        "task_type": "shopping"
+                    },
+                    user_id=user_id,
+                    scope="user"
+                )
+                logging.info(f"💾 Stored shopping task: {speech_result}")
+        
         # Food preferences (like pizza)
         if any(phrase in message_lower for phrase in ["i like", "my favorite", "love", "prefer"]):
             if any(food in message_lower for food in ["pizza", "mushroom", "pepperoni", "cheese", "sausage"]):
@@ -642,6 +662,21 @@ def process_speech():
                     scope="user"
                 )
                 logging.info(f"💾 Stored food preference: {speech_result}")
+        
+        # Store any mention of plans or activities
+        if any(phrase in message_lower for phrase in ["going to", "planning to", "need to", "have to"]):
+            mem_store.write(
+                "task",
+                f"activity_plan_{hash(speech_result) % 1000}",
+                {
+                    "summary": speech_result[:200],
+                    "context": "plans and activities",
+                    "task_type": "general"
+                },
+                user_id=user_id,
+                scope="user"
+            )
+            logging.info(f"💾 Stored activity plan: {speech_result}")
         
         # Birthday information
         if ("birthday" in message_lower or "born" in message_lower):
