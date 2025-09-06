@@ -403,13 +403,19 @@ def get_ai_response(user_id, message, call_sid=None):
                         
                         # Build memory context from available information
                         if summary:
-                            memory_items.append(f"***{summary}***")
+                            memory_items.append(f"REMEMBER: {summary}")
                         elif content:
-                            memory_items.append(f"***{content}***")
+                            memory_items.append(f"REMEMBER: {content}")
+                        elif name and value.get("relationship") == "wife":
+                            memory_items.append(f"REMEMBER: Wife's name is {name}")
+                        elif name and value.get("relationship") == "friend":
+                            memory_items.append(f"REMEMBER: Friend named {name}")
                         elif name:
-                            memory_items.append(f"***Name: {name}***")
+                            memory_items.append(f"REMEMBER: Person named {name}")
                         elif job:
-                            memory_items.append(f"***Job: {job}***")
+                            memory_items.append(f"REMEMBER: Job is {job}")
+                        elif value.get("car"):
+                            memory_items.append(f"REMEMBER: Drives a {value.get('car')}")
                         
                         # Also check if it's a simple string value
                     elif isinstance(value, str) and value.strip():
@@ -423,9 +429,14 @@ def get_ai_response(user_id, message, call_sid=None):
         except Exception as e:
             logging.error(f"Memory integration error: {e}")
         
-        # Enhanced system prompt with memory
-        system_prompt = f"{AI_INSTRUCTIONS}{memory_context}\\n\\nKeep responses natural and conversational. Don't repeat the same greeting."
+        # Enhanced system prompt with memory - force memory usage
+        if memory_context:
+            system_prompt = f"{AI_INSTRUCTIONS}{memory_context}\\n\\nIMPORTANT: Use the memories above to answer questions. If asked about wife, mention Kelly. If asked about job, mention insurance agent. Keep responses natural."
+        else:
+            system_prompt = f"{AI_INSTRUCTIONS}\\n\\nKeep responses natural and conversational."
+        
         system_message = {"role": "system", "content": system_prompt}
+        logging.info(f"System prompt: {system_prompt[:200]}...")
         
         # Include recent conversation for continuity
         messages = [system_message]
