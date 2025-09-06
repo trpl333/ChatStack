@@ -387,18 +387,41 @@ def get_ai_response(user_id, message, call_sid=None):
         try:
             from app.memory import MemoryStore
             mem_store = MemoryStore()
-            memories = mem_store.search(f"user {user_id}", user_id=user_id, k=5)
+            memories = mem_store.search("", user_id=user_id, k=10)  # Search all memories for this user
             
             if memories:
                 memory_items = []
-                for memory in memories[:3]:  # Use top 3 memories
+                logging.info(f"Found {len(memories)} memories for user {user_id}")
+                for memory in memories:
                     value = memory.get("value", {})
-                    if isinstance(value, dict) and value.get("summary"):
-                        memory_items.append(f"***{value['summary']}***")
+                    if isinstance(value, dict):
+                        # Try multiple fields for memory content
+                        summary = value.get("summary", "")
+                        content = value.get("content", "")
+                        name = value.get("name", "")
+                        job = value.get("job", "")
+                        
+                        # Build memory context from available information
+                        if summary:
+                            memory_items.append(f"***{summary}***")
+                        elif content:
+                            memory_items.append(f"***{content}***")
+                        elif name:
+                            memory_items.append(f"***Name: {name}***")
+                        elif job:
+                            memory_items.append(f"***Job: {job}***")
+                        
+                        # Also check if it's a simple string value
+                    elif isinstance(value, str) and value.strip():
+                        memory_items.append(f"***{value.strip()}***")
+                
                 if memory_items:
-                    memory_context = "\\n\\nWhat I remember about this caller: " + " | ".join(memory_items)
-        except:
-            pass
+                    memory_context = f"\\n\\nWhat I remember about this caller: {' | '.join(memory_items[:5])}"
+                    logging.info(f"Memory context built: {memory_context}")
+                else:
+                    logging.warning("No usable memory items found")
+        except Exception as e:
+            logging.error(f"Memory integration error: {e}")
         
         # Enhanced system prompt with memory
         system_prompt = f"{AI_INSTRUCTIONS}{memory_context}\\n\\nKeep responses natural and conversational. Don't repeat the same greeting."
