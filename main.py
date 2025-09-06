@@ -367,16 +367,18 @@ def get_ai_response(user_id, message, call_sid=None):
         # Add current message
         messages.append({"role": "user", "content": message})
         
-        payload = {
-            "messages": messages,
-            "temperature": 0.3,  # Lower for more consistent memory usage
-            "max_tokens": 150,  # Allow complete responses but keep reasonably short
-            "top_p": 0.8,
-            "stream": False  # Ensure no streaming delay
-        }
+        # Simple system prompt to avoid confusion
+        system_message = {"role": "system", "content": "You are Samantha from Farmers Insurance. Be helpful and professional. Only use information you remember about the caller."}
+        final_messages = [system_message] + messages
         
-        # Add model to payload for direct RunPod connection
-        payload["model"] = "tiiuae/falcon-7b-instruct"
+        payload = {
+            "model": "tiiuae/falcon-7b-instruct",
+            "messages": final_messages,
+            "temperature": 0.3,
+            "max_tokens": 150,
+            "top_p": 0.8,
+            "stream": False
+        }
         
         # Connect directly to RunPod Falcon endpoint
         resp = requests.post(f"{BACKEND_URL}/v1/chat/completions", 
