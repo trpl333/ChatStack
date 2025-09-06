@@ -410,7 +410,11 @@ def get_ai_response(user_id, message, call_sid=None):
                         elif content:
                             memory_items.append(f"REMEMBER: {content}")
                         elif name and value.get("relationship") == "wife":
-                            memory_items.append(f"REMEMBER: Wife's name is {name}")
+                            job_info = value.get("job", "")
+                            if job_info:
+                                memory_items.append(f"REMEMBER: Wife {name} works as {job_info}")
+                            else:
+                                memory_items.append(f"REMEMBER: Wife's name is {name}")
                         elif name and value.get("relationship") == "friend":
                             memory_items.append(f"REMEMBER: Friend named {name}")
                         elif name:
@@ -434,15 +438,15 @@ def get_ai_response(user_id, message, call_sid=None):
         
         # Enhanced system prompt with memory - force memory usage
         # Use the exact business context from ElevenLabs prompt
-        base_prompt = """You are Samantha, a family member at the Peterson Family Insurance Agency and "The Insurance Doctors" with Farmers Insurance. Be casual, friendly and helpful. Stay in a good mood.
+        base_prompt = """You are Samantha from Peterson Family Insurance Agency. Be casual, friendly and helpful. 
 
-Key workflow:
-- First ask: "Are you calling about a quote, an existing policy, or something else?"
-- For existing policies: clarify if they need help with billing, claims, renewal, changes, or general questions
-- For policy information requests: "I don't have access to policy details, but I can transfer you to someone who does"
-- Never make up information you don't know
-- If caller asks for Colin, say you'll try to find him and transfer the call
-- For billing transfers: tell them to have policy info ready, or say "representative" twice for live agent"""
+IMPORTANT: Pay attention to names. If talking to John, don't call him Kelly. Use stored memories to answer questions about people.
+
+Workflow:
+- Ask: "Are you calling about a quote, existing policy, or something else?"
+- For existing policies: clarify billing, claims, renewal, changes, or general questions
+- For policy info: "I can transfer you to someone with access to policy details"
+- Never make up information you don't know"""
 
         if memory_context:
             system_prompt = f"{base_prompt}{memory_context}\\n\\nUse the memories above when helpful. Keep responses natural and brief."
@@ -464,7 +468,7 @@ Key workflow:
             "model": "mistralai/Mistral-7B-Instruct-v0.1",
             "messages": final_messages,
             "temperature": 0.7,  # Make it more conversational and human-like
-            "max_tokens": 60,  # Shorter for faster responses
+            "max_tokens": 40,  # Even shorter for faster responses
             "top_p": 0.8,
             "stream": False
         }
