@@ -46,7 +46,7 @@ backend_thread.start()
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "neurosphere-secret-key")
 
-BACKEND_URL = "http://127.0.0.1:8001"
+BACKEND_URL = "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
 
 # Initialize Twilio and ElevenLabs clients
 twilio_client = Client(os.environ.get('TWILIO_ACCOUNT_SID'), os.environ.get('TWILIO_AUTH_TOKEN'))
