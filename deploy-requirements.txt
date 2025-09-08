@@ -9,7 +9,7 @@ pgvector==0.3.6
 numpy==2.2.0
 requests==2.32.3
 pydantic==2.10.4
-twilio==9.3.11
+twilio==9.3.8
 elevenlabs==1.17.0
 python-dotenv==1.0.1
 werkzeug==3.0.6
