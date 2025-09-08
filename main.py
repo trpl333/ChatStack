@@ -17,10 +17,17 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Set environment variables 
-# Database URL loaded from environment variables
-# LLM Base URL loaded from environment variables
-os.environ.setdefault("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
+# Environment Variables Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+LLM_BASE_URL = os.getenv("LLM_BASE_URL")
+LLM_MODEL = os.getenv("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+
+# Additional environment defaults
 os.environ.setdefault("EMBED_DIM", "768")
 
 # Start FastAPI backend server
@@ -44,17 +51,17 @@ backend_thread.start()
 
 # Create Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET")
-if not app.secret_key:
-    raise ValueError("SESSION_SECRET environment variable is required")
+app.secret_key = SESSION_SECRET or "temporary-dev-secret"
+if not SESSION_SECRET:
+    print("⚠️ Warning: SESSION_SECRET not set, using temporary key")
 
-BACKEND_URL = os.environ.get("LLM_BASE_URL")
-if not BACKEND_URL:
-    raise ValueError("LLM_BASE_URL environment variable is required")
+BACKEND_URL = LLM_BASE_URL or "https://jndqcycci1teab-8000.proxy.runpod.net"
+if not LLM_BASE_URL:
+    print("⚠️ Warning: LLM_BASE_URL not set, using default")
 
 # Initialize Twilio and ElevenLabs clients
-twilio_client = Client(os.environ.get('TWILIO_ACCOUNT_SID'), os.environ.get('TWILIO_AUTH_TOKEN'))
-elevenlabs_client = ElevenLabs(api_key=os.environ.get('ELEVENLABS_API_KEY'))
+twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
 # Phone call session storage (in production, use Redis or database)
 call_sessions = {}
@@ -501,7 +508,7 @@ PERSONALITY TRAITS:
         final_messages = messages
         
         payload = {
-            "model": "mistralai/Mistral-7B-Instruct-v0.1",
+            "model": LLM_MODEL,
             "messages": final_messages,
             "temperature": 0.7,  # Higher temperature for more human-like variability
             "max_tokens": 45,  # Very short, direct responses for speed
@@ -852,8 +859,8 @@ def test_phone_system():
             "speech": "/phone/process-speech", 
             "status": "/phone/status"
         },
-        "twilio_configured": bool(os.environ.get('TWILIO_ACCOUNT_SID')),
-        "elevenlabs_configured": bool(os.environ.get('ELEVENLABS_API_KEY')),
+        "twilio_configured": bool(TWILIO_ACCOUNT_SID),
+        "elevenlabs_configured": bool(ELEVENLABS_API_KEY),
         "backend_url": BACKEND_URL
     })
 
@@ -958,14 +965,14 @@ def admin_status():
         memory_count = len(memories)
         
         return jsonify({
-            "model": "mistralai/Mistral-7B-Instruct-v0.1",
+            "model": LLM_MODEL,
             "memory_count": memory_count,
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS
         })
     except Exception as e:
         return jsonify({
-            "model": "mistralai/Mistral-7B-Instruct-v0.1",
+            "model": LLM_MODEL,
             "memory_count": "Error",
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS
