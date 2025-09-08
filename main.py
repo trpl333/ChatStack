@@ -18,8 +18,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # Set environment variables 
-os.environ.setdefault("DATABASE_URL", "postgresql://doadmin:AVNS_uS8rBktm7cJo7ToivuD@ai-memory-do-user-17983093-0.e.db.ondigitalocean.com:25060/defaultdb?sslmode=require")
-os.environ.setdefault("LLM_BASE_URL", "https://jndqcycci1teab-8000.proxy.runpod.net")
+# Database URL loaded from environment variables
+# LLM Base URL loaded from environment variables
 os.environ.setdefault("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
 os.environ.setdefault("EMBED_DIM", "768")
 
@@ -44,9 +44,13 @@ backend_thread.start()
 
 # Create Flask app
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "neurosphere-secret-key")
+app.secret_key = os.environ.get("SESSION_SECRET")
+if not app.secret_key:
+    raise ValueError("SESSION_SECRET environment variable is required")
 
-BACKEND_URL = "https://jndqcycci1teab-8000.proxy.runpod.net"
+BACKEND_URL = os.environ.get("LLM_BASE_URL")
+if not BACKEND_URL:
+    raise ValueError("LLM_BASE_URL environment variable is required")
 
 # Initialize Twilio and ElevenLabs clients
 twilio_client = Client(os.environ.get('TWILIO_ACCOUNT_SID'), os.environ.get('TWILIO_AUTH_TOKEN'))
@@ -63,6 +67,7 @@ ai_instructions = "You are Samantha from Peterson Family Insurance Agency. Be ca
 current_voice_id = "dnRitNTYKgyEUEizTqqH"  # Sol's voice
 VOICE_SETTINGS = voice_settings  # For backwards compatibility
 MAX_TOKENS = 75  # Allow longer, more natural responses
+AI_INSTRUCTIONS = "You are Samantha, a friendly assistant at Peterson Family Insurance Agency."  # Admin-configurable
 
 # Call routing settings (updated for Peterson Family Insurance Agency)
 ROUTING_NUMBERS = {
