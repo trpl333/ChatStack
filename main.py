@@ -405,13 +405,20 @@ def get_ai_response(user_id, message, call_sid=None):
         try:
             from app.memory import MemoryStore
             mem_store = MemoryStore()
-            memories = mem_store.search("", user_id=user_id, k=10)  # Search all memories for this user
+            memories = mem_store.search("", user_id=user_id, k=15)  # Get more memories to filter properly
             
             if memories:
                 memory_items = []
+                name_corrections = []  # Track name corrections separately
+                important_info = []    # Track important family info
+                other_info = []        # Other memories
+                
                 logging.info(f"Found {len(memories)} memories for user {user_id}")
+                
                 for memory in memories:
                     value = memory.get("value", {})
+                    memory_text = ""
+                    
                     if isinstance(value, dict):
                         # Try multiple fields for memory content
                         summary = value.get("summary", "")
@@ -421,48 +428,78 @@ def get_ai_response(user_id, message, call_sid=None):
                         
                         # Build memory context from available information
                         if summary:
-                            memory_items.append(f"REMEMBER: {summary}")
+                            memory_text = f"REMEMBER: {summary}"
                         elif content:
-                            memory_items.append(f"REMEMBER: {content}")
+                            memory_text = f"REMEMBER: {content}"
                         elif name and value.get("relationship") == "wife":
                             job_info = value.get("job", "")
                             if job_info:
-                                memory_items.append(f"REMEMBER: Wife {name} works as {job_info}")
+                                memory_text = f"REMEMBER: Wife {name} works as {job_info}"
                             else:
-                                memory_items.append(f"REMEMBER: Wife's name is {name}")
+                                memory_text = f"REMEMBER: Wife's name is {name}"
                         elif name and value.get("relationship") in ["son", "sons", "twin sons"]:
-                            memory_items.append(f"REMEMBER: Son named {name}")
+                            memory_text = f"REMEMBER: Son named {name}"
                         elif value.get("sons") or value.get("names") or value.get("relationship") in ["twin sons", "sons"]:
                             # Handle twin sons specifically
                             sons = value.get("sons") or value.get("names")
                             if isinstance(sons, str):
-                                memory_items.append(f"REMEMBER: Sons are {sons}")
+                                memory_text = f"REMEMBER: Sons are {sons}"
                             elif isinstance(sons, list):
-                                memory_items.append(f"REMEMBER: Sons are {', '.join(sons)}")
+                                memory_text = f"REMEMBER: Sons are {', '.join(sons)}"
                             elif value.get("description") and "jack" in value.get("description", "").lower():
-                                memory_items.append(f"REMEMBER: {value.get('description')}")
+                                memory_text = f"REMEMBER: {value.get('description')}"
                         elif name and value.get("relationship") == "friend":
-                            memory_items.append(f"REMEMBER: Friend named {name}")
+                            memory_text = f"REMEMBER: Friend named {name}"
                         elif name:
-                            memory_items.append(f"REMEMBER: Person named {name}")
+                            memory_text = f"REMEMBER: Person named {name}"
                         elif job:
-                            memory_items.append(f"REMEMBER: Job is {job}")
+                            memory_text = f"REMEMBER: Job is {job}"
                         elif value.get("car"):
-                            memory_items.append(f"REMEMBER: Drives a {value.get('car')}")
+                            memory_text = f"REMEMBER: Drives a {value.get('car')}"
                         elif value.get("task_type") == "shopping":
-                            memory_items.append(f"REMEMBER: Shopping task - {value.get('summary', '')}")
+                            memory_text = f"REMEMBER: Shopping task - {value.get('summary', '')}"
                         elif value.get("context") == "plans and activities":
-                            memory_items.append(f"REMEMBER: Plans - {value.get('summary', '')}")
+                            memory_text = f"REMEMBER: Plans - {value.get('summary', '')}"
                         
                         # Also check if it's a simple string value
                     elif isinstance(value, str) and value.strip():
-                        memory_items.append(f"***{value.strip()}***")
+                        memory_text = f"***{value.strip()}***"
+                    
+                    # Categorize memories by importance and correctness
+                    if memory_text:
+                        # Name corrections are HIGHEST priority
+                        if "not jack" in memory_text.lower() or "name is john" in memory_text.lower():
+                            name_corrections.append(memory_text)
+                        # Family info (Kelly, Colin, Jack as sons) is high priority  
+                        elif ("kelly" in memory_text.lower() and ("wife" in memory_text.lower() or "teacher" in memory_text.lower())) or \
+                             ("colin" in memory_text.lower() or ("sons" in memory_text.lower() and ("jack" in memory_text.lower() or "colin" in memory_text.lower()))):
+                            important_info.append(memory_text)
+                        # Filter out old incorrect memories that call user "Jack"
+                        elif "jack" in memory_text.lower() and not any(word in memory_text.lower() for word in ["son", "sons", "not jack"]):
+                            # Skip memories that incorrectly call the user Jack (unless it's about Jack the son)
+                            logging.info(f"Filtering out incorrect 'Jack' reference: {memory_text[:100]}")
+                            continue
+                        else:
+                            other_info.append(memory_text)
                 
-                if memory_items:
-                    memory_context = f"\\n\\nWhat I remember about this caller: {' | '.join(memory_items[:5])}"
-                    logging.info(f"Memory context built: {memory_context}")
+                # Build final memory context with priority order
+                final_memories = []
+                
+                # 1. Name corrections first (most important)
+                final_memories.extend(name_corrections[:2])
+                
+                # 2. Important family info
+                final_memories.extend(important_info[:3])
+                
+                # 3. Other info
+                final_memories.extend(other_info[:2])
+                
+                if final_memories:
+                    memory_context = f"\\n\\nWhat I remember about this caller: {' | '.join(final_memories[:5])}"
+                    logging.info(f"Memory context built with {len(final_memories)} filtered memories")
+                    logging.info(f"Memory context: {memory_context}")
                 else:
-                    logging.warning("No usable memory items found")
+                    logging.warning("No usable memory items found after filtering")
         except Exception as e:
             logging.error(f"Memory integration error: {e}")
         
