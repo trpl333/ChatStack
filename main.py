@@ -26,7 +26,12 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 LLM_MODEL = os.getenv("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
 SESSION_SECRET = os.getenv("SESSION_SECRET")
-SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5000")
+# Get base server URL (remove any path components)
+_server_url = os.getenv("SERVER_URL", "http://localhost:5000")
+if _server_url.endswith("/phone/incoming"):
+    SERVER_URL = _server_url.replace("/phone/incoming", "")
+else:
+    SERVER_URL = _server_url
 
 # Additional environment defaults
 os.environ.setdefault("EMBED_DIM", "768")
@@ -50,8 +55,8 @@ def start_fastapi_backend():
 backend_thread = threading.Thread(target=start_fastapi_backend, daemon=True)
 backend_thread.start()
 
-# Create Flask app
-app = Flask(__name__)
+# Create Flask app with static folder configuration
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = SESSION_SECRET or "temporary-dev-secret"
 if not SESSION_SECRET:
     print("⚠️ Warning: SESSION_SECRET not set, using temporary key")
