@@ -26,6 +26,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL")
 LLM_MODEL = os.getenv("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
 SESSION_SECRET = os.getenv("SESSION_SECRET")
+SERVER_URL = os.getenv("SERVER_URL", "http://localhost:5000")
 
 # Additional environment defaults
 os.environ.setdefault("EMBED_DIM", "768")
@@ -621,7 +622,7 @@ def handle_incoming_call():
                     f.write(chunk)
             
             # Use Play instead of Say for custom voice
-            audio_url = f"https://{request.host}/{audio_path}"
+            audio_url = f"{SERVER_URL}/{audio_path}"
             response.play(audio_url)
         else:
             # Fallback to default voice if ElevenLabs fails
@@ -854,7 +855,7 @@ def process_speech():
                     f.write(chunk)
             
             # Use Play instead of Say for custom voice
-            audio_url = f"https://{request.host}/{audio_path}"
+            audio_url = f"{SERVER_URL}/{audio_path}"
             response.play(audio_url)
         else:
             # Fallback to default voice if ElevenLabs fails
@@ -882,7 +883,7 @@ def process_speech():
             with open(goodbye_path, "wb") as f:
                 for chunk in goodbye_audio:
                     f.write(chunk)
-            goodbye_url = f"https://{request.host}/{goodbye_path}"
+            goodbye_url = f"{SERVER_URL}/{goodbye_path}"
             response.play(goodbye_url)
         else:
             response.say("Thanks for calling! Have a great day!")
