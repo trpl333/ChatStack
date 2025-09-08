@@ -55,7 +55,7 @@ app.secret_key = SESSION_SECRET or "temporary-dev-secret"
 if not SESSION_SECRET:
     print("⚠️ Warning: SESSION_SECRET not set, using temporary key")
 
-BACKEND_URL = LLM_BASE_URL or "https://jndqcycci1teab-8000.proxy.runpod.net"
+BACKEND_URL = LLM_BASE_URL or "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
 if not LLM_BASE_URL:
     print("⚠️ Warning: LLM_BASE_URL not set, using default")
 
