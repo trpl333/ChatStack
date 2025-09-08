@@ -374,20 +374,24 @@ def get_personalized_greeting(user_id):
         logging.error(f"Error getting personalized greeting: {e}")
     
     # Default greeting for new or unknown callers with time-based greeting
-    from datetime import datetime
-    import pytz
-    
-    # Get current time (assuming Pacific Time for the business)
-    pst = pytz.timezone('US/Pacific')
-    current_time = datetime.now(pst)
-    hour = current_time.hour
-    
-    if 5 <= hour < 12:
-        time_greeting = "Good morning"
-    elif 12 <= hour < 17:
-        time_greeting = "Good afternoon"
-    else:
-        time_greeting = "Good evening"
+    try:
+        from datetime import datetime
+        import pytz
+        
+        # Get current time (assuming Pacific Time for the business)
+        pst = pytz.timezone('US/Pacific')
+        current_time = datetime.now(pst)
+        hour = current_time.hour
+        
+        if 5 <= hour < 12:
+            time_greeting = "Good morning"
+        elif 12 <= hour < 17:
+            time_greeting = "Good afternoon"
+        else:
+            time_greeting = "Good evening"
+    except ImportError:
+        # Fallback if pytz not available
+        time_greeting = "Hello"
     
     return f"{time_greeting}, this is Samantha from Peterson Family Insurance Agency. Are you calling about a quote, an existing policy, or something else?"
 

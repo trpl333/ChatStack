@@ -24,4 +24,5 @@ dependencies = [
     "elevenlabs>=2.14.0",
     "pydub>=0.25.1",
     "requests-toolbelt>=1.0.0",
+    "pytz>=2025.2",
 ]
