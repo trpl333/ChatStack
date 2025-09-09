@@ -6,7 +6,7 @@ import requests
 import json
 import io
 import base64
-from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response
+from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response, send_from_directory
 from twilio.rest import Client
 from twilio.twiml import TwiML
 from twilio.twiml.voice_response import VoiceResponse, Gather
@@ -616,25 +616,9 @@ def handle_incoming_call():
     response = VoiceResponse()
     greeting = get_personalized_greeting(from_number)
     
-    # Use ElevenLabs TTS instead of default Twilio voice
-    try:
-        audio = text_to_speech(greeting)
-        if audio:
-            # Save audio to file and play it
-            audio_path = f"static/audio/greeting_{call_sid}.mp3"
-            with open(audio_path, "wb") as f:
-                for chunk in audio:
-                    f.write(chunk)
-            
-            # Use Play instead of Say for custom voice
-            audio_url = f"{SERVER_URL}/{audio_path}"
-            response.play(audio_url)
-        else:
-            # Fallback to default voice if ElevenLabs fails
-            response.say(greeting)
-    except Exception as e:
-        logging.error(f"TTS Error: {e}")
-        response.say(greeting)
+    # Use Twilio's built-in voice for immediate functionality
+    # TODO: Re-enable ElevenLabs once audio file serving is fixed
+    response.say(greeting, voice='alice')
     
     # Gather user speech
     gather = Gather(
@@ -847,27 +831,9 @@ def process_speech():
     
     logging.info(f"🤖 AI Response: {ai_response}")
     
-    # Generate TwiML response with ElevenLabs TTS
+    # Generate TwiML response with Twilio's built-in voice
     response = VoiceResponse()
-    
-    try:
-        audio = text_to_speech(ai_response)
-        if audio:
-            # Save audio to file and play it
-            audio_path = f"static/audio/response_{call_sid}_{hash(ai_response) % 10000}.mp3"
-            with open(audio_path, "wb") as f:
-                for chunk in audio:
-                    f.write(chunk)
-            
-            # Use Play instead of Say for custom voice
-            audio_url = f"{SERVER_URL}/{audio_path}"
-            response.play(audio_url)
-        else:
-            # Fallback to default voice if ElevenLabs fails
-            response.say(ai_response)
-    except Exception as e:
-        logging.error(f"TTS Error: {e}")
-        response.say(ai_response)
+    response.say(ai_response, voice='alice')
     
     # Skip the "anything else" question - just wait for user input
     
@@ -880,21 +846,8 @@ def process_speech():
     )
     response.append(gather)
     
-    # End call if no response (using ElevenLabs TTS)
-    try:
-        goodbye_audio = text_to_speech("Thanks for calling, John! Have an awesome day!")
-        if goodbye_audio:
-            goodbye_path = f"static/audio/goodbye_{call_sid}.mp3"
-            with open(goodbye_path, "wb") as f:
-                for chunk in goodbye_audio:
-                    f.write(chunk)
-            goodbye_url = f"{SERVER_URL}/{goodbye_path}"
-            response.play(goodbye_url)
-        else:
-            response.say("Thanks for calling! Have a great day!")
-    except Exception as e:
-        logging.error(f"Goodbye TTS Error: {e}")
-        response.say("Thanks for calling! Have a great day!")
+    # End call with Twilio's built-in voice
+    response.say("Thanks for calling! Have a great day!", voice='alice')
     response.hangup()
     
     return str(response), 200, {'Content-Type': 'text/xml'}
@@ -928,6 +881,29 @@ def test_phone_system():
         "elevenlabs_configured": bool(ELEVENLABS_API_KEY),
         "backend_url": BACKEND_URL
     })
+
+@app.route('/static/audio/<path:filename>')
+def serve_audio(filename):
+    """Serve audio files with proper headers for external access"""
+    import os
+    try:
+        audio_path = os.path.join('static/audio', filename)
+        if os.path.exists(audio_path):
+            def generate():
+                with open(audio_path, 'rb') as f:
+                    data = f.read(1024)
+                    while data:
+                        yield data
+                        data = f.read(1024)
+            
+            return Response(generate(), mimetype='audio/mpeg', 
+                          headers={'Content-Disposition': f'inline; filename={filename}'})
+        else:
+            logging.error(f"Audio file not found: {audio_path}")
+            return "Audio file not found", 404
+    except Exception as e:
+        logging.error(f"Error serving audio file {filename}: {e}")
+        return "Audio file error", 500
 
 # ============ ADMIN API ENDPOINTS ============
 
