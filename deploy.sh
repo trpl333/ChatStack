@@ -16,8 +16,16 @@ if [ ! -f .env ]; then
     exit 1
 fi
 
-# Load environment variables
-export $(cat .env | xargs)
+# Pull latest code from GitHub
+echo "📥 Pulling latest code from GitHub..."
+git pull origin main || {
+    echo "❌ Error: Failed to pull from GitHub"
+    echo "Make sure you're in a git repository and have access to the remote"
+    exit 1
+}
+
+# Load environment variables (filter out comments and empty lines)
+export $(cat .env | grep -v '^#' | grep -v '^$' | xargs)
 
 # Check for required environment variables
 required_vars=("DATABASE_URL" "TWILIO_ACCOUNT_SID" "TWILIO_AUTH_TOKEN" "ELEVENLABS_API_KEY")
