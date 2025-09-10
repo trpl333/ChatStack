@@ -16,6 +16,8 @@
 
   "session_secret": "use-a-secure-random-string",
 
+  "test_key": "replit-to-github-test"
+
   "server_url": "https://voice.theinsurancedoctors.com/phone/incoming"
 
   "log_level": "INFO"
