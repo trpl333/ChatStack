@@ -7,11 +7,13 @@ import os
 import json
 import asyncio
 from typing import Dict, Any
+from config_loader import get_setting, get_llm_config
 
-# Set up mock environment
-os.environ["LLM_BASE_URL"] = "http://localhost:8000"
-os.environ["LLM_MODEL"] = "mock-model"
-os.environ["EMBED_DIM"] = "768"
+# Set up mock environment from centralized config
+llm_config = get_llm_config()
+os.environ["LLM_BASE_URL"] = "http://localhost:8000"  # Force mock for testing
+os.environ["LLM_MODEL"] = "mock-model"  # Force mock for testing
+os.environ["EMBED_DIM"] = str(get_setting("embed_dim", 768))
 
 async def test_memory_system():
     """Test the memory storage and retrieval system."""

@@ -20,5 +20,6 @@
   
   "environment": "production",
   "version": "2.0",
-  "last_updated": "2025-01-10"
+  "last_updated": "2025-01-10",
+  "test_hot_reload": "hot_reload_test_modified_v2"
 }

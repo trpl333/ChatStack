@@ -8,16 +8,17 @@ from config_loader import get_llm_config
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Centralized configuration
-llm_config = get_llm_config()
-BASE_URL = llm_config["base_url"]
-MODEL = llm_config["model"]
-API_KEY = llm_config["api_key"]
+def _get_llm_config():
+    """Get LLM configuration dynamically for hot reload support"""
+    return get_llm_config()
 
-# Request headers
-HEADERS = {"Content-Type": "application/json"}
-if API_KEY:
-    HEADERS["Authorization"] = f"Bearer {API_KEY}"
+def _get_headers():
+    """Get request headers dynamically for hot reload support"""
+    config = _get_llm_config()
+    headers = {"Content-Type": "application/json"}
+    if config["api_key"]:
+        headers["Authorization"] = f"Bearer {config['api_key']}"
+    return headers
 
 def chat(messages: List[Dict[str, str]], temperature: float = 0.6, top_p: float = 0.9, max_tokens: int = 800) -> Tuple[str, Dict[str, Any]]:
     """
@@ -32,12 +33,18 @@ def chat(messages: List[Dict[str, str]], temperature: float = 0.6, top_p: float 
     Returns:
         Tuple of (response_content, usage_stats)
     """
+    # Get current configuration
+    config = _get_llm_config()
+    base_url = config["base_url"]
+    model = config["model"]
+    headers = _get_headers()
+    
     # Check if using mock endpoint for development
-    if BASE_URL == "http://localhost:8000":
+    if base_url == "http://localhost:8000":
         return _mock_llm_response(messages, temperature, top_p, max_tokens)
     
     payload = {
-        "model": MODEL,
+        "model": model,
         "messages": messages,
         "temperature": temperature,
         "top_p": top_p,
@@ -48,9 +55,9 @@ def chat(messages: List[Dict[str, str]], temperature: float = 0.6, top_p: float 
         logger.info(f"Calling LLM with {len(messages)} messages, temp={temperature}, top_p={top_p}")
         
         response = requests.post(
-            f"{BASE_URL}/v1/chat/completions",
+            f"{base_url}/v1/chat/completions",
             json=payload,
-            headers=HEADERS,
+            headers=headers,
             timeout=120  # Increased timeout for longer responses
         )
         response.raise_for_status()
@@ -69,7 +76,7 @@ def chat(messages: List[Dict[str, str]], temperature: float = 0.6, top_p: float 
         logger.error("LLM request timeout")
         raise Exception("LLM request timed out. Please try again.")
     except requests.exceptions.ConnectionError:
-        logger.error(f"Failed to connect to LLM at {BASE_URL}")
+        logger.error(f"Failed to connect to LLM at {base_url}")
         raise Exception("Failed to connect to LLM service. Please check configuration.")
     except requests.exceptions.HTTPError as e:
         logger.error(f"LLM HTTP error: {e}")

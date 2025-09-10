@@ -18,24 +18,29 @@ from config_loader import get_secret, get_setting, get_twilio_config, get_eleven
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Centralized Configuration via config_loader
-OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
-twilio_config = get_twilio_config()
-TWILIO_ACCOUNT_SID = twilio_config["account_sid"]
-TWILIO_AUTH_TOKEN = twilio_config["auth_token"]
-elevenlabs_config = get_elevenlabs_config()
-ELEVENLABS_API_KEY = elevenlabs_config["api_key"]
-DATABASE_URL = get_secret("DATABASE_URL")
-llm_config = get_llm_config()
-LLM_BASE_URL = llm_config["base_url"]
-LLM_MODEL = llm_config["model"]
-SESSION_SECRET = get_secret("SESSION_SECRET")
-# Get base server URL (remove any path components)
-_server_url = get_setting("server_url", "http://localhost:5000")
-if _server_url.endswith("/phone/incoming"):
-    SERVER_URL = _server_url.replace("/phone/incoming", "")
-else:
-    SERVER_URL = _server_url
+# Dynamic configuration functions for hot reload support
+def _get_config():
+    """Get all configuration dynamically for hot reload support"""
+    twilio_config = get_twilio_config()
+    elevenlabs_config = get_elevenlabs_config()
+    llm_config = get_llm_config()
+    _server_url = get_setting("server_url", "http://localhost:5000")
+    
+    return {
+        "openai_api_key": get_secret("OPENAI_API_KEY"),
+        "twilio_account_sid": twilio_config["account_sid"],
+        "twilio_auth_token": twilio_config["auth_token"],
+        "elevenlabs_api_key": elevenlabs_config["api_key"],
+        "database_url": get_secret("DATABASE_URL"),
+        "llm_base_url": llm_config["base_url"],
+        "llm_model": llm_config["model"],
+        "session_secret": get_secret("SESSION_SECRET"),
+        "server_url": _server_url.replace("/phone/incoming", "") if _server_url.endswith("/phone/incoming") else _server_url
+    }
+
+# Initialize app with session secret (this needs to be set at startup)
+_initial_config = _get_config()
+SESSION_SECRET = _initial_config["session_secret"]
 
 # Additional environment defaults
 os.environ.setdefault("EMBED_DIM", str(get_setting("embed_dim", 768)))
@@ -65,13 +70,24 @@ app.secret_key = SESSION_SECRET or "temporary-dev-secret"
 if not SESSION_SECRET:
     print("⚠️ Warning: SESSION_SECRET not set, using temporary key")
 
-BACKEND_URL = LLM_BASE_URL or "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
-if not LLM_BASE_URL:
-    print("⚠️ Warning: LLM_BASE_URL not set, using default")
+def _get_backend_url():
+    """Get backend URL dynamically"""
+    config = _get_config()
+    return config["llm_base_url"] or "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
 
-# Initialize Twilio and ElevenLabs clients
-twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-elevenlabs_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
+def _get_twilio_client():
+    """Get Twilio client dynamically for hot reload support"""
+    config = _get_config()
+    return Client(config["twilio_account_sid"], config["twilio_auth_token"])
+
+def _get_elevenlabs_client():
+    """Get ElevenLabs client dynamically for hot reload support"""
+    config = _get_config()
+    return ElevenLabs(api_key=config["elevenlabs_api_key"])
+
+# Check if LLM_BASE_URL is set on startup
+if not _initial_config["llm_base_url"]:
+    print("⚠️ Warning: LLM_BASE_URL not set, using default")
 
 # Phone call session storage (in production, use Redis or database)
 call_sessions = {}
@@ -257,7 +273,7 @@ def admin():
     # Search knowledge if query provided
     if query:
         try:
-            resp = requests.get(f"{BACKEND_URL}/v1/memories", params={"limit": 50}, timeout=10)
+            resp = requests.get(f"{_get_backend_url()}/v1/memories", params={"limit": 50}, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 knowledge_results = data.get("memories", [])
@@ -269,7 +285,7 @@ def admin():
     # Get user memories if user_id provided  
     if user_id:
         try:
-            resp = requests.post(f"{BACKEND_URL}/v1/chat", json={
+            resp = requests.post(f"{_get_backend_url()}/v1/chat", json={
                 "user_id": user_id,
                 "message": "Show my memories",
                 "debug": True
@@ -297,7 +313,7 @@ def add_knowledge():
             "source": "admin_web_interface"
         }
         
-        resp = requests.post(f"{BACKEND_URL}/v1/memories", json=data, timeout=10)
+        resp = requests.post(f"{_get_backend_url()}/v1/memories", json=data, timeout=10)
         
         if resp.status_code == 200:
             flash(f"✅ Knowledge added: {data['key']}")
@@ -332,6 +348,7 @@ def text_to_speech(text, voice_id=None):
             voice_id = VOICE_ID
             
         # Using the correct ElevenLabs API method with configurable settings
+        elevenlabs_client = _get_elevenlabs_client()
         audio = elevenlabs_client.text_to_speech.convert(
             text=ssml_text,
             voice_id=voice_id,
@@ -577,7 +594,7 @@ PERSONALITY:
         final_messages = messages
         
         payload = {
-            "model": LLM_MODEL,
+            "model": _get_config()["llm_model"],
             "messages": final_messages,
             "temperature": 0.7,  # Higher temperature for more human-like variability
             "max_tokens": 45,  # Very short, direct responses for speed
@@ -586,7 +603,7 @@ PERSONALITY:
         }
         
         # Connect directly to RunPod Falcon endpoint
-        resp = requests.post(f"{BACKEND_URL}/v1/chat/completions", 
+        resp = requests.post(f"{_get_backend_url()}/v1/chat/completions", 
                            json=payload, timeout=5)  # Faster timeout for quicker responses
         
         if resp.status_code == 200:
@@ -881,9 +898,9 @@ def test_phone_system():
             "speech": "/phone/process-speech", 
             "status": "/phone/status"
         },
-        "twilio_configured": bool(TWILIO_ACCOUNT_SID),
-        "elevenlabs_configured": bool(ELEVENLABS_API_KEY),
-        "backend_url": BACKEND_URL
+        "twilio_configured": bool(_get_config()["twilio_account_sid"]),
+        "elevenlabs_configured": bool(_get_config()["elevenlabs_api_key"]),
+        "backend_url": _get_backend_url()
     })
 
 @app.route('/static/audio/<path:filename>')
@@ -1010,14 +1027,14 @@ def admin_status():
         memory_count = len(memories)
         
         return jsonify({
-            "model": LLM_MODEL,
+            "model": _get_config()["llm_model"],
             "memory_count": memory_count,
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS
         })
     except Exception as e:
         return jsonify({
-            "model": LLM_MODEL,
+            "model": _get_config()["llm_model"],
             "memory_count": "Error",
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS

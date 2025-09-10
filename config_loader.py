@@ -63,7 +63,7 @@ class ConfigLoader:
         config = self._load_config_file()
         
         # Add environment variables (but mask secrets)
-        sensitive_keys = ['api_key', 'token', 'secret', 'password', 'auth', 'sid']
+        sensitive_keys = ['api_key', 'token', 'secret', 'password', 'auth', 'sid', 'database_url', 'db_', 'connection', 'dsn']
         
         result = {}
         for key, value in config.items():
