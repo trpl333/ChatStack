@@ -13,28 +13,32 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 from elevenlabs import ElevenLabs, VoiceSettings
 import tempfile
 import logging
+from config_loader import get_secret, get_setting, get_twilio_config, get_elevenlabs_config, get_llm_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
-# Environment Variables Configuration
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-DATABASE_URL = os.getenv("DATABASE_URL")
-LLM_BASE_URL = os.getenv("LLM_BASE_URL")
-LLM_MODEL = os.getenv("LLM_MODEL", "mistralai/Mistral-7B-Instruct-v0.1")
-SESSION_SECRET = os.getenv("SESSION_SECRET")
+# Centralized Configuration via config_loader
+OPENAI_API_KEY = get_secret("OPENAI_API_KEY")
+twilio_config = get_twilio_config()
+TWILIO_ACCOUNT_SID = twilio_config["account_sid"]
+TWILIO_AUTH_TOKEN = twilio_config["auth_token"]
+elevenlabs_config = get_elevenlabs_config()
+ELEVENLABS_API_KEY = elevenlabs_config["api_key"]
+DATABASE_URL = get_secret("DATABASE_URL")
+llm_config = get_llm_config()
+LLM_BASE_URL = llm_config["base_url"]
+LLM_MODEL = llm_config["model"]
+SESSION_SECRET = get_secret("SESSION_SECRET")
 # Get base server URL (remove any path components)
-_server_url = os.getenv("SERVER_URL", "http://localhost:5000")
+_server_url = get_setting("server_url", "http://localhost:5000")
 if _server_url.endswith("/phone/incoming"):
     SERVER_URL = _server_url.replace("/phone/incoming", "")
 else:
     SERVER_URL = _server_url
 
 # Additional environment defaults
-os.environ.setdefault("EMBED_DIM", "768")
+os.environ.setdefault("EMBED_DIM", str(get_setting("embed_dim", 768)))
 
 # Start FastAPI backend server
 import subprocess

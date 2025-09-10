@@ -2,15 +2,17 @@ import os
 import requests
 import logging
 from typing import List, Dict, Any, Tuple
+from config_loader import get_llm_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Environment configuration
-BASE_URL = os.environ.get("LLM_BASE_URL", "http://localhost:8001")
-MODEL = os.environ.get("LLM_MODEL", "tiiuae/falcon-7b-instruct")
-API_KEY = os.environ.get("LLM_API_KEY")
+# Centralized configuration
+llm_config = get_llm_config()
+BASE_URL = llm_config["base_url"]
+MODEL = llm_config["model"]
+API_KEY = llm_config["api_key"]
 
 # Request headers
 HEADERS = {"Content-Type": "application/json"}
