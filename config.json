@@ -1,1 +1,31 @@
+{
+  "openai_api_key": "sk-proj-GEToGYtuYcqSR6e8bXf7XJ6LWFYQq849RLnF82qj6lAPd1lQ6_alM63QxJoX0W7SAGHT3D1bkFJca15S-49xQX1k8xr6B9pLFan29EFGKiv-hEoNMTxTAl6ptB3iWr-hoFtcAyTzrm170X5r1dNYA",
+  
+  "twilio": {
+    "account_sid": "AC2baf080f7c96e0ae098826fd17e5dd7f",
+    "auth_token": "356b451f1121209140c5b3da1534f1de"
+  },
 
+  "elevenlabs_api_key": "sk_d0c2c81a3fe8ce07d42dc35390666ad8282bc0505fbcf441",
+  "deepgram_api_key": "c7499cc1b0e1cf1dbbde9479c1caa02d9db059c2",
+  
+  "llm_base_url": "https://a40.neurospherevoice.com/v1",
+  "llm_model": "mistralai/Mistral-7B-Instruct-v0.1",
+
+  "ai_memory_url": "http://209.38.143.71:8100",
+
+  "session_secret": "use-a-secure-random-string",
+
+  "server_url": "https://voice.theinsurancedoctors.com/phone/incoming"
+  
+  "database_url": "postgresql://doadmin:AVNS_uS8rBktm7cJo7ToivuD@ai-memory-do-user-17983093-0.e.db.ondigitalocean.com:25060/defaultdb?sslmode=require",
+
+    "database": {
+      "username": "doadmin",
+      "password": "AVNS_uS8rBktm7cJo7ToivuD",
+      "host": "ai-memory-do-user-17983093-0.e.db.ondigitalocean.com",
+      "port": 25060,
+      "database": "defaultdb",
+      "sslmode": "require"
+    },
+}
