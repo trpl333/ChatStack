@@ -17,6 +17,8 @@
   "session_secret": "use-a-secure-random-string",
 
   "server_url": "https://voice.theinsurancedoctors.com/phone/incoming"
+
+  "log_level": "DEBUG"
   
   "database_url": "postgresql://doadmin:AVNS_uS8rBktm7cJo7ToivuD@ai-memory-do-user-17983093-0.e.db.ondigitalocean.com:25060/defaultdb?sslmode=require",
 
