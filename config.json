@@ -18,6 +18,8 @@
 
   "test_key": "replit-to-github-test"
 
+  "webhook_test": "success"
+
   "server_url": "https://voice.theinsurancedoctors.com/phone/incoming"
 
   "log_level": "INFO"
