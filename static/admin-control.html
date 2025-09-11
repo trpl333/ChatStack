@@ -162,6 +162,68 @@
             <button class="btn btn-info mt-2" onclick="refreshStatus()">🔄 Refresh Status</button>
         </div>
 
+        <!-- Configuration Sources -->
+        <div class="admin-section">
+            <h3>⚙️ Configuration Sources</h3>
+            <div class="alert alert-info">
+                <strong>Configuration Priority:</strong> 
+                1. Environment Variables (secrets) → 
+                2. config.json (settings) → 
+                3. config-internal.json (internal settings)
+            </div>
+            
+            <!-- Configuration Tabs -->
+            <ul class="nav nav-tabs" id="configTabs">
+                <li class="nav-item">
+                    <a class="nav-link active" id="env-tab" data-bs-toggle="tab" href="#env-config">🔒 Environment Variables</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="json-tab" data-bs-toggle="tab" href="#json-config">📄 config.json</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="internal-tab" data-bs-toggle="tab" href="#internal-config">🔧 config-internal.json</a>
+                </li>
+            </ul>
+            
+            <div class="tab-content mt-3" id="configTabContent">
+                <!-- Environment Variables Tab -->
+                <div class="tab-pane fade show active" id="env-config">
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <h6>🔒 Secrets & Environment Variables</h6>
+                            <div id="envConfigContent">
+                                <p class="text-muted">Loading environment configuration...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- config.json Tab -->
+                <div class="tab-pane fade" id="json-config">
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <h6>📄 GitHub-Synced Settings (config.json)</h6>
+                            <div id="jsonConfigContent">
+                                <p class="text-muted">Loading config.json settings...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- config-internal.json Tab -->
+                <div class="tab-pane fade" id="internal-config">
+                    <div class="card bg-dark">
+                        <div class="card-body">
+                            <h6>🔧 Internal Infrastructure Settings</h6>
+                            <div id="internalConfigContent">
+                                <p class="text-muted">Loading internal configuration...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Test Panel -->
         <div class="admin-section">
             <h3>🧪 Test Panel</h3>
@@ -305,7 +367,72 @@
             .then(data => {
                 document.getElementById('currentModel').textContent = data.model || 'Unknown';
                 document.getElementById('memoryCount').textContent = data.memory_count || '0';
+                
+                // Update configuration displays
+                if (data.configuration) {
+                    displayConfigSources(data.configuration.sources);
+                }
             });
+        }
+        
+        function displayConfigSources(sources) {
+            // Display Environment Variables
+            const envContent = document.getElementById('envConfigContent');
+            if (sources.environment_variables) {
+                let envHtml = '<div class="row">';
+                Object.entries(sources.environment_variables).forEach(([key, value]) => {
+                    const cleanKey = key.replace('env.', '');
+                    const isMasked = value === '***MASKED***';
+                    envHtml += `
+                        <div class="col-md-6 mb-2">
+                            <strong class="text-warning">${cleanKey}:</strong> 
+                            <span class="${isMasked ? 'text-danger' : 'text-success'}">${value}</span>
+                        </div>
+                    `;
+                });
+                envHtml += '</div>';
+                envContent.innerHTML = envHtml;
+            } else {
+                envContent.innerHTML = '<p class="text-muted">No environment variables found</p>';
+            }
+            
+            // Display config.json
+            const jsonContent = document.getElementById('jsonConfigContent');
+            if (sources.config_json) {
+                let jsonHtml = '<div class="row">';
+                Object.entries(sources.config_json).forEach(([key, value]) => {
+                    const cleanKey = key.replace('config.', '');
+                    jsonHtml += `
+                        <div class="col-md-6 mb-2">
+                            <strong class="text-info">${cleanKey}:</strong> 
+                            <span class="text-light">${typeof value === 'object' ? JSON.stringify(value) : value}</span>
+                        </div>
+                    `;
+                });
+                jsonHtml += '</div>';
+                jsonContent.innerHTML = jsonHtml;
+            } else {
+                jsonContent.innerHTML = '<p class="text-muted">No config.json settings found</p>';
+            }
+            
+            // Display config-internal.json
+            const internalContent = document.getElementById('internalConfigContent');
+            if (sources.config_internal) {
+                let internalHtml = '<div class="row">';
+                Object.entries(sources.config_internal).forEach(([key, value]) => {
+                    const cleanKey = key.replace('internal.', '');
+                    internalHtml += `
+                        <div class="col-md-6 mb-2">
+                            <strong class="text-primary">${cleanKey}:</strong> 
+                            <span class="text-light">${typeof value === 'object' ? JSON.stringify(value) : value}</span>
+                        </div>
+                    `;
+                });
+                internalHtml += '</div>';
+                internalContent.innerHTML = internalHtml;
+            } else {
+                internalContent.innerHTML = '<p class="text-muted">No internal config settings found</p>';
+            }
         }
 
         // Update range displays

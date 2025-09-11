@@ -13,7 +13,7 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 from elevenlabs import ElevenLabs, VoiceSettings
 import tempfile
 import logging
-from config_loader import get_secret, get_setting, get_twilio_config, get_elevenlabs_config, get_llm_config
+from config_loader import get_secret, get_setting, get_twilio_config, get_elevenlabs_config, get_llm_config, get_all_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1017,24 +1017,48 @@ def update_routing():
 
 @app.route('/admin-status')
 def admin_status():
-    """Get current system status"""
+    """Get current system status and all configuration sources"""
     try:
         from app.memory import MemoryStore
+        from config_loader import get_all_config, get_internal_setting, get_internal_ports
+        
         mem_store = MemoryStore()
         
         # Count total memories (simplified)
         memories = mem_store.search("", k=1000)
         memory_count = len(memories)
         
+        # Get all configuration from all sources
+        all_config = get_all_config()
+        internal_ports = get_internal_ports()
+        
         return jsonify({
-            "model": _get_config()["llm_model"],
+            "status": "healthy",
             "memory_count": memory_count,
             "voice_id": VOICE_ID,
-            "max_tokens": MAX_TOKENS
+            "max_tokens": MAX_TOKENS,
+            "model": _get_config()["llm_model"],
+            "configuration": {
+                "sources": {
+                    "environment_variables": {k: v for k, v in all_config.items() if k.startswith('env.')},
+                    "config_json": {k: v for k, v in all_config.items() if k.startswith('config.')},
+                    "config_internal": {k: v for k, v in all_config.items() if k.startswith('internal.')}
+                },
+                "summary": {
+                    "llm_base_url": _get_config()["llm_base_url"],
+                    "llm_model": _get_config()["llm_model"],
+                    "server_url": _get_config()["server_url"],
+                    "environment": all_config.get('config.environment', 'unknown'),
+                    "version": all_config.get('config.version', 'unknown'),
+                    "ports": internal_ports
+                }
+            }
         })
     except Exception as e:
         return jsonify({
-            "model": _get_config()["llm_model"],
+            "status": "error",
+            "error": str(e),
+            "model": _get_config()["llm_model"] if _get_config() else "unknown",
             "memory_count": "Error",
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS

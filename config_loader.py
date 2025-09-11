@@ -159,6 +159,10 @@ def get_elevenlabs_config() -> Dict[str, str]:
         "voice_id": config.get("ELEVENLABS_VOICE_ID", default=config.get("elevenlabs_voice_id", "dnRitNTYKgyEUEizTqqH"))
     }
 
+def get_all_config() -> Dict[str, Any]:
+    """Get complete configuration from all sources (global convenience function)"""
+    return config.get_all_config()
+
 # New convenience functions for internal configuration
 def get_internal_setting(key: str, default: Any = None) -> Any:
     """Get setting from config-internal.json"""
