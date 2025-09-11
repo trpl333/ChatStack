@@ -73,6 +73,30 @@ OPENAI_API_KEY=your_key
 # Security
 SESSION_SECRET=generate-random-string-here
 ```
+## Configuration Files
+
+The system uses two configuration files:
+
+1. `config.json`  
+   - External/public-facing settings (Twilio webhook URL, RunPod LLM URL, ElevenLabs voice ID, etc.).  
+   - Safe to commit to GitHub (no secrets inside).  
+   - Used by the orchestrator in production.
+
+2. `config-internal.json`  
+   - Internal/developer reference.  
+   - Contains local loopback URLs (127.0.0.1), FastAPI backend port, Nginx proxy notes, and systemd service names.  
+   - Not read by production code — for operator documentation only.  
+   - Keeps infra details from cluttering `config.json`.
+
+### Secrets
+
+All sensitive values are stored in environment variables (Replit, GitHub Secrets, DO env):
+
+- `DATABASE_URL`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_AUTH_TOKEN`
+- `ELEVENLABS_API_KEY`
+- `SESSION_SECRET`
 
 ### Database Setup (DigitalOcean Managed PostgreSQL)
 1. Create database cluster in DigitalOcean
