@@ -8,13 +8,16 @@ import psycopg2
 from psycopg2.extras import Json, RealDictCursor
 from datetime import datetime, timedelta
 
+# Import centralized configuration
+from config_loader import get_setting, get_database_url
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configuration
-EMBED_DIM = int(os.environ.get("EMBED_DIM", 768))
-DB_URL = os.environ.get("DATABASE_URL")
+EMBED_DIM = int(get_setting("embed_dim", 768))
+DB_URL = get_database_url()
 
 def embed(text: str) -> np.ndarray:
     """

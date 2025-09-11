@@ -7,6 +7,9 @@ import logging
 import psycopg2
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 
+# Import centralized configuration
+from config_loader import get_database_url
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,7 +17,7 @@ logger = logging.getLogger(__name__)
 def init_database():
     """Initialize PostgreSQL database with required extensions and tables."""
     
-    db_url = os.environ.get("DATABASE_URL")
+    db_url = get_database_url()
     if not db_url:
         logger.error("DATABASE_URL environment variable is required")
         return False
@@ -99,7 +102,7 @@ def init_database():
 def verify_database():
     """Verify database setup and connectivity."""
     
-    db_url = os.environ.get("DATABASE_URL")
+    db_url = get_database_url()
     if not db_url:
         logger.error("DATABASE_URL environment variable is required")
         return False
