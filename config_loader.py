@@ -85,30 +85,37 @@ class ConfigLoader:
         return default
     
     def get_all_config(self) -> Dict[str, Any]:
-        """Get complete configuration for debugging/admin interface"""
+        """Get complete configuration for debugging/admin interface with proper security masking"""
         config = self._load_config_file()
         internal_config = self._load_internal_config_file()
         
-        # Add environment variables (but mask secrets)
+        # Sensitive key patterns for security masking
         sensitive_keys = ['api_key', 'token', 'secret', 'password', 'auth', 'sid', 'database_url', 'db_', 'connection', 'dsn']
+        
+        def is_sensitive_key(key: str) -> bool:
+            """Check if a key contains sensitive information"""
+            lower_key = key.lower()
+            return any(sensitive in lower_key for sensitive in sensitive_keys)
+            
+        def mask_if_sensitive(key: str, value: Any) -> Any:
+            """Mask value if key is sensitive"""
+            if is_sensitive_key(key):
+                return "***MASKED***"
+            return value
         
         result = {}
         
-        # Add config.json values
+        # Add config.json values with masking
         for key, value in config.items():
-            result[f"config.{key}"] = value
+            result[f"config.{key}"] = mask_if_sensitive(key, value)
             
-        # Add config-internal.json values
+        # Add config-internal.json values with masking
         for key, value in internal_config.items():
-            result[f"internal.{key}"] = value
+            result[f"internal.{key}"] = mask_if_sensitive(key, value)
             
-        # Add environment variables that aren't in either config file
+        # Add all environment variables with masking
         for env_key in os.environ:
-            lower_key = env_key.lower()
-            if not any(lower_key == k.split('.', 1)[-1] for k in result.keys()):
-                # Mask sensitive values
-                is_sensitive = any(sensitive in lower_key for sensitive in sensitive_keys)
-                result[f"env.{lower_key}"] = "***MASKED***" if is_sensitive else os.environ[env_key]
+            result[f"env.{env_key.lower()}"] = mask_if_sensitive(env_key, os.environ[env_key])
                 
         return result
     
