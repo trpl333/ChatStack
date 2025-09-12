@@ -87,6 +87,10 @@ app.secret_key = SESSION_SECRET or "temporary-dev-secret"
 if not SESSION_SECRET:
     print("⚠️ Warning: SESSION_SECRET not set, using temporary key")
 
+# Configure Flask to work behind HTTPS proxy (nginx)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
+
 def _get_backend_url():
     """Get backend URL dynamically"""
     config = _get_config()
