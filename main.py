@@ -991,16 +991,16 @@ def process_speech():
     
     gather = Gather(
         input='speech',
-        timeout=8,  # Reduced timeout
+        timeout=8,  # Reduced timeout  
         speech_timeout=2,  # Faster speech detection
         action='/phone/process-speech',
         method='POST'
     )
     response.append(gather)
     
-    # End call with Twilio's built-in voice
-    response.say("Thanks for calling! Have a great day!", voice='alice')
-    response.hangup()
+    # If no response, end call politely without hanging up abruptly
+    response.say("Thanks for calling Peterson Family Insurance! Have a great day!")
+    response.pause(length=1)  # Brief pause before ending naturally
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 
