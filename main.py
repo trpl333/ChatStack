@@ -371,7 +371,7 @@ def user_memories():
 
 # ============ WEBSOCKET FOR REAL-TIME STREAMING ============
 
-@app.route('/twilio', methods=['GET'])
+@app.route('/twilio-info', methods=['GET'])
 def twilio_websocket_info():
     """Info endpoint for Twilio WebSocket - actual WebSocket handled separately"""
     return jsonify({
@@ -744,7 +744,7 @@ PERSONALITY:
 
 @app.route('/phone/incoming', methods=['POST'])
 def handle_incoming_call():
-    """Handle incoming phone calls from Twilio - Real-time streaming version"""
+    """Handle incoming phone calls from Twilio - Improved streaming version"""
     from_number = request.form.get('From')
     call_sid = request.form.get('CallSid')
     
@@ -755,18 +755,33 @@ def handle_incoming_call():
         'conversation': []
     }
     
-    logging.info(f"📞 Incoming call from {from_number} - Using Media Streams for sub-1s response")
+    logging.info(f"📞 Incoming call from {from_number} - Using improved streaming APIs")
     
     response = VoiceResponse()
+    greeting = get_personalized_greeting(from_number)
     
-    # Start Twilio Media Stream for real-time audio
-    start = Start()
-    stream = Stream(url=f'wss://voice.theinsurancedoctors.com/twilio')
-    start.append(stream)
-    response.append(start)
+    # Use improved ElevenLabs streaming for faster response
+    audio_url = text_to_speech(greeting, VOICE_ID)
+    if audio_url:
+        # Play the generated audio file (with streaming optimizations)
+        response.play(audio_url)
+    else:
+        # Fallback to Twilio voice if ElevenLabs fails
+        response.say(greeting, voice='alice')
     
-    # Optional: Add initial message while WebSocket connects
-    response.say("Connecting to Samantha...", voice='alice', length=2)
+    # Gather user speech with optimized settings
+    gather = Gather(
+        input='speech',
+        timeout=8,  # Optimized timeout
+        speech_timeout=2,  # Faster speech detection (integer required)
+        action='/phone/process-speech',
+        method='POST'
+    )
+    response.append(gather)
+    
+    # Fallback if no speech detected
+    response.say("I didn't catch that. Please try again.")
+    response.hangup()
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 

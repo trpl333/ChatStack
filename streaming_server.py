@@ -15,11 +15,15 @@ import os
 # Add current directory to Python path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
+# Import the complete real-time pipeline
+from realtime_pipeline import RealTimeAudioPipeline
+
 class TwilioStreamHandler:
-    """Simple handler for Twilio Media Streams"""
+    """Complete handler for Twilio Media Streams with real-time pipeline"""
     
-    def __init__(self):
+    def __init__(self, elevenlabs_client=None):
         self.connections = {}
+        self.pipeline = RealTimeAudioPipeline(elevenlabs_client)
         
     async def handle_media_stream(self, websocket, path):
         """Handle Twilio Media Stream WebSocket"""
@@ -59,24 +63,26 @@ class TwilioStreamHandler:
                 conn['stream_sid'] = data['start']['streamSid']
                 logging.info(f"🚀 Stream started - Call: {conn['call_sid']}")
                 
-                # Send initial greeting
-                await self._send_greeting(connection_id)
+                # Initialize real-time conversation pipeline
+                self.pipeline.start_conversation(
+                    connection_id,
+                    conn['websocket'],
+                    conn['call_sid'],
+                    conn['stream_sid']
+                )
                 
             elif event == 'media':
                 # Incoming audio from caller
                 payload = data['media']['payload']
                 audio_data = base64.b64decode(payload)
                 
-                # Simple voice activity detection
-                if len(audio_data) > 160:  # ~20ms at 8kHz
-                    logging.info(f"🎤 Received {len(audio_data)} bytes of audio")
-                    
-                    # TODO: Add STT processing here
-                    # For now, echo a response after some audio is received
-                    await self._send_test_response(connection_id)
+                # Process through real-time pipeline
+                self.pipeline.process_incoming_audio(connection_id, audio_data)
                 
             elif event == 'stop':
                 logging.info(f"🔌 Stream stopped")
+                # Clean up conversation
+                self.pipeline.end_conversation(connection_id)
                 
         except json.JSONDecodeError:
             logging.error(f"Invalid JSON: {message[:100]}")
@@ -152,7 +158,7 @@ async def main():
     
     # Start server on port 9100 (matches nginx config)
     server = await websockets.serve(
-        handler.handle_media_stream,
+        lambda ws, path: handler.handle_media_stream(ws),
         "0.0.0.0", 
         9100,
         ping_interval=None,  # Disable ping for Twilio compatibility
