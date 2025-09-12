@@ -386,11 +386,11 @@ def text_to_speech(text, voice_id=None):
         # Use provided voice_id or fall back to current_voice_id
         voice_to_use = voice_id or current_voice_id
         
-        # Generate audio with ElevenLabs v2 API
-        audio_generator = client.text_to_speech.convert(
+        # Generate audio with ElevenLabs streaming API for faster response
+        audio_stream = client.text_to_speech.stream(
             voice_id=voice_to_use,
             text=text,
-            model_id="eleven_multilingual_v2",
+            model_id="eleven_turbo_v2_5",  # Faster model for streaming
             voice_settings=VoiceSettings(
                 stability=VOICE_SETTINGS.get("stability", 0.71),
                 similarity_boost=VOICE_SETTINGS.get("similarity_boost", 0.5),
@@ -408,20 +408,28 @@ def text_to_speech(text, voice_id=None):
         audio_dir = os.path.join(static_folder, 'audio')
         os.makedirs(audio_dir, exist_ok=True)
         
-        # Save audio file - ensure complete write before returning URL
+        # Save streaming audio file - process chunks as they arrive
         audio_path = os.path.join(audio_dir, filename)
         try:
             with open(audio_path, 'wb') as f:
-                for chunk in audio_generator:
+                bytes_written = 0
+                for chunk in audio_stream:
                     if isinstance(chunk, (bytes, bytearray, memoryview)):
                         f.write(chunk)
+                        bytes_written += len(chunk)
                     elif hasattr(chunk, 'encode'):
-                        f.write(chunk.encode())
+                        encoded = chunk.encode()
+                        f.write(encoded)
+                        bytes_written += len(encoded)
                     else:
-                        f.write(bytes(chunk))
-                # Ensure all data is written to disk
+                        data = bytes(chunk)
+                        f.write(data)
+                        bytes_written += len(data)
+                
+                # Ensure all streaming data is written to disk
                 f.flush()
                 os.fsync(f.fileno())
+                logging.info(f"Streaming TTS: wrote {bytes_written} bytes to {filename}")
             
             # Verify file exists and has content before returning URL
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
@@ -676,21 +684,47 @@ PERSONALITY:
             "temperature": 0.7,  # Higher temperature for more human-like variability
             "max_tokens": 45,  # Very short, direct responses for speed
             "top_p": 0.8,
-            "stream": False
+            "stream": True  # Enable streaming for sub-second response times
         }
         
-        # Connect directly to RunPod Falcon endpoint
-        resp = requests.post(f"{_get_backend_url()}/v1/chat/completions", 
-                           json=payload, timeout=5)  # Faster timeout for quicker responses
-        
-        if resp.status_code == 200:
-            data = resp.json()
-            # Extract response from OpenAI-compatible format
-            if "choices" in data and len(data["choices"]) > 0:
-                return data["choices"][0]["message"]["content"]
-            return "I'm sorry, I couldn't process that."
-        else:
-            logging.error(f"Backend error: {resp.status_code} - {resp.text}")
+        # Connect directly to RunPod endpoint with streaming
+        import json
+        response_text = ""
+        try:
+            with requests.post(f"{_get_backend_url()}/v1/chat/completions", 
+                             json=payload, 
+                             timeout=10, 
+                             stream=True) as resp:
+                
+                if resp.status_code != 200:
+                    logging.error(f"Backend error: {resp.status_code} - {resp.text}")
+                    return "I'm experiencing technical difficulties. Please try again."
+                
+                # Parse Server-Sent Events (SSE) stream
+                for line in resp.iter_lines():
+                    if line:
+                        line = line.decode('utf-8').strip()
+                        if line.startswith('data: '):
+                            data_str = line[6:]  # Remove 'data: ' prefix
+                            if data_str == '[DONE]':
+                                break
+                            try:
+                                data = json.loads(data_str)
+                                if "choices" in data and len(data["choices"]) > 0:
+                                    delta = data["choices"][0].get("delta", {})
+                                    content = delta.get("content", "")
+                                    if content:
+                                        response_text += content
+                                        # Log streaming progress
+                                        if len(response_text) % 10 == 0:  # Every 10 characters
+                                            logging.info(f"Streaming token: '{response_text}'")
+                            except json.JSONDecodeError:
+                                continue
+                
+                return response_text.strip() if response_text else "I'm sorry, I couldn't process that."
+                
+        except requests.exceptions.RequestException as e:
+            logging.error(f"Streaming request error: {e}")
             return "I'm experiencing technical difficulties. Please try again."
     except Exception as e:
         logging.error(f"AI Response Error: {e}")
