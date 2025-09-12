@@ -773,15 +773,15 @@ def handle_incoming_call():
     gather = Gather(
         input='speech',
         timeout=8,  # Optimized timeout
-        speech_timeout=2,  # Faster speech detection (integer required)
+        speech_timeout=3,  # Increased for reliability
         action='/phone/process-speech',
         method='POST'
     )
     response.append(gather)
     
-    # Fallback if no speech detected
-    response.say("I didn't catch that. Please try again.")
-    response.hangup()
+    # Fallback if no speech detected - RETRY instead of hangup
+    response.say("I didn't catch that. Let me try again.")
+    response.redirect('/phone/incoming')  # Retry the call instead of hanging up
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 
@@ -818,7 +818,10 @@ def process_speech():
             method='POST'
         )
         response.append(gather)
-        response.hangup()
+        
+        # If still no speech, offer transfer or retry
+        response.say("I'm having trouble hearing you. Let me transfer you to someone who can help.")
+        response.dial('+19497071290')  # Transfer to main number
         return str(response), 200, {'Content-Type': 'text/xml'}
     
     logging.info(f"🎤 Speech from {from_number}: {speech_result}")
