@@ -2,7 +2,7 @@
   "comment": "NeuroSphere Orchestrator Configuration - Non-sensitive settings only",
   "comment_security": "API keys and secrets are stored in environment variables for security",
 
-  "llm_base_url": "https://a40.neurospherevoice.com/v1",
+  "llm_base_url": "https://a40.neurospherevoice.com",
   "llm_model": "mistralai/Mistral-7B-Instruct-v0.1",
   "llm_description": "RunPod A40 GPU endpoint hosting the LLM. Used only by the orchestrator to generate AI responses.",
 

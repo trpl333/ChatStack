@@ -146,7 +146,7 @@ def get_database_url() -> str:
 def get_llm_config() -> Dict[str, str]:
     """Get LLM configuration"""
     return {
-        "base_url": config.get("LLM_BASE_URL", default=config.get("llm_base_url", "https://a40.neurospherevoice.com/v1")),
+        "base_url": config.get("LLM_BASE_URL", default=config.get("llm_base_url", "https://a40.neurospherevoice.com")),
         "model": config.get("LLM_MODEL", default=config.get("llm_model", "mistralai/Mistral-7B-Instruct-v0.1")),
         "api_key": config.get("LLM_API_KEY", default="")
     }

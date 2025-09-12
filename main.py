@@ -43,6 +43,19 @@ def _get_config():
 _initial_config = _get_config()
 SESSION_SECRET = _initial_config["session_secret"]
 
+# Fix LLM_BASE_URL environment variable on startup
+try:
+    # Clear the existing environment variable so config file value is used
+    if "LLM_BASE_URL" in os.environ:
+        del os.environ["LLM_BASE_URL"]
+        print("🔧 Cleared old LLM_BASE_URL environment variable")
+    
+    llm_config = get_llm_config()
+    os.environ["LLM_BASE_URL"] = llm_config["base_url"]
+    print(f"✅ LLM_BASE_URL set to: {llm_config['base_url']}")
+except Exception as e:
+    print(f"⚠️ Warning: Could not set LLM_BASE_URL: {e}")
+
 # Additional environment defaults
 os.environ.setdefault("EMBED_DIM", str(get_setting("embed_dim", 768)))
 

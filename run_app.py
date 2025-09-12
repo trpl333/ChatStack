@@ -9,7 +9,7 @@ from app.main import app
 
 # Set defaults for production from centralized config
 llm_config = get_llm_config()
-os.environ.setdefault("LLM_BASE_URL", llm_config["base_url"])
+os.environ["LLM_BASE_URL"] = llm_config["base_url"]
 os.environ.setdefault("LLM_MODEL", llm_config["model"])
 os.environ.setdefault("EMBED_DIM", str(get_setting("embed_dim", 768)))
 
