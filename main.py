@@ -10,7 +10,8 @@ from flask import Flask, render_template_string, request, jsonify, redirect, url
 from twilio.rest import Client
 from twilio.twiml import TwiML
 from twilio.twiml.voice_response import VoiceResponse, Gather
-from elevenlabs import ElevenLabs, VoiceSettings
+# Temporarily disabled ElevenLabs due to pydantic compatibility issues
+# from elevenlabs import ElevenLabs, VoiceSettings
 import tempfile
 import logging
 from config_loader import get_secret, get_setting, get_twilio_config, get_elevenlabs_config, get_llm_config, get_all_config
@@ -85,8 +86,8 @@ def _get_twilio_client():
 
 def _get_elevenlabs_client():
     """Get ElevenLabs client dynamically for hot reload support"""
-    config = _get_config()
-    return ElevenLabs(api_key=config["elevenlabs_api_key"])
+    # Temporarily disabled due to compatibility issues
+    return None
 
 # Check if LLM_BASE_URL is set on startup
 if not _initial_config["llm_base_url"]:
@@ -341,32 +342,11 @@ def user_memories():
 # ============ PHONE AI ENDPOINTS ============
 
 def text_to_speech(text, voice_id=None):
-    """Convert text to speech using ElevenLabs with slower speech"""
-    try:
-        # Optimize for speed - minimal SSML processing
-        ssml_text = text.replace("AI", "A.I.")
-        
-        # Use global voice settings or provided voice_id
-        if voice_id is None:
-            voice_id = VOICE_ID
-            
-        # Using the correct ElevenLabs API method with configurable settings
-        elevenlabs_client = _get_elevenlabs_client()
-        audio = elevenlabs_client.text_to_speech.convert(
-            text=ssml_text,
-            voice_id=voice_id,
-            model_id="eleven_turbo_v2_5",  # Fastest model available
-            voice_settings=VoiceSettings(
-                stability=VOICE_SETTINGS["stability"],
-                similarity_boost=VOICE_SETTINGS["clarity_boost"],
-                style=0.0,  # No style processing for speed
-                use_speaker_boost=False  # Disable speaker boost for faster generation
-            )
-        )
-        return audio
-    except Exception as e:
-        logging.error(f"TTS Error: {e}")
-        return None
+    """Convert text to speech - ElevenLabs temporarily disabled"""
+    # ElevenLabs temporarily disabled due to compatibility issues
+    # Return None to use Twilio's built-in voice as fallback
+    logging.info("ElevenLabs temporarily disabled - using Twilio voice fallback")
+    return None
 
 def get_personalized_greeting(user_id):
     """Get personalized greeting with user confirmation"""
