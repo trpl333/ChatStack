@@ -99,8 +99,21 @@ def _get_twilio_client():
 
 def _get_elevenlabs_client():
     """Get ElevenLabs client dynamically for hot reload support"""
-    # Temporarily disabled due to compatibility issues
-    return None
+    try:
+        from elevenlabs.client import ElevenLabs
+        from config_loader import get_elevenlabs_config
+        
+        config = get_elevenlabs_config()
+        api_key = config.get("api_key")
+        
+        if not api_key:
+            logging.warning("ElevenLabs API key not configured")
+            return None
+            
+        return ElevenLabs(api_key=api_key)
+    except Exception as e:
+        logging.error(f"Failed to initialize ElevenLabs client: {e}")
+        return None
 
 # Check if LLM_BASE_URL is set on startup
 if not _initial_config["llm_base_url"]:
@@ -112,7 +125,7 @@ call_sessions = {}
 # Admin-configurable settings
 VOICE_ID = "dnRitNTYKgyEUEizTqqH"  # Sol's voice (configurable via admin)
 # Voice settings - configurable via admin
-voice_settings = {"stability": 0.71, "clarity_boost": 0.5}
+voice_settings = {"stability": 0.71, "similarity_boost": 0.5}
 ai_instructions = "You are Samantha from Peterson Family Insurance Agency. Be casual and friendly."
 current_voice_id = "dnRitNTYKgyEUEizTqqH"  # Sol's voice
 VOICE_SETTINGS = voice_settings  # For backwards compatibility
@@ -355,11 +368,62 @@ def user_memories():
 # ============ PHONE AI ENDPOINTS ============
 
 def text_to_speech(text, voice_id=None):
-    """Convert text to speech - ElevenLabs temporarily disabled"""
-    # ElevenLabs temporarily disabled due to compatibility issues
-    # Return None to use Twilio's built-in voice as fallback
-    logging.info("ElevenLabs temporarily disabled - using Twilio voice fallback")
-    return None
+    """Convert text to speech using ElevenLabs"""
+    try:
+        from elevenlabs import VoiceSettings
+        import os
+        import time
+        
+        client = _get_elevenlabs_client()
+        if not client:
+            logging.info("ElevenLabs client not available - using Twilio voice fallback")
+            return None
+            
+        # Use provided voice_id or fall back to current_voice_id
+        voice_to_use = voice_id or current_voice_id
+        
+        # Generate audio with ElevenLabs v2 API
+        audio_generator = client.text_to_speech.convert(
+            voice_id=voice_to_use,
+            text=text,
+            model_id="eleven_multilingual_v2",
+            voice_settings=VoiceSettings(
+                stability=VOICE_SETTINGS.get("stability", 0.71),
+                similarity_boost=VOICE_SETTINGS.get("similarity_boost", 0.5),
+                style=VOICE_SETTINGS.get("style", 0.0),
+                use_speaker_boost=True
+            )
+        )
+        
+        # Create timestamp for unique filename
+        timestamp = str(int(time.time()))
+        filename = f"response_{timestamp}.mp3"
+        
+        # Ensure static/audio directory exists
+        static_folder = app.static_folder or 'static'
+        audio_dir = os.path.join(static_folder, 'audio')
+        os.makedirs(audio_dir, exist_ok=True)
+        
+        # Save audio file
+        audio_path = os.path.join(audio_dir, filename)
+        with open(audio_path, 'wb') as f:
+            for chunk in audio_generator:
+                if isinstance(chunk, (bytes, bytearray, memoryview)):
+                    f.write(chunk)
+                elif hasattr(chunk, 'encode'):
+                    f.write(chunk.encode())
+                else:
+                    f.write(bytes(chunk))
+        
+        # Return URL for Twilio to play
+        from flask import url_for
+        audio_url = url_for('static', filename=f'audio/{filename}', _external=True)
+        logging.info(f"ElevenLabs TTS generated: {audio_url}")
+        return audio_url
+        
+    except Exception as e:
+        logging.error(f"ElevenLabs TTS failed: {e}")
+        return None
 
 def get_personalized_greeting(user_id):
     """Get personalized greeting with user confirmation"""
@@ -634,18 +698,9 @@ def handle_incoming_call():
     greeting = get_personalized_greeting(from_number)
     
     # Use ElevenLabs for natural voice (Peterson Family Insurance)
-    audio = text_to_speech(greeting, VOICE_ID)
-    if audio:
-        # Save audio file for serving
-        import uuid
-        audio_filename = f"greeting_{call_sid}.mp3"
-        audio_path = f"static/audio/{audio_filename}"
-        
-        with open(audio_path, 'wb') as f:
-            f.write(audio)
-        
-        # Play the audio file
-        audio_url = f"https://voice.theinsurancedoctors.com/static/audio/{audio_filename}"
+    audio_url = text_to_speech(greeting, VOICE_ID)
+    if audio_url:
+        # Play the generated audio file
         response.play(audio_url)
     else:
         # Fallback to Twilio voice if ElevenLabs fails
@@ -986,7 +1041,7 @@ def update_voice():
         data = request.get_json()
         VOICE_ID = data.get('voice_id', VOICE_ID)
         VOICE_SETTINGS['stability'] = float(data.get('stability', 0.71))
-        VOICE_SETTINGS['clarity_boost'] = float(data.get('clarity', 0.5))
+        VOICE_SETTINGS['similarity_boost'] = float(data.get('clarity', 0.5))
         
         return jsonify({"success": True})
     except Exception as e:
