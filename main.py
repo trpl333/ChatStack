@@ -408,22 +408,35 @@ def text_to_speech(text, voice_id=None):
         audio_dir = os.path.join(static_folder, 'audio')
         os.makedirs(audio_dir, exist_ok=True)
         
-        # Save audio file
+        # Save audio file - ensure complete write before returning URL
         audio_path = os.path.join(audio_dir, filename)
-        with open(audio_path, 'wb') as f:
-            for chunk in audio_generator:
-                if isinstance(chunk, (bytes, bytearray, memoryview)):
-                    f.write(chunk)
-                elif hasattr(chunk, 'encode'):
-                    f.write(chunk.encode())
-                else:
-                    f.write(bytes(chunk))
-        
-        # Return URL for Twilio to play
-        from flask import url_for
-        audio_url = url_for('static', filename=f'audio/{filename}', _external=True)
-        logging.info(f"ElevenLabs TTS generated: {audio_url}")
-        return audio_url
+        try:
+            with open(audio_path, 'wb') as f:
+                for chunk in audio_generator:
+                    if isinstance(chunk, (bytes, bytearray, memoryview)):
+                        f.write(chunk)
+                    elif hasattr(chunk, 'encode'):
+                        f.write(chunk.encode())
+                    else:
+                        f.write(bytes(chunk))
+                # Ensure all data is written to disk
+                f.flush()
+                os.fsync(f.fileno())
+            
+            # Verify file exists and has content before returning URL
+            if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+                # Return URL for Twilio to play
+                from flask import url_for
+                audio_url = url_for('static', filename=f'audio/{filename}', _external=True)
+                logging.info(f"ElevenLabs TTS generated: {audio_url} ({os.path.getsize(audio_path)} bytes)")
+                return audio_url
+            else:
+                logging.error(f"Audio file not properly saved: {audio_path}")
+                return None
+                
+        except Exception as write_error:
+            logging.error(f"Failed to write audio file {audio_path}: {write_error}")
+            return None
         
     except Exception as e:
         logging.error(f"ElevenLabs TTS failed: {e}")
