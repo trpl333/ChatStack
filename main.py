@@ -53,12 +53,15 @@ import threading
 def start_fastapi_backend():
     """Start FastAPI server on port 8001 in background"""
     try:
-        cmd = ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8001", "--log-level", "error"]
-        subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cmd = ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8001", "--log-level", "info"]
+        # Show output for debugging
+        process = subprocess.Popen(cmd)
         time.sleep(3)  # Give server time to start
         print("✅ FastAPI backend started on port 8001")
+        return process
     except Exception as e:
         print(f"⚠️ Failed to start FastAPI backend: {e}")
+        return None
 
 # Start backend in thread
 backend_thread = threading.Thread(target=start_fastapi_backend, daemon=True)
@@ -637,9 +640,23 @@ def handle_incoming_call():
     response = VoiceResponse()
     greeting = get_personalized_greeting(from_number)
     
-    # Use Twilio's built-in voice for immediate functionality
-    # TODO: Re-enable ElevenLabs once audio file serving is fixed
-    response.say(greeting, voice='alice')
+    # Use ElevenLabs for natural voice (Peterson Family Insurance)
+    audio = text_to_speech(greeting, VOICE_ID)
+    if audio:
+        # Save audio file for serving
+        import uuid
+        audio_filename = f"greeting_{call_sid}.mp3"
+        audio_path = f"static/audio/{audio_filename}"
+        
+        with open(audio_path, 'wb') as f:
+            f.write(audio)
+        
+        # Play the audio file
+        audio_url = f"https://voice.theinsurancedoctors.com/static/audio/{audio_filename}"
+        response.play(audio_url)
+    else:
+        # Fallback to Twilio voice if ElevenLabs fails
+        response.say(greeting, voice='alice')
     
     # Gather user speech
     gather = Gather(
