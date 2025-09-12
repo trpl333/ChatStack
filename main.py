@@ -9,7 +9,7 @@ import base64
 from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response, send_from_directory
 from twilio.rest import Client
 from twilio.twiml import TwiML
-from twilio.twiml.voice_response import VoiceResponse, Gather
+from twilio.twiml.voice_response import VoiceResponse, Gather, Start, Stream
 # Temporarily disabled ElevenLabs due to pydantic compatibility issues
 # from elevenlabs import ElevenLabs, VoiceSettings
 import tempfile
@@ -368,6 +368,18 @@ def search_knowledge():
 def user_memories():
     """Redirect to admin with user_id"""
     return redirect(url_for('admin', user_id=request.args.get('user_id', '')))
+
+# ============ WEBSOCKET FOR REAL-TIME STREAMING ============
+
+@app.route('/twilio', methods=['GET'])
+def twilio_websocket_info():
+    """Info endpoint for Twilio WebSocket - actual WebSocket handled separately"""
+    return jsonify({
+        "status": "WebSocket endpoint available",
+        "url": "wss://voice.theinsurancedoctors.com/twilio",
+        "protocol": "Twilio Media Streams",
+        "features": ["Real-time audio streaming", "Sub-1s response times"]
+    })
 
 # ============ PHONE AI ENDPOINTS ============
 
@@ -732,7 +744,7 @@ PERSONALITY:
 
 @app.route('/phone/incoming', methods=['POST'])
 def handle_incoming_call():
-    """Handle incoming phone calls from Twilio"""
+    """Handle incoming phone calls from Twilio - Real-time streaming version"""
     from_number = request.form.get('From')
     call_sid = request.form.get('CallSid')
     
@@ -743,33 +755,18 @@ def handle_incoming_call():
         'conversation': []
     }
     
-    logging.info(f"📞 Incoming call from {from_number}")
+    logging.info(f"📞 Incoming call from {from_number} - Using Media Streams for sub-1s response")
     
     response = VoiceResponse()
-    greeting = get_personalized_greeting(from_number)
     
-    # Use ElevenLabs for natural voice (Peterson Family Insurance)
-    audio_url = text_to_speech(greeting, VOICE_ID)
-    if audio_url:
-        # Play the generated audio file
-        response.play(audio_url)
-    else:
-        # Fallback to Twilio voice if ElevenLabs fails
-        response.say(greeting, voice='alice')
+    # Start Twilio Media Stream for real-time audio
+    start = Start()
+    stream = Stream(url=f'wss://voice.theinsurancedoctors.com/twilio')
+    start.append(stream)
+    response.append(start)
     
-    # Gather user speech
-    gather = Gather(
-        input='speech',
-        timeout=8,  # Reduced timeout
-        speech_timeout=2,  # Faster speech detection
-        action='/phone/process-speech',
-        method='POST'
-    )
-    response.append(gather)
-    
-    # Fallback if no speech detected
-    response.say("I didn't hear anything. Please try calling back.")
-    response.hangup()
+    # Optional: Add initial message while WebSocket connects
+    response.say("Connecting to Samantha...", voice='alice', length=2)
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 
