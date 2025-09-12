@@ -35,21 +35,24 @@ async def lifespan(app: FastAPI):
     try:
         # Initialize memory store
         memory_store = MemoryStore()
-        logger.info("Memory store initialized")
+        if memory_store.available:
+            logger.info("✅ Memory store initialized")
+            # Cleanup expired memories
+            cleanup_count = memory_store.cleanup_expired()
+            logger.info(f"Cleaned up {cleanup_count} expired memories")
+        else:
+            logger.warning("⚠️ Memory store running in degraded mode (database unavailable)")
         
         # Validate LLM connection
         if not validate_llm_connection():
             logger.warning("LLM connection validation failed - service may be unavailable")
         
-        # Cleanup expired memories
-        cleanup_count = memory_store.cleanup_expired()
-        logger.info(f"Cleaned up {cleanup_count} expired memories")
-        
         yield
         
     except Exception as e:
         logger.error(f"Startup failed: {e}")
-        raise
+        # Don't raise - allow app to start in degraded mode
+        logger.info("Starting app in degraded mode...")
     finally:
         # Shutdown
         logger.info("Shutting down NeuroSphere Orchestrator...")

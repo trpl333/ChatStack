@@ -56,20 +56,36 @@ class MemoryStore:
         if not DB_URL:
             raise ValueError("DATABASE_URL environment variable is required")
             
+        # Ensure SSL is enabled for managed databases
+        db_url = DB_URL
+        if 'sslmode=' not in db_url:
+            db_url += ('&' if '?' in db_url else '?') + 'sslmode=require'
+            
         try:
-            self.conn = psycopg2.connect(DB_URL)
+            logger.info("Connecting to PostgreSQL database...")
+            self.conn = psycopg2.connect(db_url, connect_timeout=5)
             self.conn.autocommit = True
-            logger.info("Connected to PostgreSQL database")
+            self.available = True
+            logger.info("✅ Connected to PostgreSQL database")
             
             # Verify pgvector extension is available
             self._verify_extension()
             
         except Exception as e:
-            logger.error(f"Failed to connect to database: {e}")
-            raise
+            logger.error(f"❌ Failed to connect to database: {e}")
+            self.available = False
+            self.conn = None
+            # Don't raise - allow app to start in degraded mode
 
+    def _check_connection(self):
+        """Check if database connection is available."""
+        if not self.available or not self.conn:
+            raise RuntimeError("Memory store is not available (database connection failed)")
+    
     def _verify_extension(self):
         """Verify that pgvector extension is installed."""
+        if not self.available:
+            return
         try:
             with self.conn.cursor() as cur:
                 cur.execute("SELECT 1 FROM pg_extension WHERE extname = 'vector'")
