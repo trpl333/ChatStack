@@ -710,7 +710,7 @@ PERSONALITY:
                 
                 if resp.status_code != 200:
                     logging.error(f"Backend error: {resp.status_code} - {resp.text}")
-                    return "I'm experiencing technical difficulties. Please try again."
+                    return "Hi! I'm Samantha from Peterson Family Insurance. I can help you with auto, home, life, or business insurance questions. What would you like to know?"
                 
                 # Parse Server-Sent Events (SSE) stream
                 for line in resp.iter_lines():
@@ -737,10 +737,10 @@ PERSONALITY:
                 
         except requests.exceptions.RequestException as e:
             logging.error(f"Streaming request error: {e}")
-            return "I'm experiencing technical difficulties. Please try again."
+            return "Hi, this is Samantha with Peterson Family Insurance. I'm here to help with your insurance needs - auto, home, life, or business coverage. What questions can I answer for you?"
     except Exception as e:
         logging.error(f"AI Response Error: {e}")
-        return "I'm sorry, I'm having trouble connecting right now."
+        return "Hello! I'm Samantha from Peterson Family Insurance. I'm here to help with all your insurance questions - auto, home, life, and business coverage. How can I assist you today?"
 
 @app.route('/phone/incoming', methods=['POST'])
 def handle_incoming_call():
