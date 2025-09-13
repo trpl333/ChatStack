@@ -131,6 +131,30 @@
             <button class="btn btn-success mt-2" onclick="updateRouting()">💾 Update Call Routing</button>
         </div>
 
+        <!-- LLM Backend Settings -->
+        <div class="admin-section">
+            <h3>🧠 LLM Backend Settings</h3>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">LLM Backend</label>
+                    <select class="form-select" id="llmSelect">
+                        <option value="https://a40.neurospherevoice.com" selected>A40 GPU (RunPod A40)</option>
+                        <option value="https://a100.neurospherevoice.com">A100 GPU (RunPod A100)</option>
+                    </select>
+                    <small class="text-muted">Choose which GPU endpoint to use for AI responses</small>
+                </div>
+                <div class="col-md-6">
+                    <div class="card bg-secondary">
+                        <div class="card-body">
+                            <h6>Current LLM Endpoint</h6>
+                            <p class="current-setting" id="currentLLMEndpoint">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success mt-2" onclick="updateLLM()">💾 Update LLM Backend</button>
+        </div>
+
         <!-- System Status -->
         <div class="admin-section">
             <h3>📊 System Status</h3>
@@ -362,12 +386,41 @@
             });
         }
 
+        function updateLLM() {
+            const newUrl = document.getElementById('llmSelect').value;
+            
+            fetch('/update-llm', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ llm_base_url: newUrl })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ LLM backend updated to ' + newUrl);
+                    refreshStatus(); // Refresh to show new endpoint
+                } else {
+                    alert('❌ Update failed: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ Network error: ' + error.message);
+            });
+        }
+
         function refreshStatus() {
             fetch('/admin-status')
             .then(response => response.json())
             .then(data => {
                 document.getElementById('currentModel').textContent = data.model || 'Unknown';
                 document.getElementById('memoryCount').textContent = data.memory_count || '0';
+                
+                // Update current LLM endpoint display
+                if (data.llm_endpoint) {
+                    document.getElementById('currentLLMEndpoint').textContent = data.llm_endpoint;
+                    // Update the dropdown to match current setting
+                    document.getElementById('llmSelect').value = data.llm_endpoint;
+                }
                 
                 // Update configuration displays
                 if (data.configuration) {
