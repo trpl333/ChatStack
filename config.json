@@ -1,44 +1,31 @@
 {
   "comment": "NeuroSphere Orchestrator Configuration - Non-sensitive settings only",
   "comment_security": "API keys and secrets are stored in environment variables for security",
-
   "llm_base_url": "https://a40.neurospherevoice.com",
   "llm_model": "mistralai/Mistral-7B-Instruct-v0.1",
   "llm_description": "RunPod A40 GPU endpoint hosting the LLM. Used only by the orchestrator to generate AI responses.",
-
   "ai_memory_url": "http://209.38.143.71:8100",
   "ai_memory_description": "DigitalOcean AI-Memory service (FastAPI + Postgres/pgvector). Stores and retrieves long-term memory objects.",
-
   "server_url": "https://voice.theinsurancedoctors.com/phone/incoming",
   "server_description": "Public orchestrator endpoint (FastAPI) hosted on DigitalOcean. Twilio webhooks use this to deliver calls into the AI system.",
-
   "embed_dim": 768,
   "embed_dim_description": "Vector embedding dimension used for AI-Memory (pgvector). Must match DB schema.",
-
   "port": 5000,
   "port_description": "Internal port where FastAPI orchestrator runs before being proxied by Nginx.",
-
   "log_level": "INFO",
   "log_level_description": "Logging verbosity level for orchestrator processes.",
-
   "elevenlabs_voice_id": "dnRitNTYKgyEUEizTqqH",
   "elevenlabs_description": "Voice ID for ElevenLabs text-to-speech. Controlled alongside ELEVENLABS_API_KEY stored in env.",
-
   "twilio_phone_number": "+19497071290",
   "twilio_description": "Your Twilio dev line. Calls to this number are routed into the orchestrator at SERVER_URL.",
-
   "hot_reload_enabled": true,
   "hot_reload_description": "Whether the orchestrator should watch config.json for changes and reload automatically.",
-
   "config_reload_interval": 30,
   "config_reload_interval_description": "Interval (in seconds) for checking config.json updates if hot reload is enabled.",
-
   "environment": "production",
   "environment_description": "Specifies the current environment (e.g., development, staging, production).",
-
   "version": "2.1",
   "version_description": "Semantic version of this configuration file. Increment whenever config.json changes.",
-
-  "last_updated": "2025-09-11",
+  "last_updated": "2025-09-13",
   "last_updated_description": "Date this configuration file was last updated."
 }

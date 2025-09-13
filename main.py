@@ -1150,7 +1150,7 @@ def update_routing():
 
 @app.route('/update-llm', methods=['POST'])
 def update_llm():
-    """Update LLM backend endpoint dynamically"""
+    """Update LLM backend endpoint dynamically with cross-process synchronization"""
     try:
         data = request.get_json()
         new_url = data.get('llm_base_url')
@@ -1162,15 +1162,45 @@ def update_llm():
         if not new_url.startswith('https://'):
             return jsonify({"success": False, "error": "LLM URL must start with https://"})
         
-        # Update environment variable for immediate effect
+        # Update environment variable for immediate effect in Flask process
         os.environ['LLM_BASE_URL'] = new_url
         
+        # Update config.json file for cross-process consistency
+        config_file = "config.json"
+        try:
+            # Read current config
+            with open(config_file, 'r') as f:
+                config_data = json.load(f)
+            
+            # Update LLM base URL
+            config_data['llm_base_url'] = new_url
+            from datetime import datetime
+            config_data['last_updated'] = datetime.now().strftime("%Y-%m-%d")
+            
+            # Write updated config atomically
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, dir='.', prefix='config_', suffix='.tmp') as tmp_f:
+                json.dump(config_data, tmp_f, indent=2)
+                tmp_f.flush()
+                os.fsync(tmp_f.fileno())
+                temp_filename = tmp_f.name
+            
+            # Atomic move to replace original config
+            os.rename(temp_filename, config_file)
+            
+            logging.info(f"✅ Updated config.json with new LLM endpoint: {new_url}")
+            
+        except Exception as config_error:
+            logging.error(f"Failed to update config.json: {config_error}")
+            # Don't fail the whole request if config file update fails
+            # Environment variable update still provides immediate effect for Flask
+        
         # Log the change
-        logging.info(f"✅ LLM backend updated to: {new_url}")
+        logging.info(f"✅ LLM backend updated to: {new_url} (env + config.json)")
         
         return jsonify({
             "success": True, 
-            "message": f"LLM backend updated to {new_url}",
+            "message": f"LLM backend updated to {new_url} (both processes will use new endpoint)",
             "llm_endpoint": new_url
         })
         
