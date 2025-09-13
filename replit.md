@@ -18,6 +18,13 @@ The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main
 - Any issues should be debugged WITHOUT touching this file
 - Architecture: Secrets in .env file, non-secrets in config.json
 
+### Current Production Secrets (in .env file):
+- DATABASE_URL, PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
+- TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
+- ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID
+- LLM_BASE_URL, SESSION_SECRET
+- DEEPGRAM_API, HUGGINHFACE_TOKEN
+
 ### Core Components:
 - **LLM Integration**: Communicates with an OpenAI-compatible API endpoint (defaulting to Qwen2-7B-Instruct) for AI responses, with structured message passing and error handling.
 - **Memory System**: Utilizes PostgreSQL with the `pgvector` extension for semantic search, storing categorized memories (person, preference, project, rule, moment, fact) with TTL support. Short-term memory is managed for in-session context.
