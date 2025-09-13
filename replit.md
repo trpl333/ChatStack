@@ -1,7 +1,10 @@
 # Peterson Family Insurance AI Phone System
 
 ## Overview
-This project is an AI-powered phone system for Peterson Family Insurance, utilizing "Samantha" as the AI agent. The system, built on NeuroSphere Orchestrator, is a FastAPI-based solution designed for intelligent call handling with persistent memory. It aims for a rapid response time of 2-2.5 seconds. Key capabilities include maintaining conversation continuity via a PostgreSQL vector database, integrating external tools for actions, and employing safety modes for content filtering. The orchestrator serves as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality.
+This project is an AI-powered phone system for Peterson Family Insurance, utilizing "Samantha" as the AI agent. The system, built on NeuroSphere Orchestrator, is a FastAPI-based solution designed for intelligent call handling with persistent memory. It aims for a rapid response time of 2-2.5 seconds. Key capabilities include maintaining conversation continuity via HTTP-based AI-Memory service, integrating external tools for actions, and employing safety modes for content filtering. The orchestrator serves as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality.
+
+**✅ RECENT MAJOR ACHIEVEMENT (Sept 13, 2025):**
+Successfully migrated from unreliable direct PostgreSQL connection to robust HTTP-based AI-Memory service integration, eliminating all "degraded mode" issues and achieving stable memory operations.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -27,7 +30,7 @@ The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main
 
 ### Core Components:
 - **LLM Integration**: Communicates with an OpenAI-compatible API endpoint (defaulting to Qwen2-7B-Instruct) for AI responses, with structured message passing and error handling.
-- **Memory System**: Utilizes PostgreSQL with the `pgvector` extension for semantic search, storing categorized memories (person, preference, project, rule, moment, fact) with TTL support. Short-term memory is managed for in-session context.
+- **Memory System**: ✅ Now uses HTTP-based AI-Memory service (http://209.38.143.71:8100) for reliable memory operations. Stores categorized memories (person, preference, project, rule, moment, fact) with TTL support and semantic search capabilities. Eliminated all "degraded mode" issues with robust HTTPMemoryStore implementation.
 - **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing from memory, and safety triggers for content filtering.
 - **Tool System**: An extensible, JSON schema-based architecture for external tool execution (e.g., meeting booking, message sending) with a central dispatcher and error recovery.
 - **Data Models**: Pydantic for type-safe validation of request/response models, including role-based messages and structured memory objects.
@@ -141,21 +144,27 @@ curl -X POST https://voice.theinsurancedoctors.com/phone/incoming -d "test=1"
 ## Troubleshooting Checklist
 
 ### **Call Hangs Up Issues**
-1. ✓ **Check for multiple nginx configurations causing conflicts**:
+1. ✅ **Memory System**: Fixed - HTTP-based AI-Memory service working perfectly 
+2. ✓ **Check for multiple nginx configurations causing conflicts**:
    ```bash
    ls /etc/nginx/sites-enabled/
    # Should prioritize: voice-theinsurancedoctors-com.conf
    # Check conflicts: sudo cat /etc/nginx/sites-enabled/neurosphere-llms.conf | grep -E "server_name|default_server"
    ```
-2. ✓ **Verify `/static/` proxy is configured** for audio file access:
+3. ✓ **Verify `/static/` proxy is configured** for audio file access:
    ```bash
    curl -I https://voice.theinsurancedoctors.com/static/audio/
    # Should return 200 OK, not 404
    ```
-3. ✓ Check nginx proxy configuration for `/phone/` location
-4. ✓ Verify Flask app responding: `curl http://localhost:5000/phone/incoming`
-5. ✓ Check Docker container logs: `docker logs chatstack-web-1`
-6. ✓ Test HTTPS endpoint: `curl https://voice.theinsurancedoctors.com/phone/incoming`
+4. ✓ Check nginx proxy configuration for `/phone/` location
+5. ✓ Verify Flask app responding: `curl http://localhost:5000/phone/incoming`
+6. ✓ Check Docker container logs: `docker logs chatstack-web-1`
+7. ✓ Test HTTPS endpoint: `curl https://voice.theinsurancedoctors.com/phone/incoming`
+
+### **Current Status (Sept 13, 2025)**
+- ✅ **Memory System**: Fully operational with HTTP-based AI-Memory service
+- ❌ **LLM Endpoint**: RunPod endpoint (https://a40.neurospherevoice.com) unreachable
+- **Impact**: System falls back to basic Twilio responses instead of AI+ElevenLabs
 
 ### **Voice Issues**
 1. ✓ Verify `ELEVENLABS_API_KEY` is set
