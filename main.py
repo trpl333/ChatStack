@@ -1148,6 +1148,36 @@ def update_routing():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
+@app.route('/update-llm', methods=['POST'])
+def update_llm():
+    """Update LLM backend endpoint dynamically"""
+    try:
+        data = request.get_json()
+        new_url = data.get('llm_base_url')
+        
+        if not new_url:
+            return jsonify({"success": False, "error": "No LLM base URL provided"})
+        
+        # Validate URL format
+        if not new_url.startswith('https://'):
+            return jsonify({"success": False, "error": "LLM URL must start with https://"})
+        
+        # Update environment variable for immediate effect
+        os.environ['LLM_BASE_URL'] = new_url
+        
+        # Log the change
+        logging.info(f"✅ LLM backend updated to: {new_url}")
+        
+        return jsonify({
+            "success": True, 
+            "message": f"LLM backend updated to {new_url}",
+            "llm_endpoint": new_url
+        })
+        
+    except Exception as e:
+        logging.error(f"Failed to update LLM backend: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/admin-status')
 def admin_status():
     """Get current system status and all configuration sources"""
@@ -1171,6 +1201,7 @@ def admin_status():
             "voice_id": VOICE_ID,
             "max_tokens": MAX_TOKENS,
             "model": _get_config()["llm_model"],
+            "llm_endpoint": os.environ.get("LLM_BASE_URL", _get_config()["llm_base_url"]),
             "configuration": {
                 "sources": {
                     "environment_variables": {k: v for k, v in all_config.items() if k.startswith('env.')},
