@@ -10,7 +10,7 @@ from config_loader import get_secret, get_setting
 
 from app.models import ChatRequest, ChatResponse, MemoryObject
 from app.llm import chat as llm_chat, validate_llm_connection
-from app.memory import MemoryStore
+from app.http_memory import HTTPMemoryStore
 from app.packer import pack_prompt, should_remember, extract_carry_kit_items, detect_safety_triggers
 from app.tools import tool_dispatcher, parse_tool_calls, execute_tool_calls
 
@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     
     try:
         # Initialize memory store
-        memory_store = MemoryStore()
+        memory_store = HTTPMemoryStore()
         if memory_store.available:
             logger.info("✅ Memory store initialized")
             # Cleanup expired memories
@@ -79,7 +79,7 @@ app.add_middleware(
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-def get_memory_store() -> MemoryStore:
+def get_memory_store() -> HTTPMemoryStore:
     """Dependency to get memory store instance."""
     if memory_store is None:
         raise HTTPException(status_code=500, detail="Memory store not initialized")
@@ -122,7 +122,7 @@ async def admin_interface():
     return FileResponse("static/admin.html")
 
 @app.get("/health")
-async def health_check(mem_store: MemoryStore = Depends(get_memory_store)):
+async def health_check(mem_store: HTTPMemoryStore = Depends(get_memory_store)):
     """Health check endpoint."""
     try:
         # Check memory store
@@ -146,7 +146,7 @@ async def chat_completion(
     request: ChatRequest,
     thread_id: str = "default",
     user_id: Optional[str] = None,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """
     Main chat completion endpoint with memory and tool calling.
@@ -282,7 +282,7 @@ async def get_memories(
     limit: int = 50,
     memory_type: Optional[str] = None,
     user_id: Optional[str] = None,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Get stored memories with optional filtering."""
     try:
@@ -306,7 +306,7 @@ async def get_memories(
 @app.post("/v1/memories")
 async def store_memory(
     memory: MemoryObject,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Manually store a memory object."""
     try:
@@ -332,7 +332,7 @@ async def store_memory(
 @app.delete("/v1/memories/{memory_id}")
 async def delete_memory(
     memory_id: str,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Delete a specific memory by ID."""
     try:
@@ -354,7 +354,7 @@ async def delete_memory(
 async def store_user_memory(
     memory: MemoryObject,
     user_id: str,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Store a memory for a specific user."""
     try:
@@ -381,7 +381,7 @@ async def store_user_memory(
 @app.post("/v1/memories/shared")
 async def store_shared_memory(
     memory: MemoryObject,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Store a shared memory available to all users."""
     try:
@@ -411,7 +411,7 @@ async def get_user_memories(
     query: str = "",
     limit: int = 10,
     include_shared: bool = True,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Get memories for a specific user."""
     try:
@@ -439,7 +439,7 @@ async def get_user_memories(
 async def get_shared_memories(
     query: str = "",
     limit: int = 20,
-    mem_store: MemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
     """Get shared memories available to all users."""
     try:
