@@ -82,7 +82,9 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 def get_memory_store() -> HTTPMemoryStore:
     """Dependency to get memory store instance."""
     if memory_store is None:
-        raise HTTPException(status_code=500, detail="Memory store not initialized")
+        raise HTTPException(status_code=503, detail="Memory store not initialized - service degraded")
+    if not memory_store.available:
+        raise HTTPException(status_code=503, detail="Memory store unavailable - service degraded") 
     return memory_store
 
 # Memory write heuristics
@@ -125,17 +127,28 @@ async def admin_interface():
 async def health_check(mem_store: HTTPMemoryStore = Depends(get_memory_store)):
     """Health check endpoint."""
     try:
-        # Check memory store
-        stats = mem_store.get_memory_stats()
+        # Check memory store availability and get accurate stats
+        memory_status = "connected" if mem_store.available else "unavailable"
+        
+        if mem_store.available:
+            try:
+                stats = mem_store.get_memory_stats()
+                total_memories = stats.get("total", 0)  # Fixed: use 'total' not 'total_memories'
+            except Exception as e:
+                logger.error(f"Memory stats failed: {e}")
+                memory_status = "error"
+                total_memories = 0
+        else:
+            total_memories = 0
         
         # Check LLM connection
         llm_status = validate_llm_connection()
         
         return {
-            "status": "healthy" if llm_status else "degraded",
-            "memory_store": "connected",
+            "status": "healthy" if (mem_store.available and llm_status) else "degraded",
+            "memory_store": memory_status,
             "llm_service": "connected" if llm_status else "unavailable",
-            "total_memories": stats.get("total_memories", 0)
+            "total_memories": total_memories
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
@@ -315,7 +328,7 @@ async def store_memory(
             memory.key,
             memory.value,
             user_id=None,
-            scope="user",
+            scope="shared",  # Fixed: use 'shared' when user_id is None
             ttl_days=memory.ttl_days,
             source=memory.source
         )

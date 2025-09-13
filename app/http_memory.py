@@ -69,6 +69,11 @@ class HTTPMemoryStore:
         """
         self._check_connection()
         
+        # Fix scope/user_id mismatch: reject scope='user' without user_id
+        if scope == "user" and user_id is None:
+            logger.warning("Cannot use scope='user' without user_id, changing to scope='shared'")
+            scope = "shared"
+        
         try:
             # Prepare payload for AI-Memory service
             payload = {
