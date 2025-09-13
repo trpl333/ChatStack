@@ -9,6 +9,15 @@ Preferred communication style: Simple, everyday language.
 ## System Architecture
 The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main.py`) handles Twilio webhooks and spawns the FastAPI backend (`app/main.py`), which manages the core `/v1/chat` endpoint and LLM integration.
 
+## ⚠️ CRITICAL: Environment Configuration
+
+**NEVER TOUCH /opt/ChatStack/.env FILE**
+- The `/opt/ChatStack/.env` file on DigitalOcean server contains all production secrets and is properly configured
+- This file should NEVER be deleted, overwritten, or modified by scripts or agents
+- All secrets are properly set in this file and working correctly
+- Any issues should be debugged WITHOUT touching this file
+- Architecture: Secrets in .env file, non-secrets in config.json
+
 ### Core Components:
 - **LLM Integration**: Communicates with an OpenAI-compatible API endpoint (defaulting to Qwen2-7B-Instruct) for AI responses, with structured message passing and error handling.
 - **Memory System**: Utilizes PostgreSQL with the `pgvector` extension for semantic search, storing categorized memories (person, preference, project, rule, moment, fact) with TTL support. Short-term memory is managed for in-session context.
