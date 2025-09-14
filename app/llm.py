@@ -54,8 +54,11 @@ def chat(messages: List[Dict[str, str]], temperature: float = 0.6, top_p: float 
     try:
         logger.info(f"Calling LLM with {len(messages)} messages, temp={temperature}, top_p={top_p}")
         
+        # Handle base_url that may or may not include /v1
+        endpoint_url = f"{base_url}/chat/completions" if base_url.endswith('/v1') else f"{base_url}/v1/chat/completions"
+        
         response = requests.post(
-            f"{base_url}/v1/chat/completions",
+            endpoint_url,
             json=payload,
             headers=headers,
             timeout=120  # Increased timeout for longer responses
