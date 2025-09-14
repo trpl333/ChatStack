@@ -525,215 +525,34 @@ def get_ai_response(user_id, message, call_sid=None):
         # Keep it simple - no conversation history to avoid confusion
         # Just process the current message directly
         
-        # Build conversation context with memory
+        # Call FastAPI backend with user identification - this handles memory integration automatically
         conversation_history = call_sessions.get(call_sid, {}).get('conversation', [])
         
-        # Get relevant memories about the user
-        memory_context = ""
-        try:
-            from app.memory import MemoryStore
-            mem_store = MemoryStore()
-            memories = mem_store.search("", user_id=user_id, k=15)  # Get more memories to filter properly
-            
-            if memories:
-                memory_items = []
-                name_corrections = []  # Track name corrections separately
-                important_info = []    # Track important family info
-                other_info = []        # Other memories
-                
-                logging.info(f"Found {len(memories)} memories for user {user_id}")
-                
-                for memory in memories:
-                    value = memory.get("value", {})
-                    memory_text = ""
-                    
-                    if isinstance(value, dict):
-                        # Try multiple fields for memory content
-                        summary = value.get("summary", "")
-                        content = value.get("content", "")
-                        name = value.get("name", "")
-                        job = value.get("job", "")
-                        
-                        # Build memory context from available information
-                        if summary:
-                            memory_text = f"REMEMBER: {summary}"
-                        elif content:
-                            memory_text = f"REMEMBER: {content}"
-                        elif name and value.get("relationship") == "wife":
-                            job_info = value.get("job", "")
-                            if job_info:
-                                memory_text = f"REMEMBER: Wife {name} works as {job_info}"
-                            else:
-                                memory_text = f"REMEMBER: Wife's name is {name}"
-                        elif name and value.get("relationship") in ["son", "sons", "twin sons"]:
-                            memory_text = f"REMEMBER: Son named {name}"
-                        elif value.get("sons") or value.get("names") or value.get("relationship") in ["twin sons", "sons"]:
-                            # Handle twin sons specifically
-                            sons = value.get("sons") or value.get("names")
-                            if isinstance(sons, str):
-                                memory_text = f"REMEMBER: Sons are {sons}"
-                            elif isinstance(sons, list):
-                                memory_text = f"REMEMBER: Sons are {', '.join(sons)}"
-                            elif value.get("description") and "jack" in value.get("description", "").lower():
-                                memory_text = f"REMEMBER: {value.get('description')}"
-                        elif name and value.get("relationship") == "friend":
-                            memory_text = f"REMEMBER: Friend named {name}"
-                        elif name:
-                            memory_text = f"REMEMBER: Person named {name}"
-                        elif job:
-                            memory_text = f"REMEMBER: Job is {job}"
-                        elif value.get("car"):
-                            memory_text = f"REMEMBER: Drives a {value.get('car')}"
-                        elif value.get("task_type") == "shopping":
-                            memory_text = f"REMEMBER: Shopping task - {value.get('summary', '')}"
-                        elif value.get("context") == "plans and activities":
-                            memory_text = f"REMEMBER: Plans - {value.get('summary', '')}"
-                        
-                        # Also check if it's a simple string value
-                    elif isinstance(value, str) and value.strip():
-                        memory_text = f"***{value.strip()}***"
-                    
-                    # Categorize memories by importance and correctness
-                    if memory_text:
-                        # Name corrections are HIGHEST priority
-                        if "not jack" in memory_text.lower() or "name is john" in memory_text.lower():
-                            name_corrections.append(memory_text)
-                        # Family info (Kelly, Colin, Jack as sons) is high priority  
-                        elif ("kelly" in memory_text.lower() and ("wife" in memory_text.lower() or "teacher" in memory_text.lower())) or \
-                             ("colin" in memory_text.lower() or ("sons" in memory_text.lower() and ("jack" in memory_text.lower() or "colin" in memory_text.lower()))):
-                            important_info.append(memory_text)
-                        # Filter out old incorrect memories that call user "Jack"
-                        elif "jack" in memory_text.lower() and not any(word in memory_text.lower() for word in ["son", "sons", "not jack"]):
-                            # Skip memories that incorrectly call the user Jack (unless it's about Jack the son)
-                            logging.info(f"Filtering out incorrect 'Jack' reference: {memory_text[:100]}")
-                            continue
-                        else:
-                            other_info.append(memory_text)
-                
-                # Build final memory context with priority order
-                final_memories = []
-                
-                # 1. Name corrections first (most important)
-                final_memories.extend(name_corrections[:2])
-                
-                # 2. Important family info
-                final_memories.extend(important_info[:3])
-                
-                # 3. Other info
-                final_memories.extend(other_info[:2])
-                
-                if final_memories:
-                    memory_context = f"\\n\\nWhat I remember about this caller: {' | '.join(final_memories[:5])}"
-                    logging.info(f"Memory context built with {len(final_memories)} filtered memories")
-                    logging.info(f"Memory context: {memory_context}")
-                else:
-                    logging.warning("No usable memory items found after filtering")
-        except Exception as e:
-            logging.error(f"Memory integration error: {e}")
+        logging.info(f"🔍 Calling FastAPI with user_id: {user_id} and message: {message}")
         
-        # Enhanced system prompt with memory - casual friend approach
-        base_prompt = """You are Samantha - think of yourself as everyone's friendly neighborhood person who just happens to work at Peterson Family Insurance. You're the kind of person people actually want to call and chat with.
-
-CASUAL FRIEND VIBE:
-- Talk like you're catching up with someone you genuinely care about
-- Use warm, conversational language: "Hey there!", "Oh my gosh!", "That's awesome!", "No way!"
-- Be genuinely interested in their life, not just business
-- Share little reactions: "That sounds stressful", "I'm so happy for you!", "Oh wow, really?"
-- Use casual phrases: "totally", "for sure", "definitely", "that's crazy", "I love that"
-
-MEMORY RULES (Keep this professional):
-- ONLY use memory information that belongs to THIS SPECIFIC CALLER 
-- If you have NO memories, treat them as a new friend calling
-- If you DO have memories, get excited to hear from them again
-- NEVER mix up different callers' information
-- Each person is unique with their own story
-
-CONVERSATION STYLE:
-- Start conversations like you're happy to hear from them
-- Ask about their life, family, things you remember
-- Give advice like a caring friend would
-- Express genuine emotion: excitement, concern, celebration
-- Use "oh", "wow", "that's so cool", "I'm sorry to hear that"
-- Keep things light and warm, even when discussing business
-
-NEW CALLERS:
-- Greet them like a friendly neighbor: "Hi there! How's your day going?"
-- Be genuinely interested in getting to know them
-- Make them feel welcome and comfortable
-- Ask questions that show you care about them as a person
-
-RETURNING FRIENDS:
-- Get excited to hear from them: "Hey! So good to hear from you again!"
-- Reference what you remember about their life
-- Ask follow-up questions about things they've mentioned
-- Show you've been thinking about them
-
-PERSONALITY:
-- Warm, caring, and genuinely interested in people
-- A little playful and fun (but still helpful)
-- The kind of person who remembers your kids' names and asks how they're doing
-- Someone who celebrates good news and offers support during tough times"""
-
-        if memory_context:
-            system_prompt = f"{base_prompt}{memory_context}\\n\\nUse the memories above when helpful. Keep responses natural and brief."
-        else:
-            system_prompt = f"{base_prompt}\\n\\nKeep responses natural and brief."
-        
-        system_message = {"role": "system", "content": system_prompt}
-        logging.info(f"System prompt: {system_prompt[:200]}...")
-        
-        # Include recent conversation for continuity
-        messages = [system_message]
-        if conversation_history:
-            messages.extend(conversation_history[-4:])  # Last 4 exchanges
-        messages.append({"role": "user", "content": message})
-        
-        final_messages = messages
-        
+        # Prepare payload for FastAPI /v1/chat endpoint
         payload = {
-            "model": _get_config()["llm_model"],
-            "messages": final_messages,
-            "temperature": 0.7,  # Higher temperature for more human-like variability
-            "max_tokens": 45,  # Very short, direct responses for speed
-            "top_p": 0.8,
-            "stream": True  # Enable streaming for sub-second response times
+            "message": message,
+            "conversation_history": conversation_history[-6:] if conversation_history else [],  # Last 6 messages for context
         }
         
-        # Connect directly to RunPod endpoint with streaming
-        import json
-        response_text = ""
+        # Make request to FastAPI backend with user_id as query parameter
         try:
-            with requests.post(f"{_get_backend_url()}/v1/chat/completions", 
-                             json=payload, 
-                             timeout=10, 
-                             stream=True) as resp:
-                
-                if resp.status_code != 200:
-                    logging.error(f"Backend error: {resp.status_code} - {resp.text}")
-                    return "Hi! I'm Samantha from Peterson Family Insurance. I can help you with auto, home, life, or business insurance questions. What would you like to know?"
-                
-                # Parse Server-Sent Events (SSE) stream
-                for line in resp.iter_lines():
-                    if line:
-                        line = line.decode('utf-8').strip()
-                        if line.startswith('data: '):
-                            data_str = line[6:]  # Remove 'data: ' prefix
-                            if data_str == '[DONE]':
-                                break
-                            try:
-                                data = json.loads(data_str)
-                                if "choices" in data and len(data["choices"]) > 0:
-                                    delta = data["choices"][0].get("delta", {})
-                                    content = delta.get("content", "")
-                                    if content:
-                                        response_text += content
-                                        # Log streaming progress
-                                        if len(response_text) % 10 == 0:  # Every 10 characters
-                                            logging.info(f"Streaming token: '{response_text}'")
-                            except json.JSONDecodeError:
-                                continue
-                
-                return response_text.strip() if response_text else "I'm sorry, I couldn't process that."
+            response = requests.post(
+                "http://localhost:8001/v1/chat",
+                json=payload,
+                params={"user_id": user_id, "thread_id": call_sid},  # Pass user_id and thread_id for memory 
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                ai_response = data.get("response", "I'm sorry, I couldn't process that.")
+                logging.info(f"✅ FastAPI response: {ai_response}")
+                return ai_response
+            else:
+                logging.error(f"FastAPI error: {response.status_code} - {response.text}")
+                return "Hi! I'm Samantha from Peterson Family Insurance. I can help you with auto, home, life, or business insurance questions. What would you like to know?"
                 
         except requests.exceptions.RequestException as e:
             logging.error(f"Streaming request error: {e}")
