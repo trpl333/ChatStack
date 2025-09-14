@@ -1,5 +1,19 @@
 # Peterson Family Insurance AI Phone System
 
+## 📋 **VERSION DEFINITIONS**
+
+### **RAI (Replit AI)** - Original Working Version
+- **Platform**: Replit cloud environment
+- **Performance**: 5-8 second response times (unacceptable for production)
+- **Architecture**: Single Flask application
+- **Status**: Functional but too slow
+
+### **DAI (DigitalOcean AI)** - Production Target Version  
+- **Platform**: DigitalOcean Droplet with Docker
+- **Performance**: 2-2.5 second target response times
+- **Architecture**: Dual Flask + FastAPI services
+- **Status**: Under development
+
 ## Overview
 This project is an AI-powered phone system for Peterson Family Insurance, utilizing "Samantha" as the AI agent. The system, built on NeuroSphere Orchestrator, is a FastAPI-based solution designed for intelligent call handling with persistent memory. It aims for a rapid response time of 2-2.5 seconds. Key capabilities include maintaining conversation continuity via HTTP-based AI-Memory service, integrating external tools for actions, and employing safety modes for content filtering. The orchestrator serves as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality.
 
