@@ -77,10 +77,11 @@ class HTTPMemoryStore:
         try:
             # Prepare payload for AI-Memory service
             payload = {
+                "user_id": user_id or "unknown",
+                "message": value.get("msg", "") if isinstance(value, dict) else str(value),
                 "type": memory_type,
                 "k": key,
                 "value_json": value,
-                "user_id": user_id,
                 "scope": scope,
                 "ttl_days": ttl_days,
                 "source": source
@@ -126,24 +127,20 @@ class HTTPMemoryStore:
         self._check_connection()
         
         try:
-            # Build query parameters
-            params = {
-                "query": query_text,
-                "limit": k
+            # Build payload for AI-Memory service
+            payload = {
+                "user_id": user_id or "unknown",
+                "message": query_text,
+                "limit": k,
+                "types": memory_types or []
             }
             
-            if user_id is not None:
-                params["user_id"] = user_id
-                
-            if memory_types:
-                params["types"] = ",".join(memory_types)
-                
             if not include_shared:
-                params["scope"] = "user"
+                payload["scope"] = "user"
             
             response = self.session.post(
                 f"{self.ai_memory_url}/memory/retrieve",
-                json=params,
+                json=payload,
                 headers={"Content-Type": "application/json"},
                 timeout=10
             )
@@ -165,8 +162,13 @@ class HTTPMemoryStore:
     def get_shared_memories(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get shared memories."""
         try:
-            params = {"limit": limit, "scope": "shared,global"}
-            response = self.session.post(f"{self.ai_memory_url}/memory/retrieve", json=params, headers={"Content-Type": "application/json"}, timeout=10)
+            payload = {
+                "user_id": "shared",
+                "message": "",
+                "limit": limit,
+                "scope": "shared,global"
+            }
+            response = self.session.post(f"{self.ai_memory_url}/memory/retrieve", json=payload, headers={"Content-Type": "application/json"}, timeout=10)
             
             if response.status_code == 200:
                 return response.json().get("memories", [])
