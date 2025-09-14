@@ -10,11 +10,11 @@ sudo cp /opt/ChatStack/deploy/nginx/neurosphere-llms-fixed.conf /etc/nginx/sites
 echo "📝 Deploying canonical voice-theinsurancedoctors-com config..."
 sudo cp /opt/ChatStack/deploy/nginx/voice-theinsurancedoctors-com.conf /etc/nginx/sites-enabled/
 
-# 3. Remove any default configs that might interfere
-if [ -f /etc/nginx/sites-enabled/default ]; then
-    echo "🗑️ Removing default nginx config..."
-    sudo rm /etc/nginx/sites-enabled/default
-fi
+# 3. Remove conflicting configurations
+echo "🗑️ Removing conflicting nginx configs..."
+sudo rm -f /etc/nginx/sites-enabled/default
+sudo rm -f /etc/nginx/sites-enabled/voice.conf
+sudo rm -f /etc/nginx/sites-enabled/voice-theinsurancedoctors-com  # Remove if exists without .conf extension
 
 # 4. Test nginx configuration
 echo "🔍 Testing nginx configuration..."
