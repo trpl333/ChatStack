@@ -59,27 +59,8 @@ except Exception as e:
 # Additional environment defaults
 os.environ.setdefault("EMBED_DIM", str(get_setting("embed_dim", 768)))
 
-# Start FastAPI backend server
-import subprocess
-import time
-import threading
-
-def start_fastapi_backend():
-    """Start FastAPI server on port 8001 in background"""
-    try:
-        cmd = ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8001", "--log-level", "info"]
-        # Show output for debugging
-        process = subprocess.Popen(cmd)
-        time.sleep(3)  # Give server time to start
-        print("✅ FastAPI backend started on port 8001")
-        return process
-    except Exception as e:
-        print(f"⚠️ Failed to start FastAPI backend: {e}")
-        return None
-
-# Start backend in thread
-backend_thread = threading.Thread(target=start_fastapi_backend, daemon=True)
-backend_thread.start()
+# FastAPI backend now started separately via workflow command
+# Removed in-process startup to prevent port conflicts during gunicorn reloads
 
 # Create Flask app with static folder configuration
 app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -676,7 +657,8 @@ def process_speech():
         
         # Check if this message contains information worth remembering
         if should_remember(speech_result):
-            mem_store = MemoryStore()
+            from app.http_memory import HTTPMemoryStore
+            mem_store = HTTPMemoryStore()
             carry_kit_items = extract_carry_kit_items(speech_result)
             
             for item in carry_kit_items:
