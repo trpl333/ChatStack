@@ -467,9 +467,9 @@ def text_to_speech(text, voice_id=None):
 def get_personalized_greeting(user_id):
     """Get personalized greeting with user confirmation"""
     try:
-        # Use direct memory access instead of API
-        from app.memory import MemoryStore
-        mem_store = MemoryStore()
+        # Use HTTP memory service instead of direct database access
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
         
         # Search for any user name, not just "John"
         memories = mem_store.search("name", user_id=user_id, k=10)
