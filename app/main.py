@@ -266,6 +266,8 @@ async def chat_completion(
                         "assistant_response": assistant_output[:500],
                         "summary": f"Conversation about: {user_message[:100]}..."
                     },
+                    user_id=user_id,  # ✅ Fixed: Include user_id for per-user conversation memories
+                    scope="user",
                     ttl_days=90  # Shorter TTL for conversation moments
                 )
             except Exception as e:
