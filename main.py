@@ -121,6 +121,10 @@ VOICE_SETTINGS = voice_settings  # For backwards compatibility
 MAX_TOKENS = 75  # Allow longer, more natural responses
 AI_INSTRUCTIONS = "You are Samantha, a friendly assistant at Peterson Family Insurance Agency."  # Admin-configurable
 
+# Custom greeting templates (admin-configurable)
+EXISTING_USER_GREETING = "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?"
+NEW_CALLER_GREETING = "Good {time_greeting}! This is Samantha - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!"
+
 # Call routing settings (updated for Peterson Family Insurance Agency)
 ROUTING_NUMBERS = {
     "billing": "1-888-327-6377",
@@ -475,7 +479,7 @@ def get_personalized_greeting(user_id):
                         break
         
         if user_name:
-            return f"Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?"
+            return EXISTING_USER_GREETING.format(user_name=user_name)
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
@@ -500,7 +504,7 @@ def get_personalized_greeting(user_id):
         # Fallback if pytz not available
         time_greeting = "Hello"
     
-    return f"{time_greeting}! This is Samantha - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!"
+    return NEW_CALLER_GREETING.format(time_greeting=time_greeting)
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
@@ -947,6 +951,19 @@ def update_personality():
         data = request.get_json()
         AI_INSTRUCTIONS = data.get('instructions', AI_INSTRUCTIONS)
         MAX_TOKENS = int(data.get('max_tokens', MAX_TOKENS))
+        
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update-greetings', methods=['POST'])
+def update_greetings():
+    """Update custom greeting templates"""
+    global EXISTING_USER_GREETING, NEW_CALLER_GREETING
+    try:
+        data = request.get_json()
+        EXISTING_USER_GREETING = data.get('existing_user_greeting', EXISTING_USER_GREETING)
+        NEW_CALLER_GREETING = data.get('new_caller_greeting', NEW_CALLER_GREETING)
         
         return jsonify({"success": True})
     except Exception as e:

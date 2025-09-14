@@ -86,6 +86,49 @@
             <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Personality</button>
         </div>
 
+        <!-- Custom Greetings -->
+        <div class="admin-section">
+            <h3>👋 Custom Greetings</h3>
+            <div class="alert alert-info">
+                <strong>Greeting Logic:</strong> The system automatically chooses between these two greetings based on whether the caller is recognized from memory.
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <label class="form-label">Existing User Greeting</label>
+                    <textarea class="form-control" rows="3" id="existingUserGreeting" placeholder="Greeting for recognized callers...">Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?</textarea>
+                    <small class="text-muted">Use {user_name} placeholder for personalization. Shown when caller's name is found in memory.</small>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">New Caller Greeting</label>
+                    <textarea class="form-control" rows="3" id="newCallerGreeting" placeholder="Greeting for new callers...">Good {time_greeting}! This is Samantha - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!</textarea>
+                    <small class="text-muted">Use {time_greeting} for "morning/afternoon/evening". Shown for unrecognized callers.</small>
+                </div>
+            </div>
+            <div class="mt-3">
+                <h5>Available Placeholders</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="setting-group">
+                            <strong>Existing User Greeting:</strong>
+                            <ul class="mt-2">
+                                <li><code>{user_name}</code> - Caller's name from memory</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="setting-group">
+                            <strong>New Caller Greeting:</strong>
+                            <ul class="mt-2">
+                                <li><code>{time_greeting}</code> - Good morning/afternoon/evening</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <button class="btn btn-success mt-2" onclick="updateGreetings()">💾 Update Greetings</button>
+            <button class="btn btn-outline-info mt-2 ms-2" onclick="testGreeting()">🔊 Test Greeting</button>
+        </div>
+
         <!-- Call Routing -->
         <div class="admin-section">
             <h3>📞 Call Routing & Actions</h3>
@@ -497,6 +540,46 @@
         document.getElementById('clarity').oninput = function() {
             document.getElementById('clarityValue').textContent = this.value;
         };
+
+        function updateGreetings() {
+            const settings = {
+                existing_user_greeting: document.getElementById('existingUserGreeting').value,
+                new_caller_greeting: document.getElementById('newCallerGreeting').value
+            };
+            
+            fetch('/update-greetings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.success ? 'Greetings updated successfully!' : 'Update failed: ' + data.error);
+            })
+            .catch(error => {
+                alert('Error updating greetings: ' + error.message);
+            });
+        }
+
+        function testGreeting() {
+            const greetingText = document.getElementById('newCallerGreeting').value.replace('{time_greeting}', 'morning');
+            
+            fetch('/test-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    voice_id: document.getElementById('voiceSelect').value,
+                    text: greetingText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.success ? 'Test greeting generated successfully!' : 'Test failed: ' + data.error);
+            })
+            .catch(error => {
+                alert('Error testing greeting: ' + error.message);
+            });
+        }
 
         // Load initial status
         refreshStatus();
