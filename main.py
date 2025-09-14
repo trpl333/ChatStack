@@ -92,9 +92,13 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
 
 def _get_backend_url():
-    """Get backend URL dynamically"""
+    """Get LLM backend URL dynamically"""
     config = _get_config()
     return config["llm_base_url"] or "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
+
+def _get_orchestrator_url():
+    """Get local FastAPI orchestrator URL for memory and chat"""
+    return "http://127.0.0.1:8001"
 
 def _get_twilio_client():
     """Get Twilio client dynamically for hot reload support"""
@@ -307,7 +311,7 @@ def admin():
     # Search knowledge if query provided
     if query:
         try:
-            resp = requests.get(f"{_get_backend_url()}/v1/memories", params={"limit": 50}, timeout=10)
+            resp = requests.get(f"{_get_orchestrator_url()}/v1/memories", params={"limit": 50}, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 knowledge_results = data.get("memories", [])
@@ -319,11 +323,9 @@ def admin():
     # Get user memories if user_id provided  
     if user_id:
         try:
-            resp = requests.post(f"{_get_backend_url()}/v1/chat", json={
-                "user_id": user_id,
-                "message": "Show my memories",
-                "debug": True
-            }, timeout=10)
+            # Get user memories using the proper API
+            resp = requests.get(f"{_get_orchestrator_url()}/v1/memories", 
+                               params={"user_id": user_id, "limit": 50}, timeout=10)
             if resp.status_code == 200:
                 # This would return debug info about memories
                 pass
@@ -347,7 +349,7 @@ def add_knowledge():
             "source": "admin_web_interface"
         }
         
-        resp = requests.post(f"{_get_backend_url()}/v1/memories", json=data, timeout=10)
+        resp = requests.post(f"{_get_orchestrator_url()}/v1/memories", json=data, timeout=10)
         
         if resp.status_code == 200:
             flash(f"✅ Knowledge added: {data['key']}")
@@ -531,15 +533,28 @@ def get_ai_response(user_id, message, call_sid=None):
         logging.info(f"🔍 Calling FastAPI with user_id: {user_id} and message: {message}")
         
         # Prepare payload for FastAPI /v1/chat endpoint
+        # Build messages array in the format FastAPI expects
+        messages = []
+        
+        # Add recent conversation history
+        if conversation_history:
+            messages.extend(conversation_history[-6:])  # Last 6 messages for context
+            
+        # Add current user message
+        messages.append({"role": "user", "content": message})
+        
         payload = {
-            "message": message,
-            "conversation_history": conversation_history[-6:] if conversation_history else [],  # Last 6 messages for context
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 50
         }
         
         # Make request to FastAPI backend with user_id as query parameter
         try:
+            orchestrator_url = _get_orchestrator_url()
+            logging.info(f"🌐 Calling orchestrator at {orchestrator_url}/v1/chat with user_id={user_id}")
             response = requests.post(
-                "http://localhost:8001/v1/chat",
+                f"{orchestrator_url}/v1/chat",
                 json=payload,
                 params={"user_id": user_id, "thread_id": call_sid},  # Pass user_id and thread_id for memory 
                 timeout=15
@@ -547,7 +562,7 @@ def get_ai_response(user_id, message, call_sid=None):
             
             if response.status_code == 200:
                 data = response.json()
-                ai_response = data.get("response", "I'm sorry, I couldn't process that.")
+                ai_response = data.get("output", "I'm sorry, I couldn't process that.")
                 logging.info(f"✅ FastAPI response: {ai_response}")
                 return ai_response
             else:
@@ -589,11 +604,14 @@ def handle_incoming_call():
         response.say(greeting, voice='alice')
     
     # Gather user speech with optimized settings
+    # Use absolute HTTPS URL and ensure action is called even without speech
+    from flask import url_for
     gather = Gather(
         input='speech',
         timeout=8,  # Optimized timeout
         speech_timeout=3,  # Increased for reliability
-        action='/phone/process-speech',
+        action=url_for('process_speech', _external=True),  # Absolute HTTPS URL
+        actionOnEmptyResult=True,  # Call action even if no speech detected
         method='POST'
     )
     response.append(gather)
@@ -607,9 +625,14 @@ def handle_incoming_call():
 @app.route('/phone/process-speech', methods=['POST'])
 def process_speech():
     """Process speech input from caller"""
+    # Log entry to confirm route is being hit
+    logging.info(f"📞 /phone/process-speech route called - verifying Twilio webhook")
+    
     speech_result = request.form.get('SpeechResult')
     call_sid = request.form.get('CallSid')
     from_number = request.form.get('From')
+    
+    logging.info(f"🎤 Speech from {from_number} (CallSid: {call_sid}): '{speech_result}'")
     
     if not speech_result:
         response = VoiceResponse()
@@ -808,11 +831,13 @@ def process_speech():
     
     # Skip the "anything else" question - just wait for user input
     
+    # Use absolute HTTPS URL and ensure action is called even without speech
     gather = Gather(
         input='speech',
         timeout=8,  # Reduced timeout  
-        speech_timeout=2,  # Faster speech detection
-        action='/phone/process-speech',
+        speech_timeout=3,  # Reliable speech detection
+        action=url_for('process_speech', _external=True),  # Absolute HTTPS URL
+        actionOnEmptyResult=True,  # Call action even if no speech detected
         method='POST'
     )
     response.append(gather)
