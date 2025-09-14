@@ -21,8 +21,7 @@ COPY . .
 # Create directory for static files
 RUN mkdir -p static
 
-# Expose port 5000
-EXPOSE 5000
+# Expose ports for Flask (5000) and FastAPI (8001)
+EXPOSE 5000 8001
 
-# Use gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "120", "--keep-alive", "5", "--log-level", "info", "main:app"]
+# Command is specified in docker-compose.yml to use start_server.py
