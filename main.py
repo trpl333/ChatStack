@@ -656,7 +656,7 @@ def process_speech():
     # Save new information to memory before generating response
     user_id = from_number
     try:
-        from app.memory import MemoryStore
+        from app.http_memory import HTTPMemoryStore
         from app.packer import should_remember, extract_carry_kit_items
         
         # Check if this message contains information worth remembering
@@ -681,7 +681,7 @@ def process_speech():
         
         # Also look for specific information that should be learned
         message_lower = speech_result.lower()
-        mem_store = MemoryStore()
+        mem_store = HTTPMemoryStore()
         
         # Store shopping/task information
         if any(phrase in message_lower for phrase in ["need to get", "going to", "have to get", "need from"]):
@@ -1055,10 +1055,10 @@ def update_llm():
 def admin_status():
     """Get current system status and all configuration sources"""
     try:
-        from app.memory import MemoryStore
+        from app.http_memory import HTTPMemoryStore
         from config_loader import get_all_config, get_internal_setting, get_internal_ports
         
-        mem_store = MemoryStore()
+        mem_store = HTTPMemoryStore()
         
         # Count total memories (simplified)
         memories = mem_store.search("", k=1000)
