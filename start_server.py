@@ -39,7 +39,7 @@ def main():
     # Start FastAPI backend on port 8001
     print("📡 Starting FastAPI backend on port 8001...")
     fastapi_cmd = [
-        "uvicorn", "app.main:app", 
+        sys.executable, "-m", "uvicorn", "app.main:app", 
         "--host", "127.0.0.1", 
         "--port", "8001", 
         "--log-level", "info"
@@ -48,7 +48,7 @@ def main():
     fastapi_process = subprocess.Popen(fastapi_cmd)
     
     # Wait for FastAPI to be ready
-    if wait_for_port(8001, timeout=10):
+    if wait_for_port(8001, timeout=30):
         print("✅ FastAPI backend ready on port 8001")
     else:
         print("❌ FastAPI backend failed to start")
