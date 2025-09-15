@@ -137,3 +137,23 @@ docker logs chatstack-web-1 --tail=50 -f
 ✅ **Conversation memory preserved across calls**  
 
 The phone system will fully recognize callers by number and maintain conversation history!
+## 📋 Nginx + Send_Text Notes (Sept 2025)
+
+1. **Call Summary Webhook**
+   - Added nginx block to forward `/call-summary` → port 3000 (send_text.py).
+   - `GET` returns 405 (expected), `POST` triggers SMS via Twilio.
+
+2. **Config Cleanup**
+   - Removed duplicate `/etc/nginx/sites-available/voice-theinsurancedoctors-com.conf`.
+   - Confirmed only `/etc/nginx/sites-enabled/voice-theinsurancedoctors-com.conf` is active.
+
+3. **send_text.py Service**
+   - Location: `/root/neurosphere_send_text/send_text.py`.
+   - Run inside tmux:
+     ```bash
+     tmux new -s sendtext
+     cd /root/neurosphere_send_text
+     python3 send_text.py
+     # CTRL+b d to detach
+     ```
+   - Logs show SMS delivery on POST webhook from ElevenLabs.
