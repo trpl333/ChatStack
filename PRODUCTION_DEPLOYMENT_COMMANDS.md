@@ -157,3 +157,19 @@ The phone system will fully recognize callers by number and maintain conversatio
      # CTRL+b d to detach
      ```
    - Logs show SMS delivery on POST webhook from ElevenLabs.
+## 📋 Nginx & Send_Text Notes (Sept 2025)
+
+- Cleaned up duplicate configs:
+  - Removed `/etc/nginx/sites-available/voice-theinsurancedoctors-com.conf`
+  - Kept `/etc/nginx/sites-enabled/voice-theinsurancedoctors-com.conf` as the active config
+- Added `/call-summary` block to forward ElevenLabs post-call webhooks to send_text.py on port 3000.
+- Verified with:
+  - `curl https://voice.theinsurancedoctors.com/call-summary` → returns 405
+  - POST from ElevenLabs → 200 + SMS sent
+- Confirmed nginx process list is clean: one master, four workers, ports 80/443 only.
+- `send_text.py` runs inside tmux:
+  ```bash
+  tmux new -s sendtext
+  cd /root/neurosphere_send_text
+  python3 send_text.py
+  CTRL+b d   # detach
