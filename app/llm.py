@@ -4,9 +4,14 @@ import logging
 import json
 import threading
 import time
+from queue import Queue
 from typing import List, Dict, Any, Tuple, Generator, Optional
 from config_loader import get_llm_config
-from websocket import WebSocketApp
+try:
+    from websocket import WebSocketApp
+except ImportError:
+    WebSocketApp = None
+    logging.warning("WebSocketApp not available - realtime streaming disabled")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -141,6 +146,15 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
     Yields:
         Individual tokens/words from the streaming response
     """
+    if WebSocketApp is None:
+        logger.warning("WebSocket not available - falling back to regular chat")
+        # Fallback to regular chat completions
+        response_content, _ = chat(messages, temperature=temperature, max_tokens=max_tokens)
+        words = response_content.split()
+        for word in words:
+            yield word + " "
+        return
+    
     config = _get_llm_config()
     base_url = config["base_url"]
     model = config["model"]
@@ -155,12 +169,14 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
     ws_url = base_url.replace("https://", "wss://").replace("/v1", "/v1/realtime")
     ws_url += f"?model={model}"
     
-    response_text = ""
+    # Thread-safe queue for streaming tokens
+    token_queue = Queue()
     response_complete = False
     error_occurred = False
+    response_text = ""
     
     def on_message(ws, message):
-        nonlocal response_text, response_complete, error_occurred
+        nonlocal response_complete, error_occurred, response_text
         try:
             data = json.loads(message)
             event_type = data.get("type")
@@ -168,19 +184,20 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             if event_type == "response.output_text.delta":
                 delta = data.get("delta", "")
                 response_text += delta
-                # Yield word by word for streaming effect
-                words = delta.split()
-                for word in words:
-                    yield word + " "
+                # Put tokens in queue for streaming
+                if delta:
+                    token_queue.put(delta)
                     
             elif event_type == "response.output_text.done":
                 response_complete = True
+                token_queue.put(None)  # Signal end of stream
                 
             elif event_type == "error":
                 error_msg = data.get("error", {}).get("message", "Unknown error")
                 logger.error(f"Realtime API error: {error_msg}")
                 error_occurred = True
                 response_complete = True
+                token_queue.put(None)  # Signal end of stream
                 
         except json.JSONDecodeError:
             logger.error(f"Invalid JSON from realtime API: {message}")
@@ -192,10 +209,12 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
         logger.error(f"WebSocket error: {error}")
         error_occurred = True
         response_complete = True
+        token_queue.put(None)  # Signal end of stream
     
     def on_close(ws, close_status_code, close_msg):
         nonlocal response_complete
         response_complete = True
+        token_queue.put(None)  # Signal end of stream
     
     def on_open(ws):
         try:
@@ -205,55 +224,42 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                 "session": {
                     "modalities": ["text"],
                     "instructions": "You are Samantha, a helpful AI assistant for Peterson Family Insurance Agency.",
-                    "voice": "alloy",
-                    "input_audio_format": "pcm16",
-                    "output_audio_format": "pcm16",
-                    "input_audio_transcription": {
-                        "model": "whisper-1"
-                    },
-                    "turn_detection": {
-                        "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 200
-                    },
-                    "tools": [],
-                    "tool_choice": "auto",
                     "temperature": temperature,
                     "max_response_output_tokens": max_tokens
                 }
             }
             ws.send(json.dumps(session_config))
             
-            # Send conversation input
-            user_content = messages[-1]["content"] if messages else "Hello"
-            conversation_input = {
-                "type": "conversation.item.create",
-                "item": {
-                    "type": "message",
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "input_text",
-                            "text": user_content
-                        }
-                    ]
+            # Send full conversation history
+            for i, message in enumerate(messages):
+                conversation_input = {
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "message",
+                        "role": message["role"],
+                        "content": [
+                            {
+                                "type": "input_text" if message["role"] == "user" else "text",
+                                "text": message["content"]
+                            }
+                        ]
+                    }
                 }
-            }
-            ws.send(json.dumps(conversation_input))
+                ws.send(json.dumps(conversation_input))
             
             # Request response
             response_create = {
                 "type": "response.create",
                 "response": {
-                    "modalities": ["text"],
-                    "instructions": "Please respond helpfully as Samantha from Peterson Family Insurance."
+                    "modalities": ["text"]
                 }
             }
             ws.send(json.dumps(response_create))
             
         except Exception as e:
             logger.error(f"Error sending to realtime API: {e}")
+            error_occurred = True
+            token_queue.put(None)
     
     try:
         # Create WebSocket connection
@@ -273,20 +279,42 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
         ws_thread = threading.Thread(target=run_websocket, daemon=True)
         ws_thread.start()
         
-        # Wait for response or timeout
+        # Stream tokens from the queue
         timeout = 30
         start_time = time.time()
         
-        while not response_complete and (time.time() - start_time) < timeout:
-            time.sleep(0.1)
+        while (time.time() - start_time) < timeout:
+            try:
+                # Get token from queue with timeout
+                token = token_queue.get(timeout=0.5)
+                
+                if token is None:  # End of stream signal
+                    break
+                    
+                # Yield token - split into words for better streaming
+                words = token.split()
+                for word in words:
+                    if word:
+                        yield word + " "
+                        
+            except:
+                # Queue timeout - check if we should continue waiting
+                if response_complete:
+                    break
+                continue
         
+        # Handle error cases
         if error_occurred:
-            yield "I'm sorry, I encountered an error. Please try again."
-        elif not response_text.strip():
+            if not response_text.strip():  # No content received
+                yield "I'm sorry, I encountered an error. Please try again."
+        elif not response_text.strip() and not error_occurred:
             yield "I'm sorry, I didn't receive a complete response. Please try again."
         
         # Close WebSocket
-        ws.close()
+        try:
+            ws.close()
+        except:
+            pass
         
     except Exception as e:
         logger.error(f"Realtime API connection error: {e}")
@@ -302,23 +330,7 @@ def validate_llm_connection() -> bool:
     try:
         test_messages = [{"role": "user", "content": "Hello"}]
         
-        # Try realtime first if model is realtime
-        config = _get_llm_config()
-        if "realtime" in config["model"].lower():
-            # Test realtime connection
-            response_received = False
-            for token in chat_realtime_stream(test_messages, max_tokens=10):
-                if token.strip():
-                    response_received = True
-                    break
-            
-            if response_received:
-                logger.info("LLM realtime connection validation successful")
-                return True
-            else:
-                logger.warning("Realtime connection failed, falling back to chat completions")
-        
-        # Fallback to regular chat completions
+        # Try regular chat completions for validation (more reliable)
         chat(test_messages, max_tokens=10)
         logger.info("LLM connection validation successful")
         return True

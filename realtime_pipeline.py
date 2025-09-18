@@ -102,6 +102,7 @@ class RealTimeAudioPipeline:
     
     async def _generate_streaming_response(self, connection_id: str, user_message: str, history: list):
         """Generate AI response with streaming LLM and TTS"""
+        conv = None
         try:
             conv = self.active_conversations[connection_id]
             conv['response_in_progress'] = True
@@ -113,32 +114,34 @@ class RealTimeAudioPipeline:
             })
             
             # Get streaming LLM response
-            response_text = ""
+            phrase_buffer = ""
+            full_response = ""
             async for token in self._get_streaming_llm_response(user_message, history):
-                response_text += token
+                phrase_buffer += token
+                full_response += token
                 
                 # Stream TTS when we have complete phrases
-                if token in '.!?' or len(response_text) > 50:
-                    await self._stream_tts_phrase(connection_id, response_text)
-                    response_text = ""  # Reset for next phrase
+                if token in '.!?' or len(phrase_buffer) > 50:
+                    await self._stream_tts_phrase(connection_id, phrase_buffer)
+                    phrase_buffer = ""  # Reset for next phrase
             
             # Stream any remaining text
-            if response_text.strip():
-                await self._stream_tts_phrase(connection_id, response_text)
+            if phrase_buffer.strip():
+                await self._stream_tts_phrase(connection_id, phrase_buffer)
             
-            # Add AI response to conversation
-            full_response = ' '.join([msg for msg in conv['conversation_history'] 
-                                    if msg['role'] == 'assistant'])
-            conv['conversation_history'].append({
-                'role': 'assistant',
-                'content': full_response
-            })
+            # Add complete AI response to conversation
+            if full_response.strip():
+                conv['conversation_history'].append({
+                    'role': 'assistant',
+                    'content': full_response.strip()
+                })
             
             conv['response_in_progress'] = False
             
         except Exception as e:
             logging.error(f"Response generation error: {e}")
-            conv['response_in_progress'] = False
+            if conv and connection_id in self.active_conversations:
+                conv['response_in_progress'] = False
     
     async def _get_streaming_llm_response(self, message: str, history: list) -> AsyncGenerator[str, Any]:
         """Get streaming response from LLM using OpenAI Realtime API"""
