@@ -1,10 +1,10 @@
 {
   "comment": "NeuroSphere Orchestrator Configuration - Non-sensitive settings only",
   "comment_security": "API keys and secrets are stored in environment variables for security",
-  "llm_base_url": "https://a40.neurospherevoice.com",
+  "llm_base_url": "https://api.openai.com/v1",
   "llm_api_key": "",
-  "llm_model": "mistralai/Mistral-7B-Instruct-v0.1",
-  "llm_description": "RunPod A40 GPU endpoint hosting the LLM. Used only by the orchestrator to generate AI responses.",
+  "llm_model": "gpt-realtime-2025-08-28",
+  "llm_description": "OpenAI API endpoint using GPT Realtime model. Used by the orchestrator to generate AI responses with real-time capabilities.",
   "ai_memory_url": "http://209.38.143.71:8100",
   "ai_memory_description": "DigitalOcean AI-Memory service (FastAPI + Postgres/pgvector). Stores and retrieves long-term memory objects.",
   "server_url": "https://voice.theinsurancedoctors.com/phone/incoming",
@@ -25,8 +25,8 @@
   "config_reload_interval_description": "Interval (in seconds) for checking config.json updates if hot reload is enabled.",
   "environment": "production",
   "environment_description": "Specifies the current environment (e.g., development, staging, production).",
-  "version": "2.1",
+  "version": "2.2",
   "version_description": "Semantic version of this configuration file. Increment whenever config.json changes.",
-  "last_updated": "2025-09-14",
+  "last_updated": "2025-09-18",
   "last_updated_description": "Date this configuration file was last updated."
 }

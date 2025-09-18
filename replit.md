@@ -39,11 +39,11 @@ The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main
 - DATABASE_URL, PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD
 - TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER
 - ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID
-- LLM_BASE_URL, SESSION_SECRET
+- OPENAI_API_KEY, LLM_BASE_URL, SESSION_SECRET
 - DEEPGRAM_API, HUGGINHFACE_TOKEN
 
 ### Core Components:
-- **LLM Integration**: Communicates with an OpenAI-compatible API endpoint (defaulting to Qwen2-7B-Instruct) for AI responses, with structured message passing and error handling.
+- **LLM Integration**: Communicates with OpenAI API using gpt-realtime-2025-08-28 model for AI responses, with structured message passing and error handling.
 - **Memory System**: ✅ Now uses HTTP-based AI-Memory service (http://209.38.143.71:8100) for reliable memory operations. Stores categorized memories (person, preference, project, rule, moment, fact) with TTL support and semantic search capabilities. Eliminated all "degraded mode" issues with robust HTTPMemoryStore implementation.
 - **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing from memory, and safety triggers for content filtering.
 - **Tool System**: An extensible, JSON schema-based architecture for external tool execution (e.g., meeting booking, message sending) with a central dispatcher and error recovery.
@@ -59,13 +59,13 @@ The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main
 - **Database**: PostgreSQL with `pgvector` for vector embeddings and `pgcrypto` for UUIDs.
 - **Containerization**: Docker for deployment, with `docker-compose.yml` for orchestration.
 - **Web Server**: Nginx for HTTPS termination, proxying requests to the Flask and FastAPI services.
-- **Deployment**: Primarily on DigitalOcean Droplets with a RunPod GPU for LLM inference.
+- **Deployment**: Primarily on DigitalOcean Droplets with OpenAI API for LLM inference.
 
 ## External Dependencies
 
 ### Services:
 - **Twilio**: For voice call management and incoming call webhooks.
-- **RunPod LLM**: Primary LLM service (specific endpoint: `https://a40.neurospherevoice.com/v1/chat/completions`).
+- **OpenAI API**: Primary LLM service using GPT Realtime model (`https://api.openai.com/v1/chat/completions`).
 - **ElevenLabs**: For natural voice synthesis and text-to-speech conversion.
 - **AI-Memory Service**: An external service for conversation memory persistence (`http://209.38.143.71:8100`).
 
@@ -175,10 +175,10 @@ curl -X POST https://voice.theinsurancedoctors.com/phone/incoming -d "test=1"
 6. ✓ Check Docker container logs: `docker logs chatstack-web-1`
 7. ✓ Test HTTPS endpoint: `curl https://voice.theinsurancedoctors.com/phone/incoming`
 
-### **Current Status (Sept 13, 2025)**
+### **Current Status (Sept 18, 2025)**
 - ✅ **Memory System**: Fully operational with HTTP-based AI-Memory service
-- ❌ **LLM Endpoint**: RunPod endpoint (https://a40.neurospherevoice.com) unreachable
-- **Impact**: System falls back to basic Twilio responses instead of AI+ElevenLabs
+- ✅ **LLM Endpoint**: OpenAI API (https://api.openai.com/v1) with gpt-realtime-2025-08-28
+- **Impact**: System provides full AI+ElevenLabs responses with improved performance
 
 ### **Voice Issues**
 1. ✓ Verify `ELEVENLABS_API_KEY` is set
@@ -187,7 +187,7 @@ curl -X POST https://voice.theinsurancedoctors.com/phone/incoming -d "test=1"
 4. ✓ Fallback to Twilio voice if ElevenLabs fails
 
 ### **AI Response Issues**
-1. ✓ Verify RunPod endpoint: `https://a40.neurospherevoice.com`
-2. ✓ Check `LLM_BASE_URL` environment variable
-3. ✓ Test LLM connection in startup logs
-4. ✓ Verify no `/v1/v1/` duplicate in URLs
+1. ✓ Verify OpenAI API endpoint: `https://api.openai.com/v1`
+2. ✓ Check `OPENAI_API_KEY` environment variable
+3. ✓ Check `LLM_BASE_URL` environment variable
+4. ✓ Test LLM connection in startup logs

@@ -146,9 +146,9 @@ def get_database_url() -> str:
 def get_llm_config() -> Dict[str, str]:
     """Get LLM configuration"""
     return {
-        "base_url": config.get("LLM_BASE_URL", default=config.get("llm_base_url", "https://a40.neurospherevoice.com")),
-        "model": config.get("LLM_MODEL", default=config.get("llm_model", "mistralai/Mistral-7B-Instruct-v0.1")),
-        "api_key": config.get("LLM_API_KEY", default="")
+        "base_url": config.get("LLM_BASE_URL", default=config.get("llm_base_url", "https://api.openai.com/v1")),
+        "model": config.get("LLM_MODEL", default=config.get("llm_model", "gpt-realtime-2025-08-28")),
+        "api_key": config.get("OPENAI_API_KEY", default=config.get("LLM_API_KEY", default=config.get("llm_api_key", "")))
     }
 
 def get_twilio_config() -> Dict[str, str]:
