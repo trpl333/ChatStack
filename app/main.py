@@ -230,6 +230,7 @@ async def chat_completion(
         # Call LLM - detect realtime models and route appropriately  
         logger.info("Calling LLM...")
         config = _get_llm_config()
+        logger.info(f"🟢 Model in config: {config['model']}")
         
         if "realtime" in config["model"].lower():
             logger.info("🚀 Using realtime LLM")
