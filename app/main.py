@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from config_loader import get_secret, get_setting
 
 from app.models import ChatRequest, ChatResponse, MemoryObject
-from app.llm import chat as llm_chat, validate_llm_connection
+from app.llm import chat as llm_chat, chat_realtime_stream, _get_llm_config, validate_llm_connection
 from app.http_memory import HTTPMemoryStore
 from app.packer import pack_prompt, should_remember, extract_carry_kit_items, detect_safety_triggers
 from app.tools import tool_dispatcher, parse_tool_calls, execute_tool_calls
@@ -227,14 +227,42 @@ async def chat_completion(
             thread_id=thread_id
         )
         
-        # Call LLM
+        # Call LLM - detect realtime models and route appropriately
         logger.info("Calling LLM...")
-        assistant_output, usage_stats = llm_chat(
-            final_messages,
-            temperature=request.temperature,
-            top_p=request.top_p,
-            max_tokens=request.max_tokens
-        )
+        config = _get_llm_config()
+        
+        if "realtime" in config["model"].lower():
+            # Use realtime streaming for realtime models
+            logger.info(f"Using realtime streaming for model: {config['model']}")
+            tokens = []
+            try:
+                for token in chat_realtime_stream(
+                    final_messages,
+                    temperature=request.temperature or 0.7,
+                    max_tokens=request.max_tokens or 800
+                ):
+                    tokens.append(token)
+                
+                assistant_output = "".join(tokens).strip()
+                # Basic usage stats for realtime (estimated)
+                usage_stats = {
+                    "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in final_messages),
+                    "completion_tokens": len(assistant_output.split()),
+                    "total_tokens": 0
+                }
+                usage_stats["total_tokens"] = usage_stats["prompt_tokens"] + usage_stats["completion_tokens"]
+                
+            except Exception as e:
+                logger.error(f"Realtime API failed: {e}")
+                raise HTTPException(status_code=500, detail=f"LLM service error: {str(e)}")
+        else:
+            # Use regular chat completions for non-realtime models
+            assistant_output, usage_stats = llm_chat(
+                final_messages,
+                temperature=request.temperature,
+                top_p=request.top_p,
+                max_tokens=request.max_tokens
+            )
         
         # Parse and execute tool calls if present
         tool_results = []

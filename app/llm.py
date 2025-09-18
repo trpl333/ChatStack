@@ -232,20 +232,36 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             
             # Send full conversation history
             for i, message in enumerate(messages):
-                conversation_input = {
-                    "type": "conversation.item.create",
-                    "item": {
-                        "type": "message",
-                        "role": message["role"],
-                        "content": [
-                            {
-                                "type": "input_text" if message["role"] == "user" else "text",
-                                "text": message["content"]
-                            }
-                        ]
+                if message["role"] == "user":
+                    conversation_input = {
+                        "type": "conversation.item.create",
+                        "item": {
+                            "type": "message",
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "input_text",
+                                    "text": message["content"]
+                                }
+                            ]
+                        }
                     }
-                }
-                ws.send(json.dumps(conversation_input))
+                    ws.send(json.dumps(conversation_input))
+                else:  # assistant messages
+                    conversation_input = {
+                        "type": "conversation.item.create", 
+                        "item": {
+                            "type": "message",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": message["content"]
+                                }
+                            ]
+                        }
+                    }
+                    ws.send(json.dumps(conversation_input))
             
             # Request response
             response_create = {
