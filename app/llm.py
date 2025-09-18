@@ -272,6 +272,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             response_create = {
                 "type": "response.create", 
                 "response": {
+                    "conversation": "default",
                     "modalities": ["text"],
                     "instructions": full_instructions,
                     "temperature": temperature,
