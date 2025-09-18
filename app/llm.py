@@ -263,11 +263,19 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                     }
                     ws.send(json.dumps(conversation_input))
             
-            # Request response
+            # Request response with instructions - THIS IS THE CRITICAL FIX!
+            # Build conversation context for instructions
+            conversation_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
+            system_context = " ".join([m["content"] for m in messages if m["role"] == "system"])
+            full_instructions = f"{system_context} {conversation_text}".strip()
+            
             response_create = {
-                "type": "response.create",
+                "type": "response.create", 
                 "response": {
-                    "modalities": ["text"]
+                    "modalities": ["text"],
+                    "instructions": full_instructions,
+                    "temperature": temperature,
+                    "max_output_tokens": max_tokens
                 }
             }
             ws.send(json.dumps(response_create))
