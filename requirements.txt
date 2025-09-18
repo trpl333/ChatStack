@@ -61,3 +61,4 @@ pydantic<2.0
 pydantic<2.0
 pydub
 websockets
+websocket-client
