@@ -6,7 +6,7 @@ import threading
 import time
 from typing import List, Dict, Any, Tuple, Generator, Optional
 from config_loader import get_llm_config
-import websocket
+from websocket import WebSocketApp
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -257,7 +257,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
     
     try:
         # Create WebSocket connection
-        ws = websocket.WebSocketApp(
+        ws = WebSocketApp(
             ws_url,
             header=[f"Authorization: Bearer {api_key}", "OpenAI-Beta: realtime=v1"],
             on_message=on_message,

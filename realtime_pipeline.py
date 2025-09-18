@@ -9,7 +9,7 @@ import json
 import logging
 import threading
 import time
-from typing import Optional, Generator
+from typing import Optional, Generator, AsyncGenerator, Any
 from queue import Queue
 import struct
 
@@ -140,20 +140,43 @@ class RealTimeAudioPipeline:
             logging.error(f"Response generation error: {e}")
             conv['response_in_progress'] = False
     
-    async def _get_streaming_llm_response(self, message: str, history: list) -> Generator[str, None, None]:
-        """Get streaming response from LLM"""
+    async def _get_streaming_llm_response(self, message: str, history: list) -> AsyncGenerator[str, Any]:
+        """Get streaming response from LLM using OpenAI Realtime API"""
         try:
-            # Import existing LLM function
-            from main import get_ai_response
+            # Import the realtime LLM function
+            from app.llm import chat_realtime_stream, _get_llm_config
             
-            # Get response (this already uses streaming internally)
-            response = get_ai_response(message, "+streaming", history)
+            # Prepare messages for realtime API
+            messages = []
             
-            # Simulate token streaming by splitting response into words
-            words = response.split()
-            for word in words:
-                yield word + " "
-                await asyncio.sleep(0.1)  # Simulate streaming delay
+            # Add conversation history
+            for msg in history:
+                messages.append(msg)
+            
+            # Add current user message
+            messages.append({
+                "role": "user", 
+                "content": message
+            })
+            
+            # Check if we're using a realtime model
+            config = _get_llm_config()
+            if "realtime" in config["model"].lower():
+                # Use realtime streaming
+                for token in chat_realtime_stream(messages, temperature=0.6, max_tokens=800):
+                    yield token
+                    await asyncio.sleep(0.01)  # Small delay for natural pacing
+            else:
+                # Fallback to regular chat completions
+                from app.llm import chat
+                
+                response_content, _ = chat(messages, temperature=0.6, max_tokens=800)
+                
+                # Simulate streaming by splitting into words
+                words = response_content.split()
+                for word in words:
+                    yield word + " "
+                    await asyncio.sleep(0.1)
                 
         except Exception as e:
             logging.error(f"LLM streaming error: {e}")
