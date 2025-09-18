@@ -227,36 +227,28 @@ async def chat_completion(
             thread_id=thread_id
         )
         
-        # Call LLM - detect realtime models and route appropriately
+        # Call LLM - detect realtime models and route appropriately  
         logger.info("Calling LLM...")
         config = _get_llm_config()
         
         if "realtime" in config["model"].lower():
-            # Use realtime streaming for realtime models
-            logger.info(f"Using realtime streaming for model: {config['model']}")
+            logger.info("🚀 Using realtime LLM")
             tokens = []
-            try:
-                for token in chat_realtime_stream(
-                    final_messages,
-                    temperature=request.temperature or 0.7,
-                    max_tokens=request.max_tokens or 800
-                ):
-                    tokens.append(token)
-                
-                assistant_output = "".join(tokens).strip()
-                # Basic usage stats for realtime (estimated)
-                usage_stats = {
-                    "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in final_messages),
-                    "completion_tokens": len(assistant_output.split()),
-                    "total_tokens": 0
-                }
-                usage_stats["total_tokens"] = usage_stats["prompt_tokens"] + usage_stats["completion_tokens"]
-                
-            except Exception as e:
-                logger.error(f"Realtime API failed: {e}")
-                raise HTTPException(status_code=500, detail=f"LLM service error: {str(e)}")
+            for token in chat_realtime_stream(
+                final_messages,
+                temperature=request.temperature or 0.7,
+                max_tokens=request.max_tokens or 800
+            ):
+                tokens.append(token)
+            
+            assistant_output = "".join(tokens).strip()
+            usage_stats = {
+                "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in final_messages),
+                "completion_tokens": len(tokens),
+                "total_tokens": sum(len(msg.get("content", "").split()) for msg in final_messages) + len(tokens)
+            }
         else:
-            # Use regular chat completions for non-realtime models
+            logger.info("⚠️ Using standard chat LLM")
             assistant_output, usage_stats = llm_chat(
                 final_messages,
                 temperature=request.temperature,

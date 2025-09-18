@@ -63,3 +63,4 @@ pydub
 websockets
 websocket-client
 websocket-client
+websocket-client
