@@ -51,8 +51,13 @@ try:
         print("🔧 Cleared old LLM_BASE_URL environment variable")
     
     llm_config = get_llm_config()
-    os.environ["LLM_BASE_URL"] = llm_config["base_url"]
-    print(f"✅ LLM_BASE_URL set to: {llm_config['base_url']}")
+    # Force use OpenAI endpoint, not old RunPod
+    if "neurosphere" in llm_config["base_url"]:
+        os.environ["LLM_BASE_URL"] = "https://api.openai.com/v1"
+        print(f"🔧 Corrected LLM_BASE_URL to: https://api.openai.com/v1")
+    else:
+        os.environ["LLM_BASE_URL"] = llm_config["base_url"]
+        print(f"✅ LLM_BASE_URL set to: {llm_config['base_url']}")
 except Exception as e:
     print(f"⚠️ Warning: Could not set LLM_BASE_URL: {e}")
 
