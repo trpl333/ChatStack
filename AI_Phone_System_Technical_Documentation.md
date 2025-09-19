@@ -27,7 +27,7 @@ Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Bac
 |------|---------|---------------------|
 | `main.py` | Flask Orchestrator | Twilio webhooks, config bootstrap, static serving, starts FastAPI backend |
 | `app/main.py` | FastAPI Backend | `/v1/chat` endpoint, health checks, admin interface |
-| `app/llm.py` | LLM Integration | Communicates with RunPod endpoint for AI responses |
+| `app/llm.py` | LLM Integration | Communicates with OpenAI API for AI responses |
 | `app/memory.py` | Memory Store | PostgreSQL + pgvector operations for conversation memory |
 | `app/models.py` | Data Models | Pydantic request/response models |
 | `app/packer.py` | Prompt Engineering | Context packing and memory injection |
@@ -68,6 +68,7 @@ Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Bac
 | `TWILIO_AUTH_TOKEN` | Twilio API Authentication | `xxxxxxxx...` |
 | `ELEVENLABS_API_KEY` | Text-to-Speech Service | `sk-xxxxxxxx...` |
 | `SESSION_SECRET` | Flask Session Security | Strong random string |
+| `OPENAI_API_KEY` | OpenAI API Access | `sk-proj-xxxxxxxx...` |
 
 ### **Database Secrets**
 | Secret | Purpose |
@@ -81,8 +82,9 @@ Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Bac
 ### **Optional Secrets**
 | Secret | Purpose | When Needed |
 |--------|---------|-------------|
-| `OPENAI_API_KEY` | OpenAI API Access | If using OpenAI instead of RunPod |
-| `LLM_API_KEY` | Custom LLM Authentication | For RunPod or other LLM services |
+| `LLM_API_KEY` | Custom LLM Authentication | For alternative LLM services (not needed for OpenAI) |
+
+**⚠️ Important:** All environments now use OpenAI API as the standard LLM provider. The `OPENAI_API_KEY` is required.
 
 ---
 
@@ -91,10 +93,11 @@ Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Bac
 ### **LLM Configuration**
 ```json
 {
-  "llm_base_url": "https://a40.neurospherevoice.com",
-  "llm_model": "mistralai/Mistral-7B-Instruct-v0.1"
+  "llm_base_url": "https://api.openai.com/v1",
+  "llm_model": "gpt-realtime-2025-08-28"
 }
 ```
+**📄 Source of Truth:** All LLM backend and model settings are managed via config.json. All environments must use OpenAI API unless updated via admin panel.
 
 ### **Service URLs**
 ```json
@@ -172,7 +175,7 @@ Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Bac
 ### **External Dependencies**
 | Service | Endpoint | Purpose |
 |---------|----------|---------|
-| RunPod LLM | `https://a40.neurospherevoice.com/v1/chat/completions` | AI responses |
+| OpenAI API | `https://api.openai.com/v1/chat/completions` | AI responses using GPT models |
 | ElevenLabs | `https://api.elevenlabs.io/v1/text-to-speech` | Natural voice synthesis |
 | AI-Memory | `http://209.38.143.71:8100` | Conversation memory |
 | Twilio | Webhook callbacks | Voice call management |

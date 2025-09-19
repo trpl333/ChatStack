@@ -1003,20 +1003,18 @@ def update_routing():
 
 @app.route('/update-llm', methods=['POST'])
 def update_llm():
-    """Update LLM backend endpoint dynamically with cross-process synchronization"""
+    """Update LLM backend endpoint and model dynamically with cross-process synchronization"""
     try:
         data = request.get_json()
         new_url = data.get('llm_base_url')
+        new_model = data.get('llm_model')
         
-        if not new_url:
-            return jsonify({"success": False, "error": "No LLM base URL provided"})
+        if not new_url and not new_model:
+            return jsonify({"success": False, "error": "No LLM base URL or model provided"})
         
-        # Validate URL format
-        if not new_url.startswith('https://'):
+        # Validate URL format if provided
+        if new_url and not new_url.startswith('https://'):
             return jsonify({"success": False, "error": "LLM URL must start with https://"})
-        
-        # Update environment variable for immediate effect in Flask process
-        os.environ['LLM_BASE_URL'] = new_url
         
         # Update config.json file for cross-process consistency
         config_file = "config.json"
@@ -1025,8 +1023,21 @@ def update_llm():
             with open(config_file, 'r') as f:
                 config_data = json.load(f)
             
-            # Update LLM base URL
-            config_data['llm_base_url'] = new_url
+            # Track what was updated
+            updates = []
+            
+            # Update LLM base URL if provided
+            if new_url:
+                config_data['llm_base_url'] = new_url
+                os.environ['LLM_BASE_URL'] = new_url  # Update environment for immediate effect
+                updates.append(f"URL: {new_url}")
+            
+            # Update LLM model if provided
+            if new_model:
+                config_data['llm_model'] = new_model
+                os.environ['LLM_MODEL'] = new_model  # Update environment for immediate effect
+                updates.append(f"Model: {new_model}")
+            
             from datetime import datetime
             config_data['last_updated'] = datetime.now().strftime("%Y-%m-%d")
             
@@ -1041,24 +1052,25 @@ def update_llm():
             # Atomic move to replace original config
             os.rename(temp_filename, config_file)
             
-            logging.info(f"✅ Updated config.json with new LLM endpoint: {new_url}")
+            update_message = ", ".join(updates)
+            logging.info(f"✅ Updated config.json with LLM changes: {update_message}")
             
         except Exception as config_error:
             logging.error(f"Failed to update config.json: {config_error}")
-            # Don't fail the whole request if config file update fails
-            # Environment variable update still provides immediate effect for Flask
+            return jsonify({"success": False, "error": f"Failed to update config: {config_error}"})
         
         # Log the change
-        logging.info(f"✅ LLM backend updated to: {new_url} (env + config.json)")
+        logging.info(f"✅ LLM configuration updated: {update_message} (env + config.json)")
         
         return jsonify({
             "success": True, 
-            "message": f"LLM backend updated to {new_url} (both processes will use new endpoint)",
-            "llm_endpoint": new_url
+            "message": f"LLM configuration updated: {update_message}",
+            "llm_endpoint": config_data.get('llm_base_url'),
+            "llm_model": config_data.get('llm_model')
         })
         
     except Exception as e:
-        logging.error(f"Failed to update LLM backend: {e}")
+        logging.error(f"Failed to update LLM configuration: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/admin-status')
