@@ -57,10 +57,4 @@ websockets==15.0.1
 Werkzeug==3.1.0
 yarl==1.20.1
 openai
-pydantic<2.0
-pydantic<2.0
-pydub
-websockets
-websocket-client
-websocket-client
 websocket-client

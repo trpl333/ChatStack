@@ -181,14 +181,23 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             data = json.loads(message)
             event_type = data.get("type")
             
-            if event_type == "response.output_text.delta":
+            # Handle different Realtime API events
+            if event_type == "response.text.delta":
+                # Text delta from response
                 delta = data.get("delta", "")
                 response_text += delta
-                # Put tokens in queue for streaming
                 if delta:
                     token_queue.put(delta)
                     
-            elif event_type == "response.output_text.done":
+            elif event_type == "response.audio_transcript.delta":
+                # Audio transcript delta (if using audio)
+                delta = data.get("delta", "")
+                response_text += delta
+                if delta:
+                    token_queue.put(delta)
+                    
+            elif event_type == "response.done":
+                # Response is complete
                 response_complete = True
                 token_queue.put(None)  # Signal end of stream
                 
@@ -198,6 +207,21 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                 error_occurred = True
                 response_complete = True
                 token_queue.put(None)  # Signal end of stream
+                
+            elif event_type == "session.created":
+                logger.info("Realtime session created successfully")
+                
+            elif event_type == "session.updated":
+                logger.info("Realtime session updated successfully")
+                
+            elif event_type == "conversation.item.created":
+                logger.debug("Conversation item created")
+                
+            elif event_type == "response.created":
+                logger.debug("Response creation started")
+                
+            else:
+                logger.debug(f"Unhandled Realtime API event: {event_type}")
                 
         except json.JSONDecodeError:
             logger.error(f"Invalid JSON from realtime API: {message}")

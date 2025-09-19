@@ -207,6 +207,7 @@
                         <div class="card-body">
                             <h6>Current Model</h6>
                             <p class="current-setting" id="currentModel">Mistral-7B-Instruct-v0.2</p>
+                            <small class="text-muted" id="modelApiType">API Type: REST</small>
                         </div>
                     </div>
                 </div>
@@ -455,7 +456,20 @@
             fetch('/admin-status')
             .then(response => response.json())
             .then(data => {
-                document.getElementById('currentModel').textContent = data.model || 'Unknown';
+                const modelName = data.model || 'Unknown';
+                document.getElementById('currentModel').textContent = modelName;
+                
+                // Determine API type based on model name
+                const isRealtime = modelName.toLowerCase().includes('realtime');
+                const apiTypeElement = document.getElementById('modelApiType');
+                if (isRealtime) {
+                    apiTypeElement.textContent = 'API Type: Realtime WebSocket';
+                    apiTypeElement.className = 'text-success';
+                } else {
+                    apiTypeElement.textContent = 'API Type: REST';
+                    apiTypeElement.className = 'text-muted';
+                }
+                
                 document.getElementById('memoryCount').textContent = data.memory_count || '0';
                 
                 // Update current LLM endpoint display
