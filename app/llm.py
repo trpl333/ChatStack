@@ -181,14 +181,14 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             data = json.loads(message)
             event_type = data.get("type")
             
-            if event_type == "response.output_text.delta":
+            if event_type == "response.text.delta":
                 delta = data.get("delta", "")
                 response_text += delta
                 # Put tokens in queue for streaming
                 if delta:
                     token_queue.put(delta)
                     
-            elif event_type == "response.output_text.done":
+            elif event_type == "response.text.done":
                 response_complete = True
                 token_queue.put(None)  # Signal end of stream
                 
@@ -218,14 +218,17 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
     
     def on_open(ws):
         try:
-            # Send session configuration
+            # Send session configuration with dynamic instructions
+            system_context = " ".join([m["content"] for m in messages if m["role"] == "system"])
+            if not system_context:
+                system_context = "You are Samantha, a helpful AI assistant for Peterson Family Insurance Agency."
+            
             session_config = {
-                "type": "session.update",
+                "type": "session.update", 
                 "session": {
                     "modalities": ["text"],
-                    "instructions": "You are Samantha, a helpful AI assistant for Peterson Family Insurance Agency.",
-                    "temperature": temperature,
-                    "max_response_output_tokens": max_tokens
+                    "instructions": system_context,
+                    "temperature": temperature
                 }
             }
             ws.send(json.dumps(session_config))
@@ -255,7 +258,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                             "role": "assistant",
                             "content": [
                                 {
-                                    "type": "text",
+                                    "type": "output_text",
                                     "text": message["content"]
                                 }
                             ]
@@ -270,14 +273,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             full_instructions = f"{system_context} {conversation_text}".strip()
             
             response_create = {
-                "type": "response.create", 
-                "response": {
-                    "conversation": "default",
-                    "modalities": ["text"],
-                    "instructions": full_instructions,
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens
-                }
+                "type": "response.create"
             }
             ws.send(json.dumps(response_create))
             
