@@ -6,14 +6,16 @@
 **Phone Number**: +19497071290
 **Production URL**: https://voice.theinsurancedoctors.com
 **Target Response Time**: 2-2.5 seconds
-**Deployment**: DigitalOcean Droplet with Docker + RunPod GPU for LLM
+**Deployment**: DigitalOcean Droplet with Docker + OpenAI API for LLM
+
+**⚠️ IMPORTANT:** All LLM configuration is now standardized to OpenAI API. The source of truth for LLM backend and model settings is `config.json`. All environments must use `https://api.openai.com/v1` with `gpt-realtime-2025-08-28` unless updated via the admin panel.
 
 ---
 
 ## Architecture Flow
 
 ```
-Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Backend (port 8001) → RunPod LLM → ElevenLabs TTS → MP3 Audio → Twilio → Caller
+Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Backend (port 8001) → OpenAI API → ElevenLabs TTS → MP3 Audio → Twilio → Caller
                                      ↓
                             AI-Memory Service (port 8100) + PostgreSQL + pgvector
 ```

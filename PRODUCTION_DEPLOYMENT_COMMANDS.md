@@ -123,7 +123,7 @@ docker logs chatstack-web-1 --tail=50 -f
 
 - **DO NOT touch `/opt/ChatStack/.env`** - All secrets are properly configured
 - **Nginx config is already correct** - Proxies all `/phone/*` to Flask
-- **A40 LLM endpoint working** - Backend switching operational
+- **OpenAI API endpoint working** - GPT model integration operational
 - **Memory service connected** - HTTP-based AI-Memory at 209.38.143.71:8100
 
 ---

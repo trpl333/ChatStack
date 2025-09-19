@@ -58,7 +58,7 @@ Call **+19497071290** - it should now work with Samantha's voice!
 ```
 
 🎵 **Response Time:** 2-2.5 seconds  
-🤖 **AI:** RunPod Mistral model  
+🤖 **AI:** OpenAI GPT model (gpt-realtime-2025-08-28)  
 🎙️ **Voice:** ElevenLabs natural speech  
 
 ---

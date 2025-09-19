@@ -66,8 +66,7 @@ TWILIO_PHONE_NUMBER=+19497071290
 ELEVENLABS_API_KEY=your_key
 ELEVENLABS_VOICE_ID=dnRitNTYKgyEUEizTqqH  # Sol's voice
 
-# LLM (RunPod or OpenAI)
-LLM_BASE_URL=https://api.runpod.io/v2/your-endpoint/openai/v1
+# LLM (OpenAI API)
 OPENAI_API_KEY=your_key
 
 # Security
@@ -78,7 +77,7 @@ SESSION_SECRET=generate-random-string-here
 The system uses two configuration files:
 
 1. `config.json`  
-   - External/public-facing settings (Twilio webhook URL, RunPod LLM URL, ElevenLabs voice ID, etc.).  
+   - External/public-facing settings (Twilio webhook URL, OpenAI API endpoint, ElevenLabs voice ID, etc.).  
    - Safe to commit to GitHub (no secrets inside).  
    - Used by the orchestrator in production.
 
@@ -171,10 +170,9 @@ curl http://localhost:5000/health
 - Spaces (optional): $5/month
 - **Total: ~$44/month**
 
-**GPU Considerations:**
-- Current RunPod A40: Fast responses
-- Alternative: Use OpenAI API directly (no GPU needed)
-- Or: Deploy your own LLM on DigitalOcean GPU droplet
+**LLM API:**
+- Standard: OpenAI API (gpt-realtime-2025-08-28) - Fast responses, reliable
+- Alternative: Custom LLM deployment (requires additional infrastructure)
 
 ---
 
