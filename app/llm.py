@@ -242,20 +242,46 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
     
     def on_open(ws):
         try:
+            # Extract system instructions from messages
+            system_instructions = []
+            for message in messages:
+                if message["role"] == "system":
+                    system_instructions.append(message["content"])
+            
+            # Use system instructions or default
+            if system_instructions:
+                instructions_text = " ".join(system_instructions)
+            else:
+                instructions_text = "You are a helpful AI assistant."
+            
             # Send session configuration
             session_config = {
                 "type": "session.update",
                 "session": {
                     "modalities": ["text"],
-                    "instructions": "You are Samantha, a helpful AI assistant for Peterson Family Insurance Agency.",
+                    "instructions": instructions_text,
+                    "voice": "alloy",
+                    "input_audio_format": "pcm16",
+                    "output_audio_format": "pcm16",
+                    "input_audio_transcription": {
+                        "model": "whisper-1"
+                    },
+                    "turn_detection": {
+                        "type": "server_vad",
+                        "threshold": 0.5,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 200
+                    },
+                    "tools": [],
+                    "tool_choice": "auto",
                     "temperature": temperature,
                     "max_response_output_tokens": max_tokens
                 }
             }
             ws.send(json.dumps(session_config))
             
-            # Send full conversation history
-            for i, message in enumerate(messages):
+            # Send conversation history (non-system messages)
+            for message in messages:
                 if message["role"] == "user":
                     conversation_input = {
                         "type": "conversation.item.create",
@@ -271,7 +297,8 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                         }
                     }
                     ws.send(json.dumps(conversation_input))
-                else:  # assistant messages
+                elif message["role"] == "assistant":
+                    # Assistant messages in conversation history
                     conversation_input = {
                         "type": "conversation.item.create", 
                         "item": {
@@ -287,26 +314,15 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                     }
                     ws.send(json.dumps(conversation_input))
             
-            # Request response with instructions - THIS IS THE CRITICAL FIX!
-            # Build conversation context for instructions
-            conversation_text = " ".join([m["content"] for m in messages if m["role"] == "user"])
-            system_context = " ".join([m["content"] for m in messages if m["role"] == "system"])
-            full_instructions = f"{system_context} {conversation_text}".strip()
-            
+            # Request response generation
             response_create = {
-                "type": "response.create", 
-                "response": {
-                    "conversation": "default",
-                    "modalities": ["text"],
-                    "instructions": full_instructions,
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens
-                }
+                "type": "response.create"
             }
             ws.send(json.dumps(response_create))
             
         except Exception as e:
             logger.error(f"Error sending to realtime API: {e}")
+            nonlocal error_occurred
             error_occurred = True
             token_queue.put(None)
     
