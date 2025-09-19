@@ -163,7 +163,7 @@ def get_elevenlabs_config() -> Dict[str, str]:
     """Get ElevenLabs configuration"""
     return {
         "api_key": config.get("ELEVENLABS_API_KEY", default=""),
-        "voice_id": config.get("ELEVENLABS_VOICE_ID", default=config.get("elevenlabs_voice_id", "aMSt68OGf4xUZAnLpTU8"))
+        "voice_id": config.get("ELEVENLABS_VOICE_ID", default=config.get("elevenlabs_voice_id", "FGY2WhTYpPnrIDTdsKH5"))
     }
 
 def get_all_config() -> Dict[str, Any]:
