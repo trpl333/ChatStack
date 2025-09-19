@@ -117,11 +117,11 @@ if not _initial_config["llm_base_url"]:
 call_sessions = {}
 
 # Admin-configurable settings
-VOICE_ID = "dnRitNTYKgyEUEizTqqH"  # Sol's voice (configurable via admin)
+VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"  # Sol's voice (configurable via admin)
 # Voice settings - configurable via admin
 voice_settings = {"stability": 0.71, "similarity_boost": 0.5}
 ai_instructions = "You are Samantha from Peterson Family Insurance Agency. Be casual and friendly."
-current_voice_id = "dnRitNTYKgyEUEizTqqH"  # Sol's voice
+current_voice_id = "FGY2WhTYpPnrIDTdsKH5"  # Sol's voice
 VOICE_SETTINGS = voice_settings  # For backwards compatibility
 MAX_TOKENS = 75  # Allow longer, more natural responses
 AI_INSTRUCTIONS = "You are Samantha, a friendly assistant at Peterson Family Insurance Agency."  # Admin-configurable
