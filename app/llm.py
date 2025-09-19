@@ -258,7 +258,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                             "role": "assistant",
                             "content": [
                                 {
-                                    "type": "output_text",
+                                    "type": "text",
                                     "text": message["content"]
                                 }
                             ]
@@ -273,7 +273,11 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             full_instructions = f"{system_context} {conversation_text}".strip()
             
             response_create = {
-                "type": "response.create"
+                "type": "response.create",
+                "response": {
+                    "max_output_tokens": max_tokens,
+                    "temperature": temperature
+                }
             }
             ws.send(json.dumps(response_create))
             
@@ -301,7 +305,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
         ws_thread.start()
         
         # Stream tokens from the queue
-        timeout = 30
+        timeout = 120  # Increased for production robustness
         start_time = time.time()
         
         while (time.time() - start_time) < timeout:
