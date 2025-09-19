@@ -1,0 +1,4 @@
+# OpenAI Realtime API requirements
+websocket-client==1.6.4
+python-dotenv==1.0.1
+pydub==0.25.1
