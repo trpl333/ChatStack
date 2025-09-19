@@ -905,10 +905,6 @@ def admin_control():
     except FileNotFoundError:
         return "Admin control interface not found", 404
 
-@app.route('/admin-control.html')
-def admin_control_html():
-    """Serve admin-control.html directly for external access"""
-    return app.send_static_file('admin-control.html')
 
 @app.route('/admin.html')
 def admin_html():

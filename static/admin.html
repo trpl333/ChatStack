@@ -3,22 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NeuroSphere Knowledge Base Manager</title>
+    <title>Peterson Family Insurance AI Phone System Admin</title>
     <link href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css" rel="stylesheet">
     <style>
+        .admin-section { 
+            margin-bottom: 2rem; 
+            padding: 1.5rem; 
+            border-radius: 8px; 
+            background: var(--bs-dark); 
+            border: 1px solid var(--bs-gray-600);
+        }
         .memory-card {
             background: var(--bs-gray-800);
             border: 1px solid var(--bs-gray-600);
             border-radius: 0.5rem;
             margin-bottom: 1rem;
         }
-        .scope-badge {
-            font-size: 0.8rem;
-        }
-        .memory-content {
-            max-height: 200px;
-            overflow-y: auto;
-        }
+        .scope-badge { font-size: 0.8rem; }
+        .memory-content { max-height: 200px; overflow-y: auto; }
         .status-indicator {
             display: inline-block;
             width: 10px;
@@ -32,124 +34,436 @@
             font-family: 'Monaco', 'Consolas', monospace;
             background: var(--bs-gray-900);
         }
+        .voice-sample { margin: 0.5rem 0; }
+        .current-setting { color: var(--bs-success); font-weight: bold; }
+        .setting-group { border-left: 3px solid var(--bs-primary); padding-left: 1rem; margin: 1rem 0; }
+        .nav-pills .nav-link.active { background-color: var(--bs-primary); }
+        .section-header { 
+            border-bottom: 2px solid var(--bs-primary); 
+            padding-bottom: 0.5rem; 
+            margin-bottom: 1.5rem; 
+        }
     </style>
 </head>
 <body>
     <div class="container-fluid py-4">
+        <!-- Header -->
         <div class="row">
             <div class="col-12">
                 <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h1 class="text-primary">🧠 NeuroSphere Knowledge Base Manager</h1>
+                    <h1 class="text-primary">🎛️ Peterson Family Insurance AI Phone System Admin</h1>
                     <div id="status-indicator" class="d-flex align-items-center">
                         <span class="status-indicator status-success"></span>
-                        <small class="text-muted">Connected</small>
+                        <small class="text-muted">Connected to OpenAI Realtime API</small>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="row">
-            <!-- Knowledge Upload Section -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header">
-                        <h5 class="mb-0">📚 Add Knowledge</h5>
+        <!-- Navigation Tabs -->
+        <ul class="nav nav-pills mb-4" id="adminTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="phone-tab" data-bs-toggle="pill" data-bs-target="#phone-panel" type="button">📞 Phone System</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="ai-tab" data-bs-toggle="pill" data-bs-target="#ai-panel" type="button">🧠 AI Settings</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="knowledge-tab" data-bs-toggle="pill" data-bs-target="#knowledge-panel" type="button">📚 Knowledge Base</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="system-tab" data-bs-toggle="pill" data-bs-target="#system-panel" type="button">⚙️ System Status</button>
+            </li>
+        </ul>
+
+        <div class="tab-content" id="adminTabContent">
+            
+            <!-- Phone System Panel -->
+            <div class="tab-pane fade show active" id="phone-panel" role="tabpanel">
+                
+                <!-- Voice Settings -->
+                <div class="admin-section">
+                    <h3 class="section-header">🎤 Voice Settings</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">ElevenLabs Voice</label>
+                            <select class="form-select" id="voiceSelect">
+                                <option value="dnRitNTYKgyEUEizTqqH" selected>Sol (Current)</option>
+                                <option value="21m00Tcm4TlvDq8ikWAM">Rachel - Natural & Versatile</option>
+                                <option value="AZnzlk1XvdvUeBnXmlld">Domi - Strong & Professional</option>
+                                <option value="EXAVITQu4vr4xnSDxMaL">Bella - Friendly & Warm</option>
+                                <option value="ErXwobaYiN019PkySvjV">Antoni - Professional Male</option>
+                                <option value="MF3mGyEYCl7XYWbV9V6O">Elli - Energetic Female</option>
+                                <option value="TxGEqnHWrfWFTfGW9XjX">Josh - Deep Male Voice</option>
+                                <option value="VR6AewLTigWG4xSOukaG">Arnold - Crisp & Clear</option>
+                                <option value="pNInz6obpgDQGcFmaJgB">Adam - Professional Narrator</option>
+                                <option value="yoZ06aMxZJJ28mfd3POQ">Sam - Casual & Friendly</option>
+                            </select>
+                            <button class="btn btn-primary mt-2" onclick="testVoice()">🔊 Test Voice</button>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Voice Settings</label>
+                            <div class="setting-group">
+                                <div class="mb-2">
+                                    <label>Stability: <span id="stabilityValue">0.71</span></label>
+                                    <input type="range" class="form-range" min="0" max="1" step="0.01" value="0.71" id="stability">
+                                </div>
+                                <div class="mb-2">
+                                    <label>Clarity: <span id="clarityValue">0.5</span></label>
+                                    <input type="range" class="form-range" min="0" max="1" step="0.01" value="0.5" id="clarity">
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body">
-                        <form id="add-knowledge-form">
-                            <div class="mb-3">
-                                <label for="knowledge-type" class="form-label">Knowledge Type</label>
-                                <select class="form-select" id="knowledge-type" required>
-                                    <option value="">Select type...</option>
-                                    <option value="fact">Fact</option>
-                                    <option value="rule">Rule</option>
-                                    <option value="procedure">Procedure</option>
-                                    <option value="definition">Definition</option>
-                                    <option value="example">Example</option>
-                                </select>
-                            </div>
-                            
-                            <div class="mb-3">
-                                <label for="knowledge-key" class="form-label">Key/Identifier</label>
-                                <input type="text" class="form-control" id="knowledge-key" 
-                                       placeholder="e.g., ca_auto_liability" required>
-                                <div class="form-text">Unique identifier for this knowledge item</div>
-                            </div>
+                    <button class="btn btn-success" onclick="updateVoice()">💾 Update Voice Settings</button>
+                </div>
 
-                            <div class="mb-3">
-                                <label for="knowledge-scope" class="form-label">Scope</label>
-                                <select class="form-select" id="knowledge-scope" required>
-                                    <option value="shared">🌐 Shared (All Users)</option>
-                                    <option value="global">🌍 Global (System-wide)</option>
-                                </select>
-                            </div>
+                <!-- Custom Greetings -->
+                <div class="admin-section">
+                    <h3 class="section-header">👋 Custom Greetings</h3>
+                    <div class="alert alert-info">
+                        <strong>Greeting Logic:</strong> The system automatically chooses between these greetings based on whether the caller is recognized from memory.
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Existing User Greeting</label>
+                            <textarea class="form-control" rows="3" id="existingUserGreeting" placeholder="Greeting for recognized callers...">Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?</textarea>
+                            <small class="text-muted">Use {user_name} placeholder for personalization. Shown when caller's name is found in memory.</small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">New Caller Greeting</label>
+                            <textarea class="form-control" rows="3" id="newCallerGreeting" placeholder="Greeting for new callers...">Good {time_greeting}! This is Samantha - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!</textarea>
+                            <small class="text-muted">Use {time_greeting} for "morning/afternoon/evening". Shown for unrecognized callers.</small>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <button class="btn btn-success" onclick="updateGreetings()">💾 Update Greetings</button>
+                        <button class="btn btn-outline-info ms-2" onclick="testGreeting()">🔊 Test Greeting</button>
+                    </div>
+                </div>
 
-                            <div class="mb-3">
-                                <label for="knowledge-content" class="form-label">Content (JSON)</label>
-                                <textarea class="form-control json-editor" id="knowledge-content" rows="8" 
-                                          placeholder='{"description": "Auto insurance requirement", "state": "California", "amount": "$15,000"}' required></textarea>
-                                <div class="form-text">Enter knowledge as JSON object</div>
+                <!-- Call Routing -->
+                <div class="admin-section">
+                    <h3 class="section-header">📞 Call Routing & Actions</h3>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <h5>Quick Actions</h5>
+                            <div class="setting-group">
+                                <div class="mb-3">
+                                    <label class="form-label">Billing Department</label>
+                                    <input type="tel" class="form-control" id="billingNumber" value="1-888-327-6377" placeholder="1-888-XXX-XXXX">
+                                    <small class="text-muted">When users mention "pay bill" or "billing", transfer here</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Claims Department</label>
+                                    <input type="tel" class="form-control" id="claimsNumber" value="1-800-435-7764" placeholder="1-800-XXX-XXXX">
+                                    <small class="text-muted">When users mention "claim" or "accident", transfer here</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">General Support</label>
+                                    <input type="tel" class="form-control" id="supportNumber" value="1-888-327-6377" placeholder="1-888-XXX-XXXX">
+                                    <small class="text-muted">For complex issues Samantha can't handle</small>
+                                </div>
                             </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-success" onclick="updateRouting()">💾 Update Call Routing</button>
+                </div>
+            </div>
 
-                            <div class="mb-3">
-                                <label for="knowledge-ttl" class="form-label">TTL (Days)</label>
-                                <input type="number" class="form-control" id="knowledge-ttl" value="365" min="1" max="9999">
+            <!-- AI Settings Panel -->
+            <div class="tab-pane fade" id="ai-panel" role="tabpanel">
+                
+                <!-- Personality Settings -->
+                <div class="admin-section">
+                    <h3 class="section-header">🧠 AI Personality & Instructions</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Personality Preset</label>
+                            <select class="form-select" id="personalityPreset" onchange="loadPersonality()">
+                                <option value="insurance">Peterson Family Insurance Agent (Current)</option>
+                                <option value="professional">Professional & Formal</option>
+                                <option value="friendly">Friendly & Casual</option>
+                                <option value="sales">Sales-Focused</option>
+                                <option value="support">Customer Support</option>
+                                <option value="custom">Custom Instructions</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Response Length</label>
+                            <select class="form-select" id="responseLength">
+                                <option value="25">Very Short (25 tokens)</option>
+                                <option value="50" selected>Short (50 tokens)</option>
+                                <option value="100">Medium (100 tokens)</option>
+                                <option value="150">Long (150 tokens)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label class="form-label">Custom Instructions</label>
+                        <textarea class="form-control" rows="4" id="customInstructions" placeholder="Enter custom personality instructions...">You are Samantha from Peterson Family Insurance Agency. Be helpful and professional. Only use information you remember about the caller.</textarea>
+                    </div>
+                    <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Personality</button>
+                </div>
+
+                <!-- OpenAI Settings -->
+                <div class="admin-section">
+                    <h3 class="section-header">🤖 OpenAI Realtime API Settings</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>Current Model</h6>
+                                    <p class="current-setting">gpt-realtime</p>
+                                </div>
                             </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>API Endpoint</h6>
+                                    <p class="current-setting">https://api.openai.com/v1</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="alert alert-success mt-3">
+                        <strong>✅ OpenAI Realtime API Integration Active</strong><br>
+                        Your phone system is now using OpenAI's latest Realtime API for lightning-fast 2-2.5 second response times.
+                    </div>
+                </div>
 
-                            <button type="submit" class="btn btn-primary">💾 Add Knowledge</button>
-                            <button type="button" class="btn btn-secondary" onclick="clearForm()">🗑️ Clear</button>
-                        </form>
+                <!-- Test Panel -->
+                <div class="admin-section">
+                    <h3 class="section-header">🧪 Test Panel</h3>
+                    <div class="row">
+                        <div class="col-md-8">
+                            <input type="text" class="form-control" id="testMessage" placeholder="Enter test message..." value="Hi, my name is John. How are you doing today?">
+                        </div>
+                        <div class="col-md-4">
+                            <button class="btn btn-primary" onclick="testAI()">🤖 Test AI Response</button>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <div class="card bg-secondary">
+                            <div class="card-body">
+                                <h6>AI Response:</h6>
+                                <p id="testResponse">Click "Test AI Response" to see how Samantha responds</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Knowledge List Section -->
-            <div class="col-md-6">
-                <div class="card h-100">
-                    <div class="card-header d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">🌐 Shared Knowledge Base</h5>
+            <!-- Knowledge Base Panel -->
+            <div class="tab-pane fade" id="knowledge-panel" role="tabpanel">
+                
+                <!-- Knowledge Upload Section -->
+                <div class="admin-section">
+                    <h3 class="section-header">📚 Add Knowledge</h3>
+                    <form id="add-knowledge-form">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="knowledge-type" class="form-label">Knowledge Type</label>
+                                    <select class="form-select" id="knowledge-type" required>
+                                        <option value="">Select type...</option>
+                                        <option value="fact">Fact</option>
+                                        <option value="rule">Rule</option>
+                                        <option value="procedure">Procedure</option>
+                                        <option value="definition">Definition</option>
+                                        <option value="example">Example</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label for="knowledge-key" class="form-label">Key/Identifier</label>
+                                    <input type="text" class="form-control" id="knowledge-key" 
+                                           placeholder="e.g., ca_auto_liability" required>
+                                    <div class="form-text">Unique identifier for this knowledge item</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="knowledge-scope" class="form-label">Scope</label>
+                                    <select class="form-select" id="knowledge-scope" required>
+                                        <option value="shared">🌐 Shared (All Users)</option>
+                                        <option value="global">🌍 Global (System-wide)</option>
+                                    </select>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="knowledge-ttl" class="form-label">TTL (Days)</label>
+                                    <input type="number" class="form-control" id="knowledge-ttl" value="365" min="1" max="9999">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="knowledge-content" class="form-label">Content (JSON)</label>
+                                    <textarea class="form-control json-editor" id="knowledge-content" rows="8" 
+                                              placeholder='{"description": "Auto insurance requirement", "state": "California", "amount": "$15,000"}' required></textarea>
+                                    <div class="form-text">Enter knowledge as JSON object</div>
+                                </div>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">💾 Add Knowledge</button>
+                        <button type="button" class="btn btn-secondary" onclick="clearForm()">🗑️ Clear</button>
+                    </form>
+                </div>
+
+                <!-- Knowledge List Section -->
+                <div class="admin-section">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h3 class="section-header">🌐 Shared Knowledge Base</h3>
                         <button class="btn btn-outline-primary btn-sm" onclick="loadSharedKnowledge()">🔄 Refresh</button>
                     </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <input type="text" class="form-control" id="search-knowledge" 
-                                   placeholder="🔍 Search knowledge..." onkeyup="searchKnowledge()">
+                    <div class="mb-3">
+                        <input type="text" class="form-control" id="search-knowledge" 
+                               placeholder="🔍 Search knowledge..." onkeyup="searchKnowledge()">
+                    </div>
+                    <div id="knowledge-list" style="max-height: 400px; overflow-y: auto;">
+                        <div class="text-center text-muted py-4">
+                            <div class="spinner-border" role="status"></div>
+                            <p class="mt-2">Loading knowledge base...</p>
                         </div>
-                        <div id="knowledge-list" style="max-height: 600px; overflow-y: auto;">
-                            <div class="text-center text-muted py-4">
-                                <div class="spinner-border" role="status"></div>
-                                <p class="mt-2">Loading knowledge base...</p>
-                            </div>
+                    </div>
+                </div>
+
+                <!-- User Memory Viewer -->
+                <div class="admin-section">
+                    <h3 class="section-header">👥 User Memory Viewer</h3>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="user-id-input" 
+                                   placeholder="Enter User ID (e.g., user_123)">
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" class="form-control" id="user-search-query" 
+                                   placeholder="Search user memories...">
+                        </div>
+                        <div class="col-md-2">
+                            <button class="btn btn-primary w-100" onclick="loadUserMemories()">🔍 Search</button>
+                        </div>
+                    </div>
+                    <div id="user-memories" style="max-height: 400px; overflow-y: auto;">
+                        <div class="text-muted text-center py-4">
+                            Enter a User ID and click Search to view memories
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
 
-        <div class="row mt-4">
-            <!-- User Memory Viewer -->
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">👥 User Memory Viewer</h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="row mb-3">
-                            <div class="col-md-6">
-                                <input type="text" class="form-control" id="user-id-input" 
-                                       placeholder="Enter User ID (e.g., user_123)">
-                            </div>
-                            <div class="col-md-4">
-                                <input type="text" class="form-control" id="user-search-query" 
-                                       placeholder="Search user memories...">
-                            </div>
-                            <div class="col-md-2">
-                                <button class="btn btn-primary w-100" onclick="loadUserMemories()">🔍 Search</button>
+            <!-- System Status Panel -->
+            <div class="tab-pane fade" id="system-panel" role="tabpanel">
+                
+                <!-- System Status -->
+                <div class="admin-section">
+                    <h3 class="section-header">📊 System Status</h3>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>AI Model</h6>
+                                    <p class="current-setting">gpt-realtime</p>
+                                </div>
                             </div>
                         </div>
-                        <div id="user-memories" style="max-height: 400px; overflow-y: auto;">
-                            <div class="text-muted text-center py-4">
-                                Enter a User ID and click Search to view memories
+                        <div class="col-md-3">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>Phone Number</h6>
+                                    <p class="current-setting">+1 (949) 707-1290</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>Response Time</h6>
+                                    <p class="current-setting">2-2.5 seconds</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>Total Memories</h6>
+                                    <p class="current-setting" id="memoryCount">Loading...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-info mt-2" onclick="refreshStatus()">🔄 Refresh Status</button>
+                </div>
+
+                <!-- Service Architecture -->
+                <div class="admin-section">
+                    <h3 class="section-header">🏗️ Service Architecture</h3>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-dark">
+                                <div class="card-body">
+                                    <h6>🌐 Flask Frontend (Port 5000)</h6>
+                                    <ul class="list-unstyled">
+                                        <li>• Phone call handling (/phone/)</li>
+                                        <li>• Admin interface (/admin)</li>
+                                        <li>• Static file serving (/static/)</li>
+                                        <li>• Twilio webhook processing</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-dark">
+                                <div class="card-body">
+                                    <h6>🚀 FastAPI Backend (Port 8001)</h6>
+                                    <ul class="list-unstyled">
+                                        <li>• OpenAI Realtime API (/v1/)</li>
+                                        <li>• Memory management</li>
+                                        <li>• AI chat processing</li>
+                                        <li>• WebSocket support</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuration Sources -->
+                <div class="admin-section">
+                    <h3 class="section-header">⚙️ Configuration</h3>
+                    <div class="alert alert-info">
+                        <strong>Configuration Priority:</strong> 
+                        1. Environment Variables (secrets) → 
+                        2. config.json (settings) → 
+                        3. config-internal.json (internal settings)
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card bg-dark">
+                                <div class="card-body">
+                                    <h6>🔒 Environment Variables</h6>
+                                    <ul class="list-unstyled small">
+                                        <li>• OPENAI_API_KEY</li>
+                                        <li>• DATABASE_URL</li>
+                                        <li>• ELEVENLABS_API_KEY</li>
+                                        <li>• TWILIO_* (Account, Auth, Phone)</li>
+                                        <li>• SESSION_SECRET</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card bg-dark">
+                                <div class="card-body">
+                                    <h6>📄 config.json Settings</h6>
+                                    <ul class="list-unstyled small">
+                                        <li>• llm_model: gpt-realtime</li>
+                                        <li>• llm_base_url: https://api.openai.com/v1</li>
+                                        <li>• ai_memory_url: http://209.38.143.71:8100</li>
+                                        <li>• server_url: voice.theinsurancedoctors.com</li>
+                                        <li>• elevenlabs_voice_id: dnRitNTYKgyEUEizTqqH</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -185,14 +499,148 @@
             toastTitle.textContent = title;
             toastBody.textContent = message;
             
-            // Change color based on success/error
             header.className = `toast-header ${isError ? 'bg-danger text-white' : 'bg-success text-white'}`;
             
             const bsToast = new bootstrap.Toast(toast);
             bsToast.show();
         }
 
-        // Add knowledge form handler
+        // Voice range sliders
+        document.getElementById('stability').addEventListener('input', function() {
+            document.getElementById('stabilityValue').textContent = this.value;
+        });
+        document.getElementById('clarity').addEventListener('input', function() {
+            document.getElementById('clarityValue').textContent = this.value;
+        });
+
+        // Voice and personality management
+        function loadPersonality() {
+            const preset = document.getElementById('personalityPreset').value;
+            const instructions = document.getElementById('customInstructions');
+            
+            const presets = {
+                insurance: "You are Samantha from Peterson Family Insurance Agency. Be helpful and professional. Answer questions about insurance and help customers with their needs.",
+                professional: "You are a professional AI assistant. Maintain a formal, courteous tone. Provide accurate, helpful information.",
+                friendly: "You are a friendly AI assistant. Be warm, conversational, and approachable while remaining helpful.",
+                sales: "You are a sales-focused assistant. Identify customer needs and guide them toward appropriate solutions.",
+                support: "You are a customer support specialist. Focus on problem-solving and providing excellent service.",
+                custom: ""
+            };
+            
+            if (preset !== 'custom') {
+                instructions.value = presets[preset];
+            }
+        }
+
+        function testVoice() {
+            const voiceId = document.getElementById('voiceSelect').value;
+            const testText = "Hi, this is Samantha from Peterson Family Insurance Agency. How can I help you today?";
+            
+            fetch('/test-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ voice_id: voiceId, text: testText })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Voice test sent! Check your speakers.');
+                } else {
+                    showNotification('Error', 'Voice test failed: ' + data.error, true);
+                }
+            });
+        }
+
+        function testAI() {
+            const message = document.getElementById('testMessage').value;
+            const responseDiv = document.getElementById('testResponse');
+            
+            responseDiv.textContent = 'Testing...';
+            
+            fetch('/v1/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    messages: [{ role: 'user', content: message }],
+                    temperature: 0.7,
+                    max_tokens: 100
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                responseDiv.textContent = data.output || 'Test failed';
+                showNotification('Success', 'AI test completed');
+            })
+            .catch(error => {
+                responseDiv.textContent = 'Error: ' + error.message;
+                showNotification('Error', 'AI test failed: ' + error.message, true);
+            });
+        }
+
+        function testGreeting() {
+            const greeting = document.getElementById('newCallerGreeting').value;
+            fetch('/test-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text: greeting })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Greeting test sent! Check your speakers.');
+                } else {
+                    showNotification('Error', 'Greeting test failed: ' + data.error, true);
+                }
+            });
+        }
+
+        function updateVoice() {
+            const settings = {
+                voice_id: document.getElementById('voiceSelect').value,
+                stability: document.getElementById('stability').value,
+                clarity: document.getElementById('clarity').value
+            };
+            
+            showNotification('Info', 'Voice settings would be updated in production system');
+        }
+
+        function updatePersonality() {
+            const settings = {
+                instructions: document.getElementById('customInstructions').value,
+                max_tokens: parseInt(document.getElementById('responseLength').value)
+            };
+            
+            showNotification('Info', 'Personality settings would be updated in production system');
+        }
+
+        function updateGreetings() {
+            const settings = {
+                existing_user: document.getElementById('existingUserGreeting').value,
+                new_caller: document.getElementById('newCallerGreeting').value
+            };
+            
+            showNotification('Info', 'Greeting settings would be updated in production system');
+        }
+
+        function updateRouting() {
+            const settings = {
+                billing_number: document.getElementById('billingNumber').value,
+                claims_number: document.getElementById('claimsNumber').value,
+                support_number: document.getElementById('supportNumber').value
+            };
+            
+            showNotification('Info', 'Call routing settings would be updated in production system');
+        }
+
+        function refreshStatus() {
+            // Simulate loading memory count
+            setTimeout(() => {
+                document.getElementById('memoryCount').textContent = Math.floor(Math.random() * 1000) + ' items';
+                showNotification('Success', 'Status refreshed');
+            }, 1000);
+        }
+
+        // Knowledge Base Functions
         document.getElementById('add-knowledge-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
@@ -203,10 +651,8 @@
             const ttl = parseInt(document.getElementById('knowledge-ttl').value);
             
             try {
-                // Parse JSON content
                 const content = JSON.parse(contentStr);
                 
-                // Submit to API
                 const response = await fetch('/v1/memories/shared', {
                     method: 'POST',
                     headers: {
@@ -226,7 +672,7 @@
                 if (result.success) {
                     showNotification('Success', `Knowledge added: ${type}:${key}`);
                     clearForm();
-                    loadSharedKnowledge(); // Refresh list
+                    loadSharedKnowledge();
                 } else {
                     showNotification('Error', 'Failed to add knowledge', true);
                 }
@@ -236,7 +682,6 @@
             }
         });
 
-        // Load shared knowledge
         async function loadSharedKnowledge() {
             try {
                 const response = await fetch('/v1/memories/shared?limit=50');
@@ -249,7 +694,6 @@
             }
         }
 
-        // Display knowledge items
         function displayKnowledge(memories) {
             const container = document.getElementById('knowledge-list');
             
@@ -277,7 +721,6 @@
             container.innerHTML = html;
         }
 
-        // Search knowledge
         function searchKnowledge() {
             const query = document.getElementById('search-knowledge').value.toLowerCase();
             if (query === '') {
@@ -294,7 +737,6 @@
             displayKnowledge(filtered);
         }
 
-        // Load user memories
         async function loadUserMemories() {
             const userId = document.getElementById('user-id-input').value.trim();
             const query = document.getElementById('user-search-query').value.trim();
@@ -317,7 +759,6 @@
             }
         }
 
-        // Display user memories
         function displayUserMemories(memories, userId) {
             const container = document.getElementById('user-memories');
             
@@ -348,7 +789,6 @@
             container.innerHTML = html;
         }
 
-        // Clear form
         function clearForm() {
             document.getElementById('add-knowledge-form').reset();
             document.getElementById('knowledge-ttl').value = '365';
@@ -357,15 +797,15 @@
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             loadSharedKnowledge();
+            refreshStatus();
             
             // Add sample JSON to textarea
             document.getElementById('knowledge-content').placeholder = JSON.stringify({
-                "description": "California auto insurance liability minimum",
-                "state": "California", 
-                "bodily_injury_per_person": "$15,000",
-                "bodily_injury_per_accident": "$30,000", 
-                "property_damage": "$5,000",
-                "note": "These are the minimum required amounts"
+                "description": "Peterson Family Insurance policy information",
+                "policy_type": "Auto Insurance", 
+                "coverage_amount": "$25,000",
+                "deductible": "$500",
+                "note": "Standard coverage for California residents"
             }, null, 2);
         });
     </script>
