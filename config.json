@@ -3,7 +3,7 @@
   "comment_security": "API keys and secrets are stored in environment variables for security",
   "llm_base_url": "https://api.openai.com/v1",
   "llm_api_key": "",
-  "llm_model": "gpt-realtime",
+  "llm_model": "gpt-4o-mini",
   "llm_description": "OpenAI API endpoint using GPT Realtime model. Used by the orchestrator to generate AI responses with real-time capabilities.",
   "ai_memory_url": "http://209.38.143.71:8100",
   "ai_memory_description": "DigitalOcean AI-Memory service (FastAPI + Postgres/pgvector). Stores and retrieves long-term memory objects.",
