@@ -167,7 +167,24 @@
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-success" onclick="updateRouting()">💾 Update Call Routing</button>
+                    <div class="mt-3">
+                        <h5>Trigger Keywords</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <label class="form-label">Billing Keywords</label>
+                                <textarea class="form-control" rows="3" id="billingKeywords">pay bill, billing, payment, invoice, account balance, autopay</textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Claims Keywords</label>
+                                <textarea class="form-control" rows="3" id="claimsKeywords">claim, accident, damage, injury, file claim, incident</textarea>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Transfer Keywords</label>
+                                <textarea class="form-control" rows="3" id="transferKeywords">speak to human, transfer me, representative, agent, manager</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    <button class="btn btn-success mt-2" onclick="updateRouting()">💾 Update Call Routing</button>
                 </div>
             </div>
 
@@ -601,7 +618,22 @@
                 clarity: document.getElementById('clarity').value
             };
             
-            showNotification('Info', 'Voice settings would be updated in production system');
+            fetch('/update-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Voice settings updated successfully!');
+                } else {
+                    showNotification('Error', 'Failed to update voice settings: ' + data.error, true);
+                }
+            })
+            .catch(error => {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            });
         }
 
         function updatePersonality() {
@@ -610,26 +642,74 @@
                 max_tokens: parseInt(document.getElementById('responseLength').value)
             };
             
-            showNotification('Info', 'Personality settings would be updated in production system');
+            fetch('/update-personality', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Personality settings updated successfully!');
+                } else {
+                    showNotification('Error', 'Failed to update personality: ' + data.error, true);
+                }
+            })
+            .catch(error => {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            });
         }
 
         function updateGreetings() {
             const settings = {
-                existing_user: document.getElementById('existingUserGreeting').value,
-                new_caller: document.getElementById('newCallerGreeting').value
+                existing_user_greeting: document.getElementById('existingUserGreeting').value,
+                new_caller_greeting: document.getElementById('newCallerGreeting').value
             };
             
-            showNotification('Info', 'Greeting settings would be updated in production system');
+            fetch('/update-greetings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Greeting settings updated successfully!');
+                } else {
+                    showNotification('Error', 'Failed to update greetings: ' + data.error, true);
+                }
+            })
+            .catch(error => {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            });
         }
 
         function updateRouting() {
             const settings = {
                 billing_number: document.getElementById('billingNumber').value,
                 claims_number: document.getElementById('claimsNumber').value,
-                support_number: document.getElementById('supportNumber').value
+                support_number: document.getElementById('supportNumber').value,
+                billing_keywords: document.getElementById('billingKeywords').value,
+                claims_keywords: document.getElementById('claimsKeywords').value,
+                transfer_keywords: document.getElementById('transferKeywords').value
             };
             
-            showNotification('Info', 'Call routing settings would be updated in production system');
+            fetch('/update-routing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(settings)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Call routing settings updated successfully!');
+                } else {
+                    showNotification('Error', 'Failed to update routing: ' + data.error, true);
+                }
+            })
+            .catch(error => {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            });
         }
 
         function refreshStatus() {

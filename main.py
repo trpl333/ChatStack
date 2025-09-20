@@ -591,7 +591,7 @@ def handle_incoming_call():
         response.play(audio_url)
     else:
         # Fallback to Twilio voice if ElevenLabs fails
-        response.say(greeting, voice='alice')
+        response.say(greeting, voice='Polly.Joanna')
     
     # Gather user speech with optimized settings
     # Use absolute HTTPS URL and ensure action is called even without speech
