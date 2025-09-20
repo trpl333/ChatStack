@@ -336,26 +336,46 @@ def admin():
     # Search knowledge if query provided
     if query:
         try:
-            resp = requests.get(f"{_get_orchestrator_url()}/v1/memories", params={"limit": 50}, timeout=10)
+            # ✅ Use correct AI-Memory service endpoint for searching
+            ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+            data = {
+                "user_id": "admin",
+                "message": query,
+                "limit": 50,
+                "types": []  # Search all types
+            }
+            resp = requests.post(f"{ai_memory_url}/memory/retrieve", json=data, timeout=10)
             if resp.status_code == 200:
-                data = resp.json()
-                knowledge_results = data.get("memories", [])
-                # Filter by query
-                knowledge_results = [m for m in knowledge_results if query.lower() in m.get("key", "").lower() or query.lower() in m.get("value", "").lower()]
-        except:
-            flash("⚠️ Could not search knowledge base")
+                result = resp.json()
+                knowledge_results = result.get("memories", [])
+        except Exception as e:
+            flash(f"⚠️ Could not search knowledge base: {e}")
     
     # Get user memories if user_id provided  
     if user_id:
         try:
-            # Get user memories using the proper API
-            resp = requests.get(f"{_get_orchestrator_url()}/v1/memories", 
-                               params={"user_id": user_id, "limit": 50}, timeout=10)
+            # ✅ Use correct AI-Memory service endpoint for user memories
+            ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+            
+            # Normalize user_id just like in process_speech
+            normalized_user_id = user_id
+            if user_id:
+                normalized_digits = ''.join(filter(str.isdigit, user_id))
+                if len(normalized_digits) >= 10:
+                    normalized_user_id = normalized_digits[-10:]
+            
+            data = {
+                "user_id": normalized_user_id,
+                "message": "",  # Empty for general retrieval
+                "limit": 50,
+                "types": []
+            }
+            resp = requests.post(f"{ai_memory_url}/memory/retrieve", json=data, timeout=10)
             if resp.status_code == 200:
-                # This would return debug info about memories
-                pass
-        except:
-            pass
+                result = resp.json()
+                user_memories = result.get("memories", [])
+        except Exception as e:
+            flash(f"⚠️ Could not retrieve user memories: {e}")
     
     return render_template_string(ADMIN_TEMPLATE, 
                                 knowledge_results=knowledge_results, 
@@ -366,20 +386,30 @@ def admin():
 def add_knowledge():
     """Add new knowledge to shared knowledge base"""
     try:
+        # ✅ Use correct AI-Memory service endpoints instead of /v1/memories
         data = {
+            "user_id": "admin",  # For shared knowledge
+            "message": request.form.get('value'),
             "type": request.form.get('type'),
-            "key": request.form.get('key'),
-            "value": request.form.get('value'),
+            "k": request.form.get('key'),
+            "value_json": {
+                "summary": request.form.get('value'),
+                "key": request.form.get('key')
+            },
+            "scope": "shared",
             "ttl_days": 365,
             "source": "admin_web_interface"
         }
         
-        resp = requests.post(f"{_get_orchestrator_url()}/v1/memories", json=data, timeout=10)
+        # Call AI-Memory service directly with correct endpoint
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        resp = requests.post(f"{ai_memory_url}/memory/store", json=data, timeout=10)
         
         if resp.status_code == 200:
-            flash(f"✅ Knowledge added: {data['key']}")
+            result = resp.json()
+            flash(f"✅ Knowledge added: {data['k']} (ID: {result.get('id', 'unknown')})")
         else:
-            flash("❌ Failed to add knowledge")
+            flash(f"❌ Failed to add knowledge: {resp.text}")
             
     except Exception as e:
         flash(f"❌ Error: {str(e)}")
