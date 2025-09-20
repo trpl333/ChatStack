@@ -454,8 +454,34 @@ def text_to_speech(text, voice_id=None):
         logging.error(f"ElevenLabs TTS failed: {e}")
         return None
 
+def _get_current_greetings():
+    """Read current greeting templates from system prompt file"""
+    try:
+        with open("app/prompts/system_sam.txt", 'r') as f:
+            content = f.read()
+        
+        import re
+        # Extract existing user greeting
+        existing_match = re.search(r'- If caller is known user: Greeting is "(.*?)" - wait for confirmation', content)
+        existing_greeting = existing_match.group(1) if existing_match else "Hi, this is Samantha from Peterson Family Insurance Agency. Is this [Name]?"
+        
+        # Extract new caller greeting
+        new_match = re.search(r'- If caller is new/unknown: Greeting is "(.*?)" - then get their name', content)
+        new_greeting = new_match.group(1) if new_match else "Good [time of day]! This is Samantha from Peterson Family Insurance Agency. How can I help you?"
+        
+        return existing_greeting, new_greeting
+        
+    except Exception as e:
+        logging.error(f"Error reading greetings from system prompt: {e}")
+        # Fallback to defaults
+        return ("Hi, this is Samantha from Peterson Family Insurance Agency. Is this [Name]?", 
+                "Good [time of day]! This is Samantha from Peterson Family Insurance Agency. How can I help you?")
+
 def get_personalized_greeting(user_id):
     """Get personalized greeting with user confirmation"""
+    # Get current greeting templates from system prompt file (always fresh)
+    existing_greeting, new_greeting = _get_current_greetings()
+    
     try:
         # Use HTTP memory service instead of direct database access
         from app.http_memory import HTTPMemoryStore
@@ -484,7 +510,7 @@ def get_personalized_greeting(user_id):
                         break
         
         if user_name:
-            return EXISTING_USER_GREETING.format(user_name=user_name)
+            return existing_greeting.replace("[Name]", user_name)
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
@@ -509,7 +535,7 @@ def get_personalized_greeting(user_id):
         # Fallback if pytz not available
         time_greeting = "Hello"
     
-    return NEW_CALLER_GREETING.format(time_greeting=time_greeting)
+    return new_greeting.replace("[time of day]", time_greeting)
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
