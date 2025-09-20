@@ -126,9 +126,40 @@ VOICE_SETTINGS = voice_settings  # For backwards compatibility
 MAX_TOKENS = 75  # Allow longer, more natural responses
 AI_INSTRUCTIONS = "You are Samantha, a friendly assistant at Peterson Family Insurance Agency."  # Admin-configurable
 
-# Custom greeting templates (admin-configurable)
-EXISTING_USER_GREETING = "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?"
-NEW_CALLER_GREETING = "Good {time_greeting}! This is Samantha - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!"
+# Dynamic greeting templates - load from config on each request
+def get_existing_user_greeting():
+    return get_setting("existing_user_greeting", "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?")
+
+def get_new_caller_greeting():  
+    return get_setting("new_caller_greeting", "Good {time_greeting}! This is Samantha from Peterson Family Insurance Agency. How can I help you?")
+
+def _update_config_setting(key, value):
+    """Update a setting in config.json atomically"""
+    config_file = "config.json"
+    try:
+        # Read current config
+        with open(config_file, 'r') as f:
+            config_data = json.load(f)
+        
+        # Update the setting
+        config_data[key.lower()] = value
+        from datetime import datetime
+        config_data['last_updated'] = datetime.now().strftime("%Y-%m-%d")
+        
+        # Write updated config atomically
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, dir='.', prefix='config_', suffix='.tmp') as tmp_f:
+            json.dump(config_data, tmp_f, indent=2)
+            tmp_f.flush()
+            os.fsync(tmp_f.fileno())
+            temp_filename = tmp_f.name
+        
+        # Atomic move to replace original config
+        os.rename(temp_filename, config_file)
+        logging.info(f"✅ Updated config setting: {key} = {value}")
+        
+    except Exception as e:
+        logging.error(f"Failed to update config setting {key}: {e}")
 
 # Call routing settings (updated for Peterson Family Insurance Agency)
 ROUTING_NUMBERS = {
@@ -510,7 +541,8 @@ def get_personalized_greeting(user_id):
                         break
         
         if user_name:
-            return existing_greeting.replace("[Name]", user_name)
+            greeting_template = get_existing_user_greeting()
+            return greeting_template.replace("{user_name}", user_name)
             
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
@@ -535,7 +567,8 @@ def get_personalized_greeting(user_id):
         # Fallback if pytz not available
         time_greeting = "Hello"
     
-    return new_greeting.replace("[time of day]", time_greeting).replace("{time_greeting}", time_greeting)
+    greeting_template = get_new_caller_greeting()
+    return greeting_template.replace("{time_greeting}", time_greeting)
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
@@ -1015,11 +1048,14 @@ def update_personality():
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
     """Update custom greeting templates and sync with FastAPI"""
-    global EXISTING_USER_GREETING, NEW_CALLER_GREETING
     try:
         data = request.get_json()
-        EXISTING_USER_GREETING = data.get('existing_user_greeting', EXISTING_USER_GREETING)
-        NEW_CALLER_GREETING = data.get('new_caller_greeting', NEW_CALLER_GREETING)
+        existing_greeting = data.get('existing_user_greeting', get_existing_user_greeting())
+        new_greeting = data.get('new_caller_greeting', get_new_caller_greeting())
+        
+        # Save to config for persistence
+        _update_config_setting("existing_user_greeting", existing_greeting)
+        _update_config_setting("new_caller_greeting", new_greeting)
         
         # Also update the system prompt file for FastAPI
         try:
@@ -1033,14 +1069,14 @@ def update_greetings():
             # Update existing user greeting pattern
             content = re.sub(
                 r'- If caller is known user: Greeting is ".*?" - wait for confirmation before continuing',
-                f'- If caller is known user: Greeting is "{EXISTING_USER_GREETING.replace("{user_name}", "[Name]")}" - wait for confirmation before continuing',
+                f'- If caller is known user: Greeting is "{existing_greeting.replace("{user_name}", "[Name]")}" - wait for confirmation before continuing',
                 content
             )
             
             # Update new caller greeting pattern  
             content = re.sub(
                 r'- If caller is new/unknown: Greeting is ".*?" - then get their name and insurance needs',
-                f'- If caller is new/unknown: Greeting is "{NEW_CALLER_GREETING.replace("{time_greeting}", "[time of day]")}" - then get their name and insurance needs',
+                f'- If caller is new/unknown: Greeting is "{new_greeting.replace("{time_greeting}", "[time of day]")}" - then get their name and insurance needs',
                 content
             )
             
