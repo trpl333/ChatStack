@@ -517,13 +517,22 @@ def get_personalized_greeting(user_id):
     # Get current greeting templates from system prompt file (always fresh)
     existing_greeting, new_greeting = _get_current_greetings()
     
+    # ✅ Normalize user_id for consistent memory lookup (same logic as process_speech)
+    normalized_user_id = user_id
+    if user_id:
+        normalized_digits = ''.join(filter(str.isdigit, user_id))
+        if len(normalized_digits) >= 10:
+            normalized_user_id = normalized_digits[-10:]
+        logging.info(f"📞 Greeting lookup - normalized user_id: {user_id} -> {normalized_user_id}")
+    
     try:
         # Use HTTP memory service instead of direct database access
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
         
         # Search for any user name, not just "John"
-        memories = mem_store.search("name", user_id=user_id, k=10)
+        memories = mem_store.search("name", user_id=normalized_user_id, k=10)
+        logging.info(f"🔍 Retrieved {len(memories)} memories for greeting lookup")
         
         user_name = None
         # Look for user's name in stored memories
@@ -722,15 +731,41 @@ def process_speech():
     logging.info(f"🎤 Speech from {from_number}: {speech_result}")
     
     # Save new information to memory before generating response
+    # ✅ Normalize user_id for consistent memory lookup
     user_id = from_number
+    if user_id:
+        # Remove all non-digits and ensure consistent format
+        normalized_digits = ''.join(filter(str.isdigit, user_id))
+        if len(normalized_digits) >= 10:
+            # Use last 10 digits (removes country code variations)  
+            user_id = normalized_digits[-10:]
+        logging.info(f"📞 Normalized user_id: {from_number} -> {user_id}")
     try:
         from app.http_memory import HTTPMemoryStore
-        from app.packer import should_remember, extract_carry_kit_items
         
-        # Check if this message contains information worth remembering
+        # ✅ ALWAYS store basic speech information - this ensures callers are remembered
+        mem_store = HTTPMemoryStore()
+        
+        # Store every utterance as a "moment" - this is the key fix!
+        import time
+        memory_id = mem_store.write(
+            "moment",
+            f"utterance_{call_sid}_{int(time.time())}",
+            {
+                "summary": speech_result,
+                "timestamp": int(time.time()),
+                "call_sid": call_sid
+            },
+            user_id=user_id,
+            scope="user",
+            ttl_days=365
+        )
+        logging.info(f"🔍 ALWAYS storing speech for user_id={user_id}: {speech_result[:50]}...")
+        logging.info(f"💾 Stored utterance memory with ID: {memory_id}")
+        
+        # Check if this message contains additional information worth extracting
+        from app.packer import should_remember, extract_carry_kit_items
         if should_remember(speech_result):
-            from app.http_memory import HTTPMemoryStore
-            mem_store = HTTPMemoryStore()
             carry_kit_items = extract_carry_kit_items(speech_result)
             
             for item in carry_kit_items:
@@ -743,9 +778,9 @@ def process_speech():
                         scope="user",
                         ttl_days=item.get("ttl_days", 365)
                     )
-                    logging.info(f"💾 Stored memory: {item['type']}:{item['key']} -> {memory_id}")
+                    logging.info(f"💾 Stored extracted memory: {item['type']}:{item['key']} -> {memory_id}")
                 except Exception as e:
-                    logging.error(f"Failed to store memory item: {e}")
+                    logging.error(f"Failed to store extracted memory item: {e}")
         
         # Also look for specific information that should be learned
         message_lower = speech_result.lower()
