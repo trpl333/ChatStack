@@ -1006,15 +1006,15 @@ def update_greetings():
             
             # Update existing user greeting pattern
             content = re.sub(
-                r'- If caller is known user: Greeting is ".*?" - wait for confirmation',
-                f'- If caller is known user: Greeting is "{EXISTING_USER_GREETING.replace("{user_name}", "[Name]")}" - wait for confirmation',
+                r'- If caller is known user: Greeting is ".*?" - wait for confirmation before continuing',
+                f'- If caller is known user: Greeting is "{EXISTING_USER_GREETING.replace("{user_name}", "[Name]")}" - wait for confirmation before continuing',
                 content
             )
             
             # Update new caller greeting pattern  
             content = re.sub(
-                r'- If caller is new/unknown: Greeting is ".*?" - then get their name',
-                f'- If caller is new/unknown: Greeting is "{NEW_CALLER_GREETING.replace("{time_greeting}", "[time of day]")}" - then get their name',
+                r'- If caller is new/unknown: Greeting is ".*?" - then get their name and insurance needs',
+                f'- If caller is new/unknown: Greeting is "{NEW_CALLER_GREETING.replace("{time_greeting}", "[time of day]")}" - then get their name and insurance needs',
                 content
             )
             
