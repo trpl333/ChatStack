@@ -535,7 +535,7 @@ def get_personalized_greeting(user_id):
         # Fallback if pytz not available
         time_greeting = "Hello"
     
-    return new_greeting.replace("[time of day]", time_greeting)
+    return new_greeting.replace("[time of day]", time_greeting).replace("{time_greeting}", time_greeting)
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
