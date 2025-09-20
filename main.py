@@ -875,9 +875,17 @@ def process_speech():
     
     logging.info(f"🤖 AI Response: {ai_response}")
     
-    # Generate TwiML response with Twilio's built-in voice
+    # Generate TwiML response with ElevenLabs TTS (same as greeting)
     response = VoiceResponse()
-    response.say(ai_response, voice='alice')
+    
+    # Use ElevenLabs for AI response (consistent with greeting)
+    audio_url = text_to_speech(ai_response, VOICE_ID)
+    if audio_url:
+        # Play the generated audio file
+        response.play(audio_url)
+    else:
+        # Fallback to Twilio voice if ElevenLabs fails
+        response.say(ai_response, voice='alice')
     
     # Skip the "anything else" question - just wait for user input
     
