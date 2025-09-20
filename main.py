@@ -124,7 +124,11 @@ ai_instructions = "You are Samantha from Peterson Family Insurance Agency. Be ca
 current_voice_id = "FGY2WhTYpPnrIDTdsKH5"  # Sol's voice
 VOICE_SETTINGS = voice_settings  # For backwards compatibility
 MAX_TOKENS = 75  # Allow longer, more natural responses
-AI_INSTRUCTIONS = "You are Samantha, a friendly assistant at Peterson Family Insurance Agency."  # Admin-configurable
+AI_INSTRUCTIONS = (
+    "You are Samantha. The system has already greeted the caller. "
+    "Do not introduce yourself again. Continue the conversation naturally, "
+    "answering questions and being helpful, casual, and friendly."
+)  # Admin-configurable
 
 # Dynamic greeting templates - load from config on each request
 def get_existing_user_greeting():
@@ -165,8 +169,8 @@ def _update_config_setting(key, value):
 ROUTING_NUMBERS = {
     "billing": "1-888-327-6377",
     "claims": "1-800-435-7764", 
-    "colin": "1-888-327-6377",  # Colin's number
-    "milissa": "1-888-327-6377"  # Milissa for Farmers service advantage team
+    "colin": "1-949-556-5379",  # Colin's number
+    "milissa": "1-949-334-5808"  # Milissa for Farmers service advantage team
 }
 ROUTING_KEYWORDS = {
     "billing": ["billing", "payment", "premium", "pay bill", "account balance", "autopay"],
