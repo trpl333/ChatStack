@@ -956,12 +956,31 @@ def update_voice():
 
 @app.route('/update-personality', methods=['POST'])
 def update_personality():
-    """Update AI personality settings"""
+    """Update AI personality settings and sync with FastAPI"""
     global AI_INSTRUCTIONS, MAX_TOKENS
     try:
         data = request.get_json()
         AI_INSTRUCTIONS = data.get('instructions', AI_INSTRUCTIONS)
         MAX_TOKENS = int(data.get('max_tokens', MAX_TOKENS))
+        
+        # Also update the system prompt file for FastAPI
+        try:
+            prompt_file = "app/prompts/system_sam.txt"
+            with open(prompt_file, 'r') as f:
+                content = f.read()
+            
+            # Update the first line with new personality instructions
+            lines = content.split('\n')
+            if lines:
+                lines[0] = AI_INSTRUCTIONS
+                
+            with open(prompt_file, 'w') as f:
+                f.write('\n'.join(lines))
+                
+            logging.info("✅ Updated system prompt file with new personality")
+            
+        except Exception as e:
+            logging.error(f"Failed to update system prompt file: {e}")
         
         return jsonify({"success": True})
     except Exception as e:
@@ -969,12 +988,43 @@ def update_personality():
 
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
-    """Update custom greeting templates"""
+    """Update custom greeting templates and sync with FastAPI"""
     global EXISTING_USER_GREETING, NEW_CALLER_GREETING
     try:
         data = request.get_json()
         EXISTING_USER_GREETING = data.get('existing_user_greeting', EXISTING_USER_GREETING)
         NEW_CALLER_GREETING = data.get('new_caller_greeting', NEW_CALLER_GREETING)
+        
+        # Also update the system prompt file for FastAPI
+        try:
+            prompt_file = "app/prompts/system_sam.txt"
+            with open(prompt_file, 'r') as f:
+                content = f.read()
+            
+            # Update the greeting lines in the system prompt
+            import re
+            
+            # Update existing user greeting pattern
+            content = re.sub(
+                r'- If caller is known user: Greeting is ".*?" - wait for confirmation',
+                f'- If caller is known user: Greeting is "{EXISTING_USER_GREETING.replace("{user_name}", "[Name]")}" - wait for confirmation',
+                content
+            )
+            
+            # Update new caller greeting pattern  
+            content = re.sub(
+                r'- If caller is new/unknown: Greeting is ".*?" - then get their name',
+                f'- If caller is new/unknown: Greeting is "{NEW_CALLER_GREETING.replace("{time_greeting}", "[time of day]")}" - then get their name',
+                content
+            )
+            
+            with open(prompt_file, 'w') as f:
+                f.write(content)
+                
+            logging.info("✅ Updated system prompt file with new greetings")
+            
+        except Exception as e:
+            logging.error(f"Failed to update system prompt file: {e}")
         
         return jsonify({"success": True})
     except Exception as e:
