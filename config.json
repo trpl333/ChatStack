@@ -15,7 +15,7 @@
   "port_description": "Internal port where FastAPI orchestrator runs before being proxied by Nginx.",
   "log_level": "INFO",
   "log_level_description": "Logging verbosity level for orchestrator processes.",
-  "elevenlabs_voice_id": "FGY2WhTYpPnrIDTdsKH5",
+  "elevenlabs_voice_id": "dnRitNTYKgyEUEizTqqH",
   "elevenlabs_description": "Voice ID for ElevenLabs text-to-speech. Controlled alongside ELEVENLABS_API_KEY stored in env.",
   "twilio_phone_number": "+19497071290",
   "twilio_description": "Your Twilio dev line. Calls to this number are routed into the orchestrator at SERVER_URL.",
