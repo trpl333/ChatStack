@@ -4,9 +4,6 @@ services:
   web:
     build: .
     command: python start_server.py
-    ports:
-      - "5000:5000"
-      - "8001:8001"
     env_file:
      - .env
     environment:
@@ -26,8 +23,6 @@ services:
       - SESSION_SECRET=${SESSION_SECRET}
       - FLASK_ENV=production
     restart: unless-stopped
-    networks:
-      - app-network
     volumes:
       - /opt/ChatStack/static:/app/static:rw
     logging:
@@ -50,7 +45,3 @@ services:
   #   restart: unless-stopped
   #   networks:
   #     - app-network
-
-networks:
-  app-network:
-    driver: bridge
