@@ -35,7 +35,8 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
+    network_mode: "host"
+    
   # nginx:
   #   image: nginx:alpine
   #   ports:
