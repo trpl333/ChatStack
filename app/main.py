@@ -358,6 +358,7 @@ async def store_memory(
         
         return {
             "success": True,
+            "id": memory_id,
             "memory_id": memory_id,
             "message": f"Memory stored: {memory.type}:{memory.key}"
         }
