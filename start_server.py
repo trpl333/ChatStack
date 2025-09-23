@@ -56,21 +56,21 @@ def main():
         sys.exit(1)
     
     # Start Flask frontend on port 5000
-    print("🌐 Starting Flask frontend on port 5000...")
-    flask_cmd = [
-        "gunicorn", 
-        "--bind", "0.0.0.0:5000", 
-        "--reuse-port", 
-        "--reload", 
-        "main:app"
-    ]
-    
-    try:
-        subprocess.run(flask_cmd)
-    except KeyboardInterrupt:
-        print("\n🛑 Shutting down...")
-        fastapi_process.terminate()
-        fastapi_process.wait()
+    #print("🌐 Starting Flask frontend on port 5000...")
+    #flask_cmd = [
+    #    "gunicorn", 
+    #    "--bind", "0.0.0.0:5000", 
+    #    "--reuse-port", 
+    #    "--reload", 
+    #    "main:app"
+    #]
+    #
+    #try:
+    #    subprocess.run(flask_cmd)
+    #except KeyboardInterrupt:
+    #    print("\n🛑 Shutting down...")
+    #    fastapi_process.terminate()
+    #    fastapi_process.wait()
 
 if __name__ == "__main__":
     main()
