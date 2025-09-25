@@ -1076,7 +1076,7 @@ def update_greetings():
         try:
             from app.http_memory import HTTPMemoryStore
             mem_store = HTTPMemoryStore()
-            mem_store.save(
+            mem_store.write(
                 "greeting_settings",
                 user_id="system",
                 value={
