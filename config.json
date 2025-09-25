@@ -29,6 +29,6 @@
   "version_description": "Semantic version of this configuration file. Increment whenever config.json changes.",
   "last_updated": "2025-09-20",
   "last_updated_description": "Date this configuration file was last updated.",
-  "existing_user_greeting": "Hi, this is Betsy from Peterson Family Insurance Agency. Is this {user_name}?",
-  "new_caller_greeting": "{time_greeting}! This is Betsy from Peterson Family Insurance Agency. How can I help you?"
+  "existing_user_greeting": "admin:existingUserGreeting",
+  "new_caller_greeting": "admin:newCallerGreeting"
 }
