@@ -3,6 +3,9 @@ NeuroSphere Orchestrator - Flask Web Interface with Phone AI
 """
 import os
 import requests
+
+AI_MEMORY_URL = "http://127.0.0.1:8100/memory/store"
+
 import json
 import io
 import base64
