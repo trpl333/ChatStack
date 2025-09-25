@@ -1,30 +1,37 @@
 # Peterson Family Insurance AI Phone System
 
-## 📋 **VERSION DEFINITIONS**
+## 📋 **CURRENT STATUS**
 
-### **RAI (Replit AI)** - Original Working Version
-- **Platform**: Replit cloud environment
-- **Performance**: 5-8 second response times (unacceptable for production)
-- **Architecture**: Single Flask application
-- **Status**: Functional but too slow
-
-### **DAI (DigitalOcean AI)** - Production Target Version  
+### **Production System** - Fully Operational
 - **Platform**: DigitalOcean Droplet with Docker
-- **Performance**: 2-2.5 second target response times
-- **Architecture**: Dual Flask + FastAPI services
-- **Status**: Under development
+- **Performance**: 2-2.5 second response times achieved
+- **Architecture**: Microservices (Flask + FastAPI + AI-Memory service)
+- **Status**: ✅ **PRODUCTION READY** with completed microservices migration
 
 ## Overview
 This project is an AI-powered phone system for Peterson Family Insurance, utilizing "Samantha" as the AI agent. The system, built on NeuroSphere Orchestrator, is a FastAPI-based solution designed for intelligent call handling with persistent memory. It aims for a rapid response time of 2-2.5 seconds. Key capabilities include maintaining conversation continuity via HTTP-based AI-Memory service, integrating external tools for actions, and employing safety modes for content filtering. The orchestrator serves as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality.
 
-**✅ RECENT MAJOR ACHIEVEMENT (Sept 13, 2025):**
-Successfully migrated from unreliable direct PostgreSQL connection to robust HTTP-based AI-Memory service integration, eliminating all "degraded mode" issues and achieving stable memory operations.
+**✅ LATEST MAJOR ACHIEVEMENTS:**
+
+- **Sept 25, 2025**: ✅ **MICROSERVICES MIGRATION COMPLETE** - Successfully migrated all admin settings from config.json to ai-memory service, implementing true microservices architecture with centralized configuration management
+- **Sept 13, 2025**: ✅ **MEMORY SYSTEM OVERHAUL** - Migrated from direct PostgreSQL to HTTP-based AI-Memory service, eliminating "degraded mode" issues
+- **Current**: ✅ **LLM MIGRATION COMPLETE** - Fully migrated from RunPod to OpenAI Realtime API (gpt-realtime-2025-08-28)
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
-The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main.py`) handles Twilio webhooks and spawns the FastAPI backend (`app/main.py`), which manages the core `/v1/chat` endpoint and LLM integration.
+**✅ MICROSERVICES ARCHITECTURE (Completed Sept 25, 2025)**
+
+The system now operates as a true microservices architecture with complete separation of concerns:
+
+1. **Phone System (ChatStack)**: Flask orchestrator (`main.py`) handles Twilio webhooks
+2. **AI Engine**: FastAPI backend (`app/main.py`) manages LLM integration and conversation flow
+3. **AI-Memory Service**: External HTTP service (http://209.38.143.71:8100) handles all persistent memory and admin configuration
+
+**Configuration Flow**: Admin Panel → AI-Memory Service → Phone System → Twilio Calls
+
+**Key Improvement**: All admin settings (greetings, voice settings, AI instructions) are now stored in the ai-memory service instead of local config files, enabling dynamic configuration without code deployment.
 
 ## ⚠️ CRITICAL: Environment Configuration
 
@@ -43,16 +50,25 @@ The system employs a hybrid Flask + FastAPI backend. A Flask orchestrator (`main
 - DEEPGRAM_API, HUGGINHFACE_TOKEN
 
 ### Core Components:
-- **LLM Integration**: Communicates with OpenAI API using gpt-realtime-2025-08-28 model for AI responses, with structured message passing and error handling.
-- **Memory System**: ✅ Now uses HTTP-based AI-Memory service (http://209.38.143.71:8100) for reliable memory operations. Stores categorized memories (person, preference, project, rule, moment, fact) with TTL support and semantic search capabilities. Eliminated all "degraded mode" issues with robust HTTPMemoryStore implementation.
+- **LLM Integration**: ✅ **FULLY MIGRATED TO OPENAI** - Uses OpenAI Realtime API (gpt-realtime-2025-08-28) for AI responses with 2-2.5 second response times. Completely replaced previous RunPod integration.
+- **Memory System**: ✅ **MICROSERVICES COMPLETE** - HTTP-based AI-Memory service (http://209.38.143.71:8100) handles ALL persistent data:
+  - Conversation memories (person, preference, project, rule, moment, fact)
+  - Admin settings (greetings, voice settings, AI instructions)
+  - User registration and caller management
+  - Robust HTTPMemoryStore with fallback ID generation
+  - Eliminated all "degraded mode" and localhost dependency issues
 - **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing from memory, and safety triggers for content filtering.
 - **Tool System**: An extensible, JSON schema-based architecture for external tool execution (e.g., meeting booking, message sending) with a central dispatcher and error recovery.
 - **Data Models**: Pydantic for type-safe validation of request/response models, including role-based messages and structured memory objects.
 - **Safety & Security**: Features multi-tier content filtering, PII protection, rate limiting, and comprehensive input validation.
 
 ### UI/UX Decisions:
-- Minimal UI for administrative functions via an `/admin` endpoint.
-- Focus on seamless voice interaction, with audio files served for natural voice synthesis.
+- **Admin Panel**: Web interface at `/admin.html` provides full control over:
+  - Greeting messages for different caller types
+  - Voice settings and AI personality
+  - System configuration via ai-memory service
+- **Voice-First Design**: Seamless voice interaction with ElevenLabs TTS integration
+- **Real-time Updates**: Admin changes take effect immediately without code deployment
 
 ### Technical Implementations:
 - **Python Frameworks**: Flask and FastAPI.
@@ -94,7 +110,7 @@ ls /etc/nginx/sites-enabled/
 
 **Expected configurations:**
 - `voice-theinsurancedoctors-com.conf` → AI Phone System
-- `neurosphere-llms.conf` → RunPod LLM proxy (if serving different domain)
+- `neurosphere-llms.conf` → Legacy config (should serve different domain or be removed)
 
 ### **Rules**
 1. **Only one config** should claim `server_name voice.theinsurancedoctors.com`
@@ -116,7 +132,7 @@ ls /etc/nginx/sites-enabled/
        proxy_set_header X-Forwarded-Proto $scheme;
    }
    ```
-3. **`neurosphere-llms.conf`** should serve different hostname (e.g., `a40.neurospherevoice.com`)
+3. **`neurosphere-llms.conf`** is legacy config - should serve different hostname or be removed (RunPod no longer used)
 
 ### **Conflict Detection**
 ```bash
@@ -135,7 +151,7 @@ sudo cp /opt/ChatStack/deploy/nginx/voice-theinsurancedoctors-com.conf /etc/ngin
 
 # Remove conflicts (only if they claim same domain)
 sudo rm /etc/nginx/sites-enabled/default  # if exists
-sudo rm /etc/nginx/sites-enabled/neurosphere-llms.conf  # only if conflicts
+sudo rm /etc/nginx/sites-enabled/neurosphere-llms.conf  # legacy RunPod config, remove if conflicts
 
 # Test and reload
 sudo nginx -t
@@ -175,10 +191,13 @@ curl -X POST https://voice.theinsurancedoctors.com/phone/incoming -d "test=1"
 6. ✓ Check Docker container logs: `docker logs chatstack-web-1`
 7. ✓ Test HTTPS endpoint: `curl https://voice.theinsurancedoctors.com/phone/incoming`
 
-### **Current Status (Sept 18, 2025)**
+### **Current Status (Sept 25, 2025)**
+- ✅ **MICROSERVICES MIGRATION**: Complete - all admin settings in ai-memory service
 - ✅ **Memory System**: Fully operational with HTTP-based AI-Memory service
-- ✅ **LLM Endpoint**: OpenAI API (https://api.openai.com/v1) with gpt-realtime-2025-08-28
-- **Impact**: System provides full AI+ElevenLabs responses with improved performance
+- ✅ **LLM Integration**: OpenAI Realtime API (https://api.openai.com/v1) - RunPod completely removed
+- ✅ **Admin Panel**: Dynamic configuration via web interface
+- ✅ **User Registration**: Automatic caller registration with persistent memory
+- **Performance**: Achieving 2-2.5 second response times in production
 
 ### **Voice Issues**
 1. ✓ Verify `ELEVENLABS_API_KEY` is set
