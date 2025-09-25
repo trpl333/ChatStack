@@ -1030,18 +1030,6 @@ def serve_audio(filename):
 
 # ============ ADMIN API ENDPOINTS ============
 
-@app.route('/admin-control')
-def admin_control():
-    """Serve the admin control interface"""
-    try:
-        import os
-        file_path = os.path.join(os.path.dirname(__file__), 'static', 'admin-control.html')
-        with open(file_path, 'r') as f:
-            return f.read()
-    except FileNotFoundError:
-        return "Admin control interface not found", 404
-
-
 @app.route('/admin.html')
 def admin_html():
     """Serve admin.html directly for external access"""
