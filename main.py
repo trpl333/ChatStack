@@ -119,19 +119,16 @@ if not _initial_config["llm_base_url"]:
 # Phone call session storage (in production, use Redis or database)
 call_sessions = {}
 
-# Admin-configurable settings
-VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"  # Sol's voice (configurable via admin)
-# Voice settings - configurable via admin
-voice_settings = {"stability": 0.71, "similarity_boost": 0.5}
-ai_instructions = "You are Samantha from Peterson Family Insurance Agency. Be casual and friendly."
-current_voice_id = "FGY2WhTYpPnrIDTdsKH5"  # Sol's voice
-VOICE_SETTINGS = voice_settings  # For backwards compatibility
-MAX_TOKENS = 75  # Allow longer, more natural responses
-AI_INSTRUCTIONS = (
-    "You are Samantha. The system has already greeted the caller. "
-    "Do not introduce yourself again. Continue the conversation naturally, "
-    "answering questions and being helpful, casual, and friendly."
-)  # Admin-configurable
+# Admin-configurable settings - initialize with fallback values first
+VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"  # Default voice ID
+VOICE_SETTINGS = {"stability": 0.71, "similarity_boost": 0.5}  # Default voice settings
+AI_INSTRUCTIONS = "You are Samantha. The system has already greeted the caller. Do not introduce yourself again. Continue the conversation naturally, answering questions and being helpful, casual, and friendly."
+MAX_TOKENS = 75
+
+# Legacy variables for backwards compatibility
+current_voice_id = VOICE_ID
+voice_settings = VOICE_SETTINGS
+ai_instructions = AI_INSTRUCTIONS
 
 # Dynamic greeting templates - load from config on each request
 def get_admin_setting(setting_key, default=None):
@@ -1090,26 +1087,89 @@ def test_ai():
 
 @app.route('/update-voice', methods=['POST'])
 def update_voice():
-    """Update voice settings"""
-    global VOICE_ID, VOICE_SETTINGS
+    """Update voice settings in AI-Memory service"""
     try:
         data = request.get_json()
-        VOICE_ID = data.get('voice_id', VOICE_ID)
-        VOICE_SETTINGS['stability'] = float(data.get('stability', 0.71))
-        VOICE_SETTINGS['similarity_boost'] = float(data.get('clarity', 0.5))
+        # ✅ Declare global variables first  
+        global VOICE_ID, VOICE_SETTINGS
         
+        voice_id = data.get('voice_id', VOICE_ID)
+        stability = float(data.get('stability', 0.71))
+        clarity = float(data.get('clarity', 0.5))
+        
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # ✅ Save voice settings to AI-Memory
+        voice_settings = {
+            "voice_id": voice_id,
+            "stability": stability,
+            "similarity_boost": clarity,
+            "updated_by": "admin_panel"
+        }
+        
+        mem_store.write(
+            memory_type="admin_setting",
+            key="voice_settings",
+            value={
+                "setting_key": "voice_settings",
+                "setting_value": voice_settings,
+                "updated_by": "admin_panel"
+            },
+            user_id="admin",
+            scope="shared",
+            source="admin_panel"
+        )
+        
+        # ✅ Update global variables for immediate effect
+        VOICE_ID = voice_id
+        VOICE_SETTINGS['stability'] = stability
+        VOICE_SETTINGS['similarity_boost'] = clarity
+        
+        logging.info(f"✅ Voice settings updated: ID={voice_id}, stability={stability}, clarity={clarity}")
         return jsonify({"success": True})
+        
     except Exception as e:
+        logging.error(f"❌ Failed to update voice settings: {e}")
         return jsonify({"success": False, "error": str(e)})
 
 @app.route('/update-personality', methods=['POST'])
 def update_personality():
-    """Update AI personality settings and sync with FastAPI"""
-    global AI_INSTRUCTIONS, MAX_TOKENS
+    """Update AI personality settings in AI-Memory service"""
     try:
+        # ✅ Declare global variables first
+        global AI_INSTRUCTIONS, MAX_TOKENS
+        
         data = request.get_json()
-        AI_INSTRUCTIONS = data.get('instructions', AI_INSTRUCTIONS)
-        MAX_TOKENS = int(data.get('max_tokens', MAX_TOKENS))
+        instructions = data.get('instructions', AI_INSTRUCTIONS)
+        max_tokens = int(data.get('max_tokens', MAX_TOKENS))
+        
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # ✅ Save personality settings to AI-Memory
+        personality_settings = {
+            "ai_instructions": instructions,
+            "max_tokens": max_tokens,
+            "updated_by": "admin_panel"
+        }
+        
+        mem_store.write(
+            memory_type="admin_setting",
+            key="personality_settings",
+            value={
+                "setting_key": "personality_settings",
+                "setting_value": personality_settings,
+                "updated_by": "admin_panel"
+            },
+            user_id="admin",
+            scope="shared",
+            source="admin_panel"
+        )
+        
+        # ✅ Update global variables for immediate effect
+        AI_INSTRUCTIONS = instructions
+        MAX_TOKENS = max_tokens
         
         # Also update the system prompt file for FastAPI
         try:
@@ -1120,7 +1180,7 @@ def update_personality():
             # Update the first line with new personality instructions
             lines = content.split('\n')
             if lines:
-                lines[0] = AI_INSTRUCTIONS
+                lines[0] = instructions
                 
             with open(prompt_file, 'w') as f:
                 f.write('\n'.join(lines))
@@ -1130,8 +1190,11 @@ def update_personality():
         except Exception as e:
             logging.error(f"Failed to update system prompt file: {e}")
         
+        logging.info(f"✅ Personality settings updated: instructions={instructions[:50]}..., max_tokens={max_tokens}")
         return jsonify({"success": True})
+        
     except Exception as e:
+        logging.error(f"❌ Failed to update personality settings: {e}")
         return jsonify({"success": False, "error": str(e)})
         
 @app.route('/update-greetings', methods=['POST'])
