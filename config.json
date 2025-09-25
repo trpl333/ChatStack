@@ -7,7 +7,7 @@
   "llm_description": "OpenAI API endpoint using GPT Realtime model. Used by the orchestrator to generate AI responses with real-time capabilities.",
   "ai_memory_url": "http://209.38.143.71:8100",
   "ai_memory_description": "DigitalOcean AI-Memory service (FastAPI + Postgres/pgvector). Stores and retrieves long-term memory objects.",
-  "server_url": "https://voice.theinsurancedoctors.com/phone/incoming",
+  "server_url": "https://voice.theinsurancedoctors.com",
   "server_description": "Public orchestrator endpoint (FastAPI) hosted on DigitalOcean. Twilio webhooks use this to deliver calls into the AI system.",
   "embed_dim": 768,
   "embed_dim_description": "Vector embedding dimension used for AI-Memory (pgvector). Must match DB schema.",

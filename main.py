@@ -25,7 +25,7 @@ def _get_config():
     twilio_config = get_twilio_config()
     elevenlabs_config = get_elevenlabs_config()
     llm_config = get_llm_config()
-    _server_url = get_setting("server_url", "http://localhost:5000")
+    _server_url = get_setting("server_url", "https://localhost:5000")
     
     return {
         "openai_api_key": get_secret("OPENAI_API_KEY"),
@@ -36,7 +36,7 @@ def _get_config():
         "llm_base_url": llm_config["base_url"],
         "llm_model": llm_config["model"],
         "session_secret": get_secret("SESSION_SECRET"),
-        "server_url": _server_url.replace("/phone/incoming", "") if _server_url.endswith("/phone/incoming") else _server_url
+        "server_url": _server_url  # ✅ Fix: Use canonical server_url without path manipulation
     }
 
 # Initialize app with session secret (this needs to be set at startup)
@@ -549,8 +549,9 @@ def text_to_speech(text, voice_id=None):
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
                 # ✅ Fix: Use configured server_url for public URLs instead of Flask auto-detection
                 config = _get_config()
-                server_url = config["server_url"].replace("/phone/incoming", "")
+                server_url = config["server_url"]
                 audio_url = f"{server_url}/static/audio/{filename}"
+                logging.info(f"🔧 DEBUG: server_url from config: {server_url}")
                 logging.info(f"ElevenLabs TTS generated: {audio_url} ({os.path.getsize(audio_path)} bytes)")
                 return audio_url
             else:
