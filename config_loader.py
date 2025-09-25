@@ -137,29 +137,35 @@ def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
 
 def get_setting(key: str, default: Any = None) -> Any:
     """Get setting from config.json, with support for admin: pointers resolved via AI-Memory"""
-    import logging, requests
+    import logging
 
     value = config.get(key, default)
 
-    # If this is an admin pointer, fetch the live value from AI-Memory
+    # If this is an admin pointer, fetch the live value from AI-Memory using HTTPMemoryStore
     if isinstance(value, str) and value.startswith("admin:"):
         admin_key = value.split(":", 1)[1]
         try:
-            resp = requests.post(
-                "http://127.0.0.1:8100/memory/retrieve",
-                json={
-                    "user_id": "system",
-                    "query": "greeting_settings",
-                    "limit": 10
-                },
-                timeout=10
+            # ✅ Use HTTPMemoryStore instead of direct requests to avoid localhost hardcoding
+            from app.http_memory import HTTPMemoryStore
+            memory_store = HTTPMemoryStore()
+            
+            # Search for admin setting by key using the proper memory store
+            results = memory_store.search(
+                query_text=f"admin_setting {admin_key}",
+                user_id="admin",
+                k=5,
+                memory_types=["admin_setting"],
+                include_shared=True
             )
-
-            if resp.status_code == 200:
-                memories = resp.json().get("memories", [])
-                for m in memories:
-                    if m.get("key") == admin_key:
-                        return m.get("message", default)
+            
+            # Look for exact key match in results
+            for result in results:
+                if result.get("key") == admin_key or result.get("k") == admin_key:
+                    # Extract value from the stored admin setting
+                    stored_value = result.get("value_json", {})
+                    if isinstance(stored_value, dict):
+                        return stored_value.get("value", default)
+                    return stored_value
 
         except Exception as e:
             logging.warning(f"⚠️ Could not fetch {admin_key} from AI-Memory: {e}")
