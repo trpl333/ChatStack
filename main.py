@@ -135,7 +135,7 @@ def get_existing_user_greeting():
     return get_setting("existing_user_greeting", "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?")
 
 def get_new_caller_greeting():  
-    return get_setting("new_caller_greeting", "Good {time_greeting}! This is Samantha from Peterson Family Insurance Agency. How can I help you?")
+    return get_setting("new_caller_greeting", "{time_greeting}! This is Samantha from Peterson Family Insurance Agency. How can I help you?")
 
 def _update_config_setting(key, value):
     """Update a setting in config.json atomically"""
@@ -519,99 +519,53 @@ def text_to_speech(text, voice_id=None):
         logging.error(f"ElevenLabs TTS failed: {e}")
         return None
 
-def _get_current_greetings():
-    """Read current greeting templates from system prompt file"""
-    try:
-        with open("app/prompts/system_sam.txt", 'r') as f:
-            content = f.read()
-        
-        import re
-        # Extract existing user greeting
-        existing_match = re.search(r'- If caller is known user: Greeting is "(.*?)" - wait for confirmation', content)
-        existing_greeting = existing_match.group(1) if existing_match else "Hi, this is Samantha from Peterson Family Insurance Agency. Is this [Name]?"
-        
-        # Extract new caller greeting
-        new_match = re.search(r'- If caller is new/unknown: Greeting is "(.*?)" - then get their name', content)
-        new_greeting = new_match.group(1) if new_match else "Good [time of day]! This is Samantha from Peterson Family Insurance Agency. How can I help you?"
-        
-        return existing_greeting, new_greeting
-        
-    except Exception as e:
-        logging.error(f"Error reading greetings from system prompt: {e}")
-        # Fallback to defaults
-        return ("Hi, this is Samantha from Peterson Family Insurance Agency. Is this [Name]?", 
-                "Good [time of day]! This is Samantha from Peterson Family Insurance Agency. How can I help you?")
-
 def get_personalized_greeting(user_id):
-    """Get personalized greeting with user confirmation"""
-    # Get current greeting templates from system prompt file (always fresh)
-    existing_greeting, new_greeting = _get_current_greetings()
-    
-    # ✅ Normalize user_id for consistent memory lookup (same logic as process_speech)
+    """Return personalized greeting based on AI-Memory and admin panel config.json"""
+    # Normalize user_id for consistent lookup
     normalized_user_id = user_id
     if user_id:
         normalized_digits = ''.join(filter(str.isdigit, user_id))
         if len(normalized_digits) >= 10:
             normalized_user_id = normalized_digits[-10:]
         logging.info(f"📞 Greeting lookup - normalized user_id: {user_id} -> {normalized_user_id}")
-    
+
     try:
-        # Use HTTP memory service instead of direct database access
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
-        
-        # Search for any user name, not just "John"
         memories = mem_store.search("name", user_id=normalized_user_id, k=10)
         logging.info(f"🔍 Retrieved {len(memories)} memories for greeting lookup")
-        
-        user_name = None
-        # Look for user's name in stored memories
+
         for memory in memories:
             value = memory.get("value", {})
-            if isinstance(value, dict):
-                # Check for direct name field
-                if "name" in value and value.get("relationship") not in ["friend", "wife", "husband"]:
-                    user_name = value["name"]
-                    break
-                # Check for name in summary field
-                elif "summary" in value and "name is" in value["summary"].lower():
-                    summary = value["summary"]
-                    # Extract name from patterns like "My name is Jack Peterson"
-                    import re
-                    name_match = re.search(r'name is (\w+(?:\s+\w+)?)', summary, re.IGNORECASE)
-                    if name_match:
-                        user_name = name_match.group(1)
-                        break
-        
-        if user_name:
-            greeting_template = get_existing_user_greeting()
-            return greeting_template.replace("{user_name}", user_name)
-            
+            if isinstance(value, dict) and "name" in value and value.get("relationship") not in ["friend", "wife", "husband"]:
+                user_name = value["name"]
+                greeting_template = get_existing_user_greeting()
+                resolved = greeting_template.replace("{user_name}", user_name)
+                logging.info(f"👤 Existing user greeting resolved: {resolved}")
+                return resolved
+
     except Exception as e:
         logging.error(f"Error getting personalized greeting: {e}")
-    
-    # Default greeting for new or unknown callers with time-based greeting
+
+    # Fallback for new callers with time-based greeting
     try:
         from datetime import datetime
         import pytz
-        
-        # Get current time (assuming Pacific Time for the business)
         pst = pytz.timezone('US/Pacific')
-        current_time = datetime.now(pst)
-        hour = current_time.hour
-        
+        hour = datetime.now(pst).hour
         if 5 <= hour < 12:
             time_greeting = "Good morning"
         elif 12 <= hour < 17:
             time_greeting = "Good afternoon"
         else:
             time_greeting = "Good evening"
-    except ImportError:
-        # Fallback if pytz not available
+    except Exception:
         time_greeting = "Hello"
-    
+
     greeting_template = get_new_caller_greeting()
-    return greeting_template.replace("{time_greeting}", time_greeting)
+    resolved = greeting_template.replace("{time_greeting}", time_greeting)
+    logging.info(f"📞 New caller greeting resolved: {resolved}")
+    return resolved
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
