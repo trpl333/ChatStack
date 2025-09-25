@@ -1066,66 +1066,38 @@ def update_personality():
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
-
+        
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
-    """Update custom greeting templates and sync with FastAPI via AI-Memory"""
+    """Save greetings into AI-Memory (overwrite old ones)"""
     try:
         data = request.get_json()
-        existing_greeting = data.get('existing_user_greeting', get_existing_user_greeting())
-        new_greeting = data.get('new_caller_greeting', get_new_caller_greeting())
+        existing_greeting = data.get('existing_user_greeting', '')
+        new_greeting = data.get('new_caller_greeting', '')
 
-        # 🔑 Save greetings to AI-Memory using /memory/store
-        try:
-            # Existing user greeting
-            requests.post(AI_MEMORY_URL, json={
-                "user_id": "system",
-                "message": existing_greeting,
-                "memory_type": "greeting_settings",
-                "key": "existing_user",
-                "scope": "system"
-            }, timeout=10)
+        # Save existing user greeting
+        requests.post(AI_MEMORY_URL, json={
+            "user_id": "system",
+            "message": existing_greeting,
+            "memory_type": "greeting_settings",
+            "key": "existing_user",
+            "scope": "system"
+        }, timeout=10)
 
-            # New caller greeting
-            requests.post(AI_MEMORY_URL, json={
-                "user_id": "system",
-                "message": new_greeting,
-                "memory_type": "greeting_settings",
-                "key": "new_caller",
-                "scope": "system"
-            }, timeout=10)
+        # Save new caller greeting
+        requests.post(AI_MEMORY_URL, json={
+            "user_id": "system",
+            "message": new_greeting,
+            "memory_type": "greeting_settings",
+            "key": "new_caller",
+            "scope": "system"
+        }, timeout=10)
 
-            logging.info("✅ Saved greetings to AI-Memory")
-        except Exception as e:
-            logging.error(f"❌ Failed to save greetings to AI-Memory: {e}")
-
-        # Still update the system prompt file for FastAPI
-        try:
-            prompt_file = "app/prompts/system_sam.txt"
-            with open(prompt_file, 'r') as f:
-                content = f.read()
-
-            import re
-            content = re.sub(
-                r'- If caller is known user: Greeting is ".*?" - wait for confirmation before continuing',
-                f'- If caller is known user: Greeting is "{existing_greeting.replace("{user_name}", "[Name]")}" - wait for confirmation before continuing',
-                content
-            )
-            content = re.sub(
-                r'- If caller is new/unknown: Greeting is ".*?" - then get their name and insurance needs',
-                f'- If caller is new/unknown: Greeting is "{new_greeting.replace("{time_greeting}", "[time of day]")}" - then get their name and insurance needs',
-                content
-            )
-            with open(prompt_file, 'w') as f:
-                f.write(content)
-
-            logging.info("✅ Updated system prompt file with new greetings")
-        except Exception as e:
-            logging.error(f"Failed to update system prompt file: {e}")
-
+        logging.info("✅ Saved greetings to AI-Memory (existing_user & new_caller)")
         return jsonify({"success": True})
     except Exception as e:
-        return jsonify({"success": False, "error": str(e)})
+        logging.error(f"❌ Failed to save greetings: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/update-routing', methods=['POST'])
 def update_routing():
