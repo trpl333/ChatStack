@@ -1072,19 +1072,27 @@ def update_greetings():
         existing_greeting = data.get('existing_user_greeting', get_existing_user_greeting())
         new_greeting = data.get('new_caller_greeting', get_new_caller_greeting())
 
-        # 🔑 Save greetings to AI-Memory instead of config.json
+        # 🔑 Save greetings to AI-Memory using /memory/store
         try:
-            from app.http_memory import HTTPMemoryStore
-            mem_store = HTTPMemoryStore()
-            mem_store.write(
-                "greeting_settings",
-                user_id="system",
-                value={
-                    "existingUserGreeting": existing_greeting,
-                    "newCallerGreeting": new_greeting,
-                }
-            )
-            logging.info("✅ Saved greeting_settings to AI-Memory")
+            # Existing user greeting
+            requests.post(AI_MEMORY_URL, json={
+                "user_id": "system",
+                "message": existing_greeting,
+                "memory_type": "greeting_settings",
+                "key": "existing_user",
+                "scope": "system"
+            }, timeout=10)
+
+            # New caller greeting
+            requests.post(AI_MEMORY_URL, json={
+                "user_id": "system",
+                "message": new_greeting,
+                "memory_type": "greeting_settings",
+                "key": "new_caller",
+                "scope": "system"
+            }, timeout=10)
+
+            logging.info("✅ Saved greetings to AI-Memory")
         except Exception as e:
             logging.error(f"❌ Failed to save greetings to AI-Memory: {e}")
 
