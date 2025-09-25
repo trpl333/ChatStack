@@ -129,21 +129,38 @@ ai_instructions = AI_INSTRUCTIONS
 
 # Dynamic greeting templates - load from config on each request
 def get_admin_setting(setting_key, default=None):
-    """Get admin setting from AI-Memory service"""
+    """Get admin setting from AI-Memory service with improved key matching"""
     try:
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
         
-        # Search for admin setting in ai-memory
-        results = mem_store.search(setting_key, user_id="admin", k=1, memory_types=["admin_setting"])
+        # ✅ Fix: Search for admin setting with better matching
+        results = mem_store.search(
+            query_text=setting_key,  # Search for exact key name
+            user_id="admin", 
+            k=10,  # Get more results to find exact match
+            memory_types=["admin_setting"],
+            include_shared=True
+        )
         
-        if results:
-            value = results[0].get("value", {})
-            if isinstance(value, dict) and "setting_value" in value:
-                logging.info(f"📖 Retrieved admin setting {setting_key} from ai-memory")
-                return value["setting_value"]
-            elif isinstance(value, str):
-                return value
+        # Look for exact key match in results
+        for result in results:
+            stored_key = result.get("k") or result.get("key") or result.get("setting_key", "")
+            if stored_key == setting_key:
+                value_json = result.get("value_json", {})
+                if isinstance(value_json, dict):
+                    # Extract value from stored admin setting
+                    value = value_json.get("value") or value_json.get(setting_key) or str(value_json)
+                    logging.info(f"📖 Retrieved admin setting {setting_key} from ai-memory: {value}")
+                    return value
+                return str(value_json)
+        
+        # If no exact match, try partial match in message content
+        for result in results:
+            if setting_key.lower() in result.get("message", "").lower():
+                value_json = result.get("value_json", {})
+                if isinstance(value_json, dict) and "value" in value_json:
+                    return value_json["value"]
         
         # Fallback to config.json if not in ai-memory yet
         config_value = get_setting(setting_key, default)
@@ -530,9 +547,10 @@ def text_to_speech(text, voice_id=None):
             
             # Verify file exists and has content before returning URL
             if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
-                # Return URL for Twilio to play
-                from flask import url_for
-                audio_url = url_for('static', filename=f'audio/{filename}', _external=True)
+                # ✅ Fix: Use configured server_url for public URLs instead of Flask auto-detection
+                config = _get_config()
+                server_url = config["server_url"].replace("/phone/incoming", "")
+                audio_url = f"{server_url}/static/audio/{filename}"
                 logging.info(f"ElevenLabs TTS generated: {audio_url} ({os.path.getsize(audio_path)} bytes)")
                 return audio_url
             else:
@@ -715,12 +733,14 @@ def handle_incoming_call():
     
     # Gather user speech with optimized settings
     # Use absolute HTTPS URL and ensure action is called even without speech
-    from flask import url_for
+    # ✅ Fix: Use configured server_url for webhook URLs
+    config = _get_config()
+    server_url = config["server_url"].replace("/phone/incoming", "")
     gather = Gather(
         input='speech',
         timeout=8,  # Optimized timeout
         speech_timeout=3,  # Increased for reliability
-        action=url_for('process_speech', _external=True),  # Absolute HTTPS URL
+        action=f"{server_url}/phone/process-speech",  # Absolute HTTPS URL
         actionOnEmptyResult=True,  # Call action even if no speech detected
         method='POST'
     )
@@ -976,12 +996,14 @@ def process_speech():
     
     # Skip the "anything else" question - just wait for user input
     
-    # Use absolute HTTPS URL and ensure action is called even without speech
+    # ✅ Fix: Use absolute HTTPS URL with configured server_url
+    config = _get_config()
+    server_url = config["server_url"].replace("/phone/incoming", "")
     gather = Gather(
         input='speech',
         timeout=8,  # Reduced timeout  
         speech_timeout=3,  # Reliable speech detection
-        action=url_for('process_speech', _external=True),  # Absolute HTTPS URL
+        action=f"{server_url}/phone/process-speech",  # Absolute HTTPS URL
         actionOnEmptyResult=True,  # Call action even if no speech detected
         method='POST'
     )
