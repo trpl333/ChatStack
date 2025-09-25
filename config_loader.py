@@ -137,7 +137,7 @@ def get_secret(key: str, default: Optional[str] = None) -> Optional[str]:
 
 def get_setting(key: str, default: Any = None) -> Any:
     """Get setting from config.json, with support for admin: pointers resolved via AI-Memory"""
-    import logging
+    import logging, requests
 
     value = config.get(key, default)
 
@@ -145,14 +145,22 @@ def get_setting(key: str, default: Any = None) -> Any:
     if isinstance(value, str) and value.startswith("admin:"):
         admin_key = value.split(":", 1)[1]
         try:
-            from app.http_memory import HTTPMemoryStore
-            mem_store = HTTPMemoryStore()
-            settings = mem_store.search("greeting_settings", user_id="system", k=1)
+            resp = requests.post(
+                "http://127.0.0.1:8100/memory/retrieve",
+                json={
+                    "user_id": "system",
+                    "query": "greeting_settings",
+                    "limit": 10
+                },
+                timeout=10
+            )
 
-            if settings:
-                admin_values = settings[0].get("value", {})
-                if admin_key in admin_values:
-                    return admin_values[admin_key]
+            if resp.status_code == 200:
+                memories = resp.json().get("memories", [])
+                for m in memories:
+                    if m.get("key") == admin_key:
+                        return m.get("message", default)
+
         except Exception as e:
             logging.warning(f"⚠️ Could not fetch {admin_key} from AI-Memory: {e}")
         return default
