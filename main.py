@@ -1066,47 +1066,52 @@ def update_personality():
 
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
-    """Update custom greeting templates and sync with FastAPI"""
+    """Update custom greeting templates and sync with FastAPI via AI-Memory"""
     try:
         data = request.get_json()
         existing_greeting = data.get('existing_user_greeting', get_existing_user_greeting())
         new_greeting = data.get('new_caller_greeting', get_new_caller_greeting())
-        
-        # Save to config for persistence
-        _update_config_setting("existing_user_greeting", existing_greeting)
-        _update_config_setting("new_caller_greeting", new_greeting)
-        
-        # Also update the system prompt file for FastAPI
+
+        # 🔑 Save greetings to AI-Memory instead of config.json
+        try:
+            from app.http_memory import HTTPMemoryStore
+            mem_store = HTTPMemoryStore()
+            mem_store.save(
+                "greeting_settings",
+                user_id="system",
+                value={
+                    "existingUserGreeting": existing_greeting,
+                    "newCallerGreeting": new_greeting,
+                }
+            )
+            logging.info("✅ Saved greeting_settings to AI-Memory")
+        except Exception as e:
+            logging.error(f"❌ Failed to save greetings to AI-Memory: {e}")
+
+        # Still update the system prompt file for FastAPI
         try:
             prompt_file = "app/prompts/system_sam.txt"
             with open(prompt_file, 'r') as f:
                 content = f.read()
-            
-            # Update the greeting lines in the system prompt
+
             import re
-            
-            # Update existing user greeting pattern
             content = re.sub(
                 r'- If caller is known user: Greeting is ".*?" - wait for confirmation before continuing',
                 f'- If caller is known user: Greeting is "{existing_greeting.replace("{user_name}", "[Name]")}" - wait for confirmation before continuing',
                 content
             )
-            
-            # Update new caller greeting pattern  
             content = re.sub(
                 r'- If caller is new/unknown: Greeting is ".*?" - then get their name and insurance needs',
                 f'- If caller is new/unknown: Greeting is "{new_greeting.replace("{time_greeting}", "[time of day]")}" - then get their name and insurance needs',
                 content
             )
-            
             with open(prompt_file, 'w') as f:
                 f.write(content)
-                
+
             logging.info("✅ Updated system prompt file with new greetings")
-            
         except Exception as e:
             logging.error(f"Failed to update system prompt file: {e}")
-        
+
         return jsonify({"success": True})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
