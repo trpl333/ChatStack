@@ -134,11 +134,42 @@ AI_INSTRUCTIONS = (
 )  # Admin-configurable
 
 # Dynamic greeting templates - load from config on each request
+def get_admin_setting(setting_key, default=None):
+    """Get admin setting from AI-Memory service"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Search for admin setting in ai-memory
+        results = mem_store.search(setting_key, user_id="admin", k=1, memory_types=["admin_setting"])
+        
+        if results:
+            value = results[0].get("value", {})
+            if isinstance(value, dict) and "setting_value" in value:
+                logging.info(f"📖 Retrieved admin setting {setting_key} from ai-memory")
+                return value["setting_value"]
+            elif isinstance(value, str):
+                return value
+        
+        # Fallback to config.json if not in ai-memory yet
+        config_value = get_setting(setting_key, default)
+        logging.info(f"📖 Using config.json fallback for {setting_key}")
+        return config_value
+        
+    except Exception as e:
+        logging.error(f"Error getting admin setting {setting_key}: {e}")
+        # Final fallback
+        if setting_key == "existing_user_greeting":
+            return "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?"
+        elif setting_key == "new_caller_greeting":
+            return "{time_greeting}! This is Samantha from Peterson Family Insurance Agency. How can I help you?"
+        return default
+
 def get_existing_user_greeting():
-    return get_setting("existing_user_greeting", "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?")
+    return get_admin_setting("existing_user_greeting")
 
 def get_new_caller_greeting():  
-    return get_setting("new_caller_greeting", "{time_greeting}! This is Samantha from Peterson Family Insurance Agency. How can I help you?")
+    return get_admin_setting("new_caller_greeting")
 
 def _update_config_setting(key, value):
     """Update a setting in config.json atomically"""
@@ -523,7 +554,10 @@ def text_to_speech(text, voice_id=None):
         return None
 
 def get_personalized_greeting(user_id):
-    """Return personalized greeting based on AI-Memory and admin panel config.json"""
+    """Return personalized greeting from AI-Memory service with user registration"""
+    from datetime import datetime
+    import pytz
+    
     # Normalize user_id for consistent lookup
     normalized_user_id = user_id
     if user_id:
@@ -535,40 +569,73 @@ def get_personalized_greeting(user_id):
     try:
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
-        memories = mem_store.search("name", user_id=normalized_user_id, k=10)
-        logging.info(f"🔍 Retrieved {len(memories)} memories for greeting lookup")
-
-        for memory in memories:
-            value = memory.get("value", {})
-            if isinstance(value, dict) and "name" in value and value.get("relationship") not in ["friend", "wife", "husband"]:
-                user_name = value["name"]
-                greeting_template = get_existing_user_greeting()
-                resolved = greeting_template.replace("{user_name}", user_name)
-                logging.info(f"👤 Existing user greeting resolved: {resolved}")
+        
+        # ✅ Step 1: Check if user exists by searching for any memories
+        user_memories = mem_store.search("", user_id=normalized_user_id, k=5)
+        user_exists = len(user_memories) > 0
+        logging.info(f"👤 User exists check: {user_exists} ({len(user_memories)} memories found)")
+        
+        # ✅ Step 2: If user doesn't exist, register them
+        if not user_exists:
+            logging.info(f"🆕 Registering new caller: {normalized_user_id}")
+            mem_store.write(
+                memory_type="person",
+                key=f"caller_{normalized_user_id}",
+                value={
+                    "phone_number": normalized_user_id,
+                    "first_call": True,
+                    "registered_at": str(datetime.now())
+                },
+                user_id=normalized_user_id,
+                scope="user",
+                source="auto_registration"
+            )
+        
+        # ✅ Step 3: Get appropriate greeting template from ai-memory
+        if user_exists:
+            # Look for user's name in memories for personalized greeting
+            for memory in user_memories:
+                value = memory.get("value", {})
+                if isinstance(value, dict) and "name" in value and value.get("relationship") not in ["friend", "wife", "husband"]:
+                    user_name = value["name"]
+                    greeting_template = get_admin_setting("existing_user_greeting")
+                    if greeting_template:
+                        resolved = greeting_template.replace("{user_name}", user_name)
+                        logging.info(f"👤 Existing user greeting resolved: {resolved}")
+                        return resolved
+            
+            # User exists but no name found - use existing user template without name
+            greeting_template = get_admin_setting("existing_user_greeting")
+            if greeting_template:
+                resolved = greeting_template.replace("{user_name}", "")
+                logging.info(f"👤 Existing user (no name) greeting: {resolved}")
                 return resolved
-
+        
+        # ✅ Step 4: New caller or fallback - get new caller greeting
+        greeting_template = get_admin_setting("new_caller_greeting")
+        if greeting_template:
+            # Add time-based greeting
+            try:
+                pst = pytz.timezone('US/Pacific')
+                hour = datetime.now(pst).hour
+                if 5 <= hour < 12:
+                    time_greeting = "Good morning"
+                elif 12 <= hour < 17:
+                    time_greeting = "Good afternoon"
+                else:
+                    time_greeting = "Good evening"
+            except Exception:
+                time_greeting = "Hello"
+            
+            resolved = greeting_template.replace("{time_greeting}", time_greeting)
+            logging.info(f"🆕 New caller greeting resolved: {resolved}")
+            return resolved
+            
     except Exception as e:
-        logging.error(f"Error getting personalized greeting: {e}")
-
-    # Fallback for new callers with time-based greeting
-    try:
-        from datetime import datetime
-        import pytz
-        pst = pytz.timezone('US/Pacific')
-        hour = datetime.now(pst).hour
-        if 5 <= hour < 12:
-            time_greeting = "Good morning"
-        elif 12 <= hour < 17:
-            time_greeting = "Good afternoon"
-        else:
-            time_greeting = "Good evening"
-    except Exception:
-        time_greeting = "Hello"
-
-    greeting_template = get_new_caller_greeting()
-    resolved = greeting_template.replace("{time_greeting}", time_greeting)
-    logging.info(f"📞 New caller greeting resolved: {resolved}")
-    return resolved
+        logging.error(f"Error getting personalized greeting from ai-memory: {e}")
+    
+    # ✅ Final fallback if ai-memory fails
+    return "Hi, this is Samantha from Peterson Family Insurance Agency. How can I help you today?"
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
@@ -1069,34 +1136,52 @@ def update_personality():
         
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
-    """Save greetings into AI-Memory (overwrite old ones)"""
+    """Save greetings into AI-Memory service using correct API format"""
     try:
         data = request.get_json()
         existing_greeting = data.get('existing_user_greeting', '')
         new_greeting = data.get('new_caller_greeting', '')
+        
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # ✅ Save existing user greeting with correct AI-Memory API format
+        if existing_greeting:
+            mem_store.write(
+                memory_type="admin_setting",
+                key="existing_user_greeting",
+                value={
+                    "setting_key": "existing_user_greeting",
+                    "setting_value": existing_greeting,
+                    "updated_by": "admin_panel"
+                },
+                user_id="admin",
+                scope="shared",
+                source="admin_panel"
+            )
+            logging.info(f"✅ Saved existing user greeting: {existing_greeting}")
 
-        # Save existing user greeting
-        requests.post(AI_MEMORY_URL, json={
-            "user_id": "system",
-            "message": existing_greeting,
-            "memory_type": "greeting_settings",
-            "key": "existing_user",
-            "scope": "system"
-        }, timeout=10)
+        # ✅ Save new caller greeting with correct AI-Memory API format  
+        if new_greeting:
+            mem_store.write(
+                memory_type="admin_setting",
+                key="new_caller_greeting",
+                value={
+                    "setting_key": "new_caller_greeting", 
+                    "setting_value": new_greeting,
+                    "updated_by": "admin_panel"
+                },
+                user_id="admin",
+                scope="shared",
+                source="admin_panel"
+            )
+            logging.info(f"✅ Saved new caller greeting: {new_greeting}")
 
-        # Save new caller greeting
-        requests.post(AI_MEMORY_URL, json={
-            "user_id": "system",
-            "message": new_greeting,
-            "memory_type": "greeting_settings",
-            "key": "new_caller",
-            "scope": "system"
-        }, timeout=10)
-
-        logging.info("✅ Saved greetings to AI-Memory (existing_user & new_caller)")
-        return jsonify({"success": True})
+        logging.info("✅ Greetings saved to AI-Memory service successfully")
+        return jsonify({"success": True, "message": "Greetings updated successfully"})
+        
     except Exception as e:
-        logging.error(f"❌ Failed to save greetings: {e}")
+        logging.error(f"❌ Failed to save greetings to AI-Memory: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/update-routing', methods=['POST'])
