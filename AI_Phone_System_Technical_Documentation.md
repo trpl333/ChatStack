@@ -53,7 +53,7 @@ Twilio Call → nginx (HTTPS) → Flask Orchestrator (port 5000) → FastAPI Bac
 | Path | Purpose |
 |------|---------|
 | `static/admin.html` | Admin Interface | Knowledge base management |
-| `static/admin-control.html` | Admin Controls | System configuration |
+| `static/admin.html` | Admin Controls | System configuration |
 | `static/audio/*.mp3` | Generated Audio | ElevenLabs TTS output files |
 
 ---
