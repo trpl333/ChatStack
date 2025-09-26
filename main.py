@@ -1010,10 +1010,6 @@ def process_speech():
     )
     response.append(gather)
     
-    # If no response, end call politely without hanging up abruptly
-    response.say("Thanks for calling Peterson Family Insurance! Have a great day!")
-    response.pause(length=1)  # Brief pause before ending naturally
-    
     return str(response), 200, {'Content-Type': 'text/xml'}
 
 @app.route('/phone/status', methods=['POST'])
