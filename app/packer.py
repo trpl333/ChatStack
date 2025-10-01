@@ -65,6 +65,8 @@ def pack_prompt(
     
     # ✅ Load AI instructions from admin panel settings (ai-memory)
     system_prompt = SYSTEM_BASE  # Default fallback
+    agent_name = "Amanda"  # Default agent name
+    
     if not safety_mode:
         try:
             from app.http_memory import HTTPMemoryStore
@@ -81,11 +83,26 @@ def pack_prompt(
                         system_prompt = admin_instructions
                         logger.info(f"✅ Using AI instructions from admin panel: {admin_instructions[:100]}...")
                         break
+            
+            # Load agent_name from admin panel
+            agent_results = mem_store.search("agent_name", user_id="admin", k=5)
+            for result in agent_results:
+                if result.get("key") == "agent_name" or result.get("setting_key") == "agent_name":
+                    value = result.get("value", {})
+                    stored_name = value.get("value") or value.get("setting_value") or value.get("agent_name")
+                    if stored_name:
+                        agent_name = stored_name
+                        logger.info(f"✅ Using agent name from admin panel: {agent_name}")
+                        break
+                        
         except Exception as e:
             logger.warning(f"Failed to load admin personality settings, using default: {e}")
     
     if safety_mode:
         system_prompt = SYSTEM_SAFETY
+    
+    # ✅ Inject agent_name into system prompt
+    system_prompt = system_prompt.replace("{{agent_name}}", agent_name)
     
     # Get conversation recap
     recap = stm_manager.get_recap(thread_id)
