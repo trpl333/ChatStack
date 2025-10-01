@@ -175,12 +175,22 @@ class HTTPMemoryStore:
                         return []
                     
                     memories = []
-                    for line in memory_str.split('\n'):
+                    for idx, line in enumerate(memory_str.split('\n')):
                         line = line.strip()
                         if line:
                             try:
                                 mem_obj = json.loads(line)
-                                memories.append(mem_obj)
+                                
+                                # ✅ Normalize to standard memory format with type/key/value
+                                normalized = {
+                                    "type": mem_obj.get("type", "fact"),
+                                    "key": mem_obj.get("key") or mem_obj.get("k") or mem_obj.get("summary", "")[:50] or mem_obj.get("phone_number", "") or f"memory_{idx}",
+                                    "value": mem_obj,  # Store entire object as value
+                                    "scope": mem_obj.get("scope", "user"),
+                                    "user_id": mem_obj.get("user_id"),
+                                    "id": mem_obj.get("id") or mem_obj.get("memory_id") or f"concat_{idx}"
+                                }
+                                memories.append(normalized)
                             except json.JSONDecodeError:
                                 logger.warning(f"Could not parse memory line: {line[:100]}")
                     
