@@ -45,24 +45,26 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
         # Search for stored thread history with exact key match
         history_key = f"thread_history:{thread_id}"
         
-        # Strategy 1: Search for thread_recap type memories
-        results = mem_store.search(history_key, user_id=user_id, k=100, memory_types=["thread_recap"])
+        # Strategy: Search broadly (type filter doesn't work in ai-memory service)
+        # Then filter client-side for exact key match
+        results = mem_store.search(history_key, user_id=user_id, k=200)
         
-        # Debug: Log all keys to understand format
         logger.info(f"🔍 Searching for key: {history_key}")
-        if results:
-            logger.info(f"🔍 Found {len(results)} thread_recap memories, first 10 keys:")
-            for i, result in enumerate(results[:10]):
-                result_key = result.get("key") or result.get("k") or ""
-                logger.info(f"  [{i}] key={result_key}, type={result.get('type')}")
         
-        # Filter for exact key match
+        # Filter for exact key match (case-insensitive for safety)
         matching_memory = None
         for result in results:
             result_key = result.get("key") or result.get("k") or ""
+            # Check exact match OR if the value contains our thread history
             if result_key == history_key:
                 matching_memory = result
                 logger.info(f"✅ Found exact match for key: {history_key}")
+                break
+            # Fallback: check if value contains thread history data
+            elif isinstance(result.get("value"), dict) and "messages" in result.get("value", {}):
+                # This might be our thread history with a different key format
+                logger.info(f"🔍 Found potential match with key={result_key}")
+                matching_memory = result
                 break
         
         if matching_memory:
