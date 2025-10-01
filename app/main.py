@@ -200,6 +200,15 @@ async def chat_completion(
                              ["wife","husband","family","friend","name","who is","kelly","job","work","teacher"]) else 6
         retrieved_memories = mem_store.search(user_message, user_id=user_id, k=search_k)
         logger.info(f"🔎 Retrieved {len(retrieved_memories)} relevant memories")
+        
+        # 🔍 DEBUG: Log what memories were actually retrieved
+        if retrieved_memories:
+            logger.info(f"🔍 DEBUG: Top 5 memories retrieved:")
+            for i, mem in enumerate(retrieved_memories[:5]):
+                mem_key = mem.get('key', 'no-key')
+                mem_type = mem.get('type', 'no-type')
+                mem_value_preview = str(mem.get('value', {}))[:100]
+                logger.info(f"  [{i+1}] {mem_type}:{mem_key} = {mem_value_preview}")
 
         # Build current request messages
         message_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
