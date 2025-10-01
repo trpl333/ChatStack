@@ -629,22 +629,53 @@ def get_personalized_greeting(user_id):
         
         # ✅ Step 3: Get appropriate greeting template from ai-memory
         if user_exists:
-            # Look for user's name in memories for personalized greeting
+            # ✅ Search for user's name in multiple memory formats
+            user_name = None
+            
+            # Strategy 1: Look for memories with "name" field (relationship != wife/husband/friend)
             for memory in user_memories:
                 value = memory.get("value", {})
-                if isinstance(value, dict) and "name" in value and value.get("relationship") not in ["friend", "wife", "husband"]:
-                    user_name = value["name"]
-                    greeting_template = get_admin_setting("existing_user_greeting")
-                    if greeting_template:
-                        resolved = greeting_template.replace("{user_name}", user_name)
-                        logging.info(f"👤 Existing user greeting resolved: {resolved}")
-                        return resolved
+                if isinstance(value, dict):
+                    # Check for direct name field (not a relationship)
+                    if "name" in value and value.get("relationship") not in ["friend", "wife", "husband", "son", "daughter"]:
+                        user_name = value["name"]
+                        break
+                    # Check for first_name field
+                    if "first_name" in value:
+                        user_name = value["first_name"]
+                        break
             
-            # User exists but no name found - use existing user template without name
+            # Strategy 2: Search ai-memory specifically for user's own name
+            if not user_name:
+                try:
+                    name_memories = mem_store.search(
+                        query_text="user name person caller",
+                        user_id=normalized_user_id,
+                        k=10,
+                        memory_types=["person", "fact"]
+                    )
+                    for mem in name_memories:
+                        val = mem.get("value", {})
+                        if isinstance(val, dict):
+                            # Look for the caller's own name (not relationships)
+                            if "name" in val and val.get("relationship") not in ["wife", "husband", "friend", "son", "daughter"]:
+                                user_name = val["name"]
+                                break
+                            if "caller_name" in val:
+                                user_name = val["caller_name"]
+                                break
+                except Exception as e:
+                    logging.warning(f"Failed to search for user name: {e}")
+            
+            # Apply greeting template
             greeting_template = get_admin_setting("existing_user_greeting")
             if greeting_template:
-                resolved = greeting_template.replace("{user_name}", "")
-                logging.info(f"👤 Existing user (no name) greeting: {resolved}")
+                if user_name:
+                    resolved = greeting_template.replace("{user_name}", user_name)
+                    logging.info(f"👤 Existing user greeting with name '{user_name}': {resolved}")
+                else:
+                    resolved = greeting_template.replace("{user_name}", "")
+                    logging.info(f"👤 Existing user greeting (no name found): {resolved}")
                 return resolved
         
         # ✅ Step 4: New caller or fallback - get new caller greeting
@@ -961,8 +992,35 @@ def process_speech():
             )
             logging.info(f"💾 Stored family information: {speech_result}")
             
-        # Look for names being shared
-        if any(phrase in message_lower for phrase in ["name is", "called", "his name", "her name"]):
+        # ✅ Extract and store caller's name when they introduce themselves
+        if any(phrase in message_lower for phrase in ["my name is", "i'm", "this is", "call me"]):
+            import re
+            # Try to extract the name from common patterns
+            extracted_name = None
+            
+            # Pattern: "my name is John" or "This is John"
+            match = re.search(r"(?:my name(?:'s| is)|i'm|this is|call me)\s+([A-Z][a-z]+)", speech_result, re.IGNORECASE)
+            if match:
+                extracted_name = match.group(1).capitalize()
+            
+            # Store with structured name field
+            mem_store.write(
+                "person",
+                f"caller_info_{user_id}",
+                {
+                    "caller_name": extracted_name if extracted_name else "unknown",
+                    "name": extracted_name if extracted_name else "unknown",
+                    "summary": speech_result[:200],
+                    "context": "caller introduced themselves",
+                    "info_type": "caller_identity"
+                },
+                user_id=user_id,
+                scope="user"
+            )
+            logging.info(f"💾 Stored caller name: {extracted_name} from '{speech_result}'")
+        
+        # Look for other names being shared (wife, kids, friends)
+        elif any(phrase in message_lower for phrase in ["name is", "called", "his name", "her name"]):
             mem_store.write(
                 "person",
                 f"name_info_{hash(speech_result) % 1000}",
