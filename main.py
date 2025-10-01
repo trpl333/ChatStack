@@ -1389,7 +1389,7 @@ def update_greetings():
         logging.error(f"❌ Failed to save greetings to ai-memory: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/update-agent-name', methods=['POST'])
+@app.route('/phone/update-agent-name', methods=['POST'])
 def update_agent_name():
     """Save agent name to AI-Memory service"""
     try:
@@ -1427,7 +1427,7 @@ def update_agent_name():
         logging.error(f"❌ Failed to save agent name to ai-memory: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/get-agent-name', methods=['GET'])
+@app.route('/phone/get-agent-name', methods=['GET'])
 def get_agent_name():
     """Get agent name from AI-Memory service"""
     try:

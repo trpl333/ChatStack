@@ -736,7 +736,7 @@
                 return;
             }
             
-            fetch('/update-agent-name', {
+            fetch('/phone/update-agent-name', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ agent_name: agentName })
@@ -755,7 +755,7 @@
         }
 
         function loadAgentName() {
-            fetch('/get-agent-name')
+            fetch('/phone/get-agent-name')
             .then(response => response.json())
             .then(data => {
                 if (data.agent_name) {
