@@ -191,6 +191,22 @@
             <!-- AI Settings Panel -->
             <div class="tab-pane fade" id="ai-panel" role="tabpanel">
                 
+                <!-- Agent Identity -->
+                <div class="admin-section">
+                    <h3 class="section-header">👤 Agent Identity</h3>
+                    <div class="alert alert-info">
+                        <strong>Agent Name:</strong> This name will be used consistently in greetings, conversations, and all AI responses.
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Agent Name</label>
+                            <input type="text" class="form-control" id="agentName" placeholder="e.g., Amanda, Samantha, Sarah" value="Amanda">
+                            <small class="text-muted">The AI will introduce itself with this name in all interactions</small>
+                        </div>
+                    </div>
+                    <button class="btn btn-success mt-3" onclick="updateAgentName()">💾 Update Agent Name</button>
+                </div>
+                
                 <!-- Personality Settings -->
                 <div class="admin-section">
                     <h3 class="section-header">🧠 AI Personality & Instructions</h3>
@@ -712,6 +728,45 @@
             });
         }
 
+        function updateAgentName() {
+            const agentName = document.getElementById('agentName').value;
+            
+            if (!agentName || agentName.trim() === '') {
+                showNotification('Error', 'Agent name cannot be empty', true);
+                return;
+            }
+            
+            fetch('/update-agent-name', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ agent_name: agentName })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Success', 'Agent name updated to: ' + agentName);
+                } else {
+                    showNotification('Error', 'Failed to update agent name: ' + data.error, true);
+                }
+            })
+            .catch(error => {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            });
+        }
+
+        function loadAgentName() {
+            fetch('/get-agent-name')
+            .then(response => response.json())
+            .then(data => {
+                if (data.agent_name) {
+                    document.getElementById('agentName').value = data.agent_name;
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load agent name:', error);
+            });
+        }
+
         function refreshStatus() {
             // Simulate loading memory count
             setTimeout(() => {
@@ -877,6 +932,7 @@
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             loadSharedKnowledge();
+            loadAgentName();
             refreshStatus();
             
             // Add sample JSON to textarea
