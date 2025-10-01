@@ -78,7 +78,7 @@ class HTTPMemoryStore:
             # Prepare payload for AI-Memory service
             payload = {
                 "user_id": user_id or "unknown",
-                "message": value.get("msg", "") if isinstance(value, dict) else str(value),
+                "message": json.dumps(value) if isinstance(value, dict) else str(value),
                 "type": memory_type,
                 "k": key,
                 "value_json": value,
