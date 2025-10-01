@@ -146,6 +146,10 @@ class HTTPMemoryStore:
             if not include_shared:
                 payload["scope"] = "user"
             
+            # 🔍 DEBUG: Log what we're sending
+            logger.info(f"🔍 Querying AI-Memory: POST {self.ai_memory_url}/memory/retrieve")
+            logger.info(f"🔍 Payload: {json.dumps(payload, indent=2)}")
+            
             response = self.session.post(
                 f"{self.ai_memory_url}/memory/retrieve",
                 json=payload,
