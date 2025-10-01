@@ -4,7 +4,7 @@ from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi import Request
 from contextlib import asynccontextmanager
 from config_loader import get_secret, get_setting
 
@@ -312,6 +312,31 @@ async def chat_completion(
     except Exception as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
+
+@app.post("/v1/chat/completions", response_model=ChatResponse)
+async def chat_completions_alias(
+    request: Request,
+    thread_id: str = "default",
+    user_id: Optional[str] = None,
+    mem_store: HTTPMemoryStore = Depends(get_memory_store)
+):
+    """
+    Alias endpoint for OpenAI-style /v1/chat/completions.
+    Simply forwards the request body to the existing /v1/chat handler.
+    """
+    try:
+        body = await request.json()
+        # Reuse the same logic by creating a ChatRequest object
+        chat_req = ChatRequest(**body)
+        return await chat_completion(
+            chat_req,
+            thread_id=thread_id,
+            user_id=user_id,
+            mem_store=mem_store
+        )
+    except Exception as e:
+        logger.error(f"Alias /v1/chat/completions failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Alias failed: {str(e)}")
 
 @app.get("/v1/memories")
 async def get_memories(
