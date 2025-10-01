@@ -52,23 +52,35 @@ The system now operates as a true microservices architecture with complete separ
 ### Core Components:
 - **LLM Integration**: ✅ **FULLY MIGRATED TO OPENAI** - Uses OpenAI Realtime API (gpt-realtime-2025-08-28) for AI responses with 2-2.5 second response times. Completely replaced previous RunPod integration.
 
-- **Memory System**: ✅ **PERSISTENT HYBRID ARCHITECTURE (Oct 1, 2025)** - Dual-layer memory system for optimal conversation continuity with database-backed persistence:
+- **Memory System**: ✅ **PERSISTENT HYBRID ARCHITECTURE WITH CONSOLIDATION (Oct 1, 2025)** - Three-tier memory system for unlimited conversation memory:
   
-  **Layer 1: Rolling Thread History (Database-Backed)**
-  - FastAPI maintains `THREAD_HISTORY` deque (maxlen=100) per stable `thread_id`
+  **Layer 1: Rolling Thread History (Database-Backed, 500 messages)**
+  - FastAPI maintains `THREAD_HISTORY` deque (maxlen=500, ~250 turns) per stable `thread_id`
   - Thread ID format: `user_{phone_number}` (e.g., `user_9495565377`)
-  - ✅ **NEW**: Automatically loads from database on first access
-  - ✅ **NEW**: Saves to database after each turn (survives container restarts!)
+  - ✅ Automatically loads from database on first access
+  - ✅ Saves to database after each turn (survives container restarts!)
+  - ✅ **NEW**: Automatic memory consolidation at 400 messages
   - Provides within-call AND cross-call conversation continuity
   - Persists indefinitely (7-day TTL in ai-memory service)
   
-  **Layer 2: AI-Memory Service (Durable Storage)**
+  **Layer 2: Automatic Memory Consolidation (LLM-Powered)**
+  - ✅ **NEW**: Triggers at 400/500 messages to prevent information loss
+  - LLM analyzes oldest 200 messages and extracts structured data:
+    - **People**: Family members, relationships (Kelly, Jack, Colin)
+    - **Facts**: Important dates, events (birthdays, anniversaries)
+    - **Preferences**: Likes/dislikes, interests (spa days, hobbies)
+    - **Commitments**: Promises, follow-ups (plan celebration)
+  - Deterministic de-duplication using SHA1 hashes
+  - Prunes thread history to 300 messages after consolidation
+  - Runs automatically in background during conversation
+  
+  **Layer 3: AI-Memory Service (Permanent Durable Storage)**
   - HTTP-based service at http://209.38.143.71:8100
   - Stores structured facts: person, preference, project, rule, moment, fact
   - Handles admin settings (greetings, voice settings, AI instructions)
   - User registration and caller management
   - Robust HTTPMemoryStore with concatenated JSON parser
-  - Optional durable recap per thread (1-paragraph summary)
+  - Long-term retention (365 days for facts, 90 days for commitments)
   
   **Implementation Details:**
   - Flask (`main.py` line 686): Generates `thread_id = f"user_{user_id}"` instead of CallSid
@@ -78,11 +90,18 @@ The system now operates as a true microservices architecture with complete separ
   - Message storage (line 81): Sends full JSON content via `json.dumps(value)`
   - Thread persistence: Stored as `thread_history:{thread_id}` in ai-memory service
   
+  **Conversation Flow Improvements:**
+  - ✅ **NEW**: Fresh start on callbacks - system asks "How can I help you today?" instead of continuing old topics
+  - Callback detection: Automatically identifies returning callers vs new callers
+  - Dual user_id search (normalized + raw) for reliable callback detection
+  
   **Benefits:**
+  - ✅ **Unlimited conversation memory** - consolidation prevents loss after 500 messages
   - Fast conversation flow without database queries every turn
-  - ✅ **Conversation history survives container restarts and worker reloads**
-  - Persistent facts survive server restarts
-  - 200+ message history window (tunable via maxlen parameter)
+  - ✅ Conversation history survives container restarts and worker reloads
+  - ✅ Important facts automatically extracted and preserved forever
+  - ✅ Natural callback experience - fresh greeting + open-ended prompt
+  - 500+ message history window (5x increase from previous 100)
   - Natural cross-call continuity (same thread_id = same history)
   - Zero data loss on deployment/restart events
 
