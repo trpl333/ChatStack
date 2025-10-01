@@ -184,11 +184,13 @@ class HTTPMemoryStore:
                                 # ✅ Normalize to standard memory format with type/key/value
                                 normalized = {
                                     "type": mem_obj.get("type", "fact"),
-                                    "key": mem_obj.get("key") or mem_obj.get("k") or mem_obj.get("summary", "")[:50] or mem_obj.get("phone_number", "") or f"memory_{idx}",
+                                    "key": mem_obj.get("key") or mem_obj.get("k") or mem_obj.get("setting_key") or mem_obj.get("summary", "")[:50] or mem_obj.get("phone_number", "") or f"memory_{idx}",
                                     "value": mem_obj,  # Store entire object as value
                                     "scope": mem_obj.get("scope", "user"),
                                     "user_id": mem_obj.get("user_id"),
-                                    "id": mem_obj.get("id") or mem_obj.get("memory_id") or f"concat_{idx}"
+                                    "id": mem_obj.get("id") or mem_obj.get("memory_id") or f"concat_{idx}",
+                                    "setting_key": mem_obj.get("setting_key"),  # Preserve for admin settings
+                                    "k": mem_obj.get("k") or mem_obj.get("key") or mem_obj.get("setting_key")  # Alias
                                 }
                                 memories.append(normalized)
                             except json.JSONDecodeError:
