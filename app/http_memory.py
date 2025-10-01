@@ -169,10 +169,23 @@ class HTTPMemoryStore:
                     logger.info(f"✅ Found 'memories' array with {len(result['memories'])} items")
                     return result["memories"]
                 elif "memory" in result and isinstance(result["memory"], str):
-                    # Legacy format - parse concatenated string (ai-memory service bug workaround)
-                    logger.warning(f"AI-Memory service returned legacy concatenated format, cannot parse properly")
-                    logger.warning(f"Full 'memory' value: {result['memory'][:200]}")
-                    return []
+                    # Parse concatenated JSON format (newline-separated JSON objects)
+                    memory_str = result["memory"].strip()
+                    if not memory_str:
+                        return []
+                    
+                    memories = []
+                    for line in memory_str.split('\n'):
+                        line = line.strip()
+                        if line:
+                            try:
+                                mem_obj = json.loads(line)
+                                memories.append(mem_obj)
+                            except json.JSONDecodeError:
+                                logger.warning(f"Could not parse memory line: {line[:100]}")
+                    
+                    logger.info(f"✅ Parsed {len(memories)} memories from concatenated format")
+                    return memories
                 else:
                     logger.error(f"❌ Unexpected response format from AI-Memory service")
                 return []

@@ -679,13 +679,17 @@ def get_ai_response(user_id, message, call_sid=None):
         }
         
         # Make request to FastAPI backend with user_id as query parameter
+        # ✅ Use stable thread_id based on phone number for cross-call continuity
+        persistent_thread_id = f"user_{user_id}"
+        logging.info(f"🧵 Using persistent thread_id={persistent_thread_id} for user {user_id}")
+        
         try:
             orchestrator_url = _get_orchestrator_url()
             logging.info(f"🌐 Calling orchestrator at {orchestrator_url}/v1/chat with user_id={user_id}")
             response = requests.post(
                 f"{orchestrator_url}/v1/chat",
                 json=payload,
-                params={"user_id": user_id, "thread_id": call_sid},  # Pass user_id and thread_id for memory 
+                params={"user_id": user_id, "thread_id": persistent_thread_id},  # ✅ Stable thread_id for continuity
                 timeout=15
             )
             
