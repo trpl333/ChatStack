@@ -192,11 +192,13 @@ def get_admin_setting(setting_key, default=None):
         
     except Exception as e:
         logging.error(f"Error getting admin setting {setting_key}: {e}")
-        # Final fallback
+        # Final fallback - use agent_name from settings
         if setting_key == "existing_user_greeting":
-            return "Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?"
+            agent_name = get_admin_setting("agent_name", "Amanda") if setting_key != "agent_name" else "Amanda"
+            return f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?"
         elif setting_key == "new_caller_greeting":
-            return "{time_greeting}! This is Samantha from Peterson Family Insurance Agency. How can I help you?"
+            agent_name = get_admin_setting("agent_name", "Amanda") if setting_key != "agent_name" else "Amanda"
+            return f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?"
         return default
 
 def get_existing_user_greeting():
@@ -701,8 +703,9 @@ def get_personalized_greeting(user_id):
     except Exception as e:
         logging.error(f"Error getting personalized greeting from ai-memory: {e}")
     
-    # ✅ Final fallback if ai-memory fails
-    return "Hi, this is Samantha from Peterson Family Insurance Agency. How can I help you today?"
+    # ✅ Final fallback if ai-memory fails - use agent_name from settings
+    agent_name = get_admin_setting("agent_name", "Amanda")
+    return f"Hi, this is {agent_name} from Peterson Family Insurance Agency. How can I help you today?"
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
@@ -757,14 +760,17 @@ def get_ai_response(user_id, message, call_sid=None):
                 return ai_response
             else:
                 logging.error(f"FastAPI error: {response.status_code} - {response.text}")
-                return "Hi! I'm Samantha from Peterson Family Insurance. I can help you with auto, home, life, or business insurance questions. What would you like to know?"
+                agent_name = get_admin_setting("agent_name", "Amanda")
+                return f"Hi! I'm {agent_name} from Peterson Family Insurance. I can help you with auto, home, life, or business insurance questions. What would you like to know?"
                 
         except requests.exceptions.RequestException as e:
             logging.error(f"Streaming request error: {e}")
-            return "Hi, this is Samantha with Peterson Family Insurance. I'm here to help with your insurance needs - auto, home, life, or business coverage. What questions can I answer for you?"
+            agent_name = get_admin_setting("agent_name", "Amanda")
+            return f"Hi, this is {agent_name} with Peterson Family Insurance. I'm here to help with your insurance needs - auto, home, life, or business coverage. What questions can I answer for you?"
     except Exception as e:
         logging.error(f"AI Response Error: {e}")
-        return "Hello! I'm Samantha from Peterson Family Insurance. I'm here to help with all your insurance questions - auto, home, life, and business coverage. How can I assist you today?"
+        agent_name = get_admin_setting("agent_name", "Amanda")
+        return f"Hello! I'm {agent_name} from Peterson Family Insurance. I'm here to help with all your insurance questions - auto, home, life, and business coverage. How can I assist you today?"
 
 @app.route('/phone/incoming', methods=['POST'])
 def handle_incoming_call():
