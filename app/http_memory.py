@@ -97,9 +97,9 @@ class HTTPMemoryStore:
             if response.status_code == 200:
                 result = response.json()
                 # ✅ Fix: AI-Memory service may return different ID field names or just success message
-               memory_id = result.get("id") or result.get("memory_id") or result.get("session_id")
-               if not memory_id and "data" in result:
-                   memory_id = result["data"].get("id")
+                memory_id = result.get("id") or result.get("memory_id") or result.get("session_id")
+                if not memory_id and "data" in result:
+                    memory_id = result["data"].get("id")
                 
                 if memory_id:
                     scope_info = f" [{scope}]" + (f" user:{user_id}" if user_id else "")
