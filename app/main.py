@@ -219,6 +219,9 @@ async def chat_completion(
             # Take last ~40 messages to keep prompt lean
             hist = hist[-40:]
             message_dicts = hist + message_dicts
+            logger.info(f"🧵 Prepended {len(hist)} messages from THREAD_HISTORY[{thread_id}]")
+        else:
+            logger.info(f"🧵 No history found for thread_id={thread_id}")
 
         # Optional durable recap from AI-Memory (1 paragraph)
         if ENABLE_RECAP and thread_id and user_id:
@@ -294,7 +297,10 @@ async def chat_completion(
                 last_user = next((m for m in reversed(request.messages) if m.role == "user"), None)
                 if last_user:
                     THREAD_HISTORY[thread_id].append(("user", last_user.content))
+                    logger.info(f"🧵 Appended USER message to THREAD_HISTORY[{thread_id}]: {last_user.content[:50]}")
                 THREAD_HISTORY[thread_id].append(("assistant", assistant_output))
+                logger.info(f"🧵 Appended ASSISTANT message to THREAD_HISTORY[{thread_id}]: {assistant_output[:50]}")
+                logger.info(f"🧵 Total messages in THREAD_HISTORY[{thread_id}]: {len(THREAD_HISTORY[thread_id])}")
         except Exception as e:
             logger.warning(f"THREAD_HISTORY append failed: {e}")
 
