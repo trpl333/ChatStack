@@ -155,13 +155,22 @@ class HTTPMemoryStore:
             
             if response.status_code == 200:
                 result = response.json()
+                
+                # 🔍 DEBUG: Log full response to understand format
+                logger.info(f"🔍 AI-Memory response keys: {result.keys()}")
+                logger.info(f"🔍 AI-Memory full response: {json.dumps(result, indent=2)[:500]}")
+                
                 # ✅ Fix: Handle both "memories" array and "memory" string formats from ai-memory service
                 if "memories" in result:
+                    logger.info(f"✅ Found 'memories' array with {len(result['memories'])} items")
                     return result["memories"]
                 elif "memory" in result and isinstance(result["memory"], str):
                     # Legacy format - parse concatenated string (ai-memory service bug workaround)
                     logger.warning(f"AI-Memory service returned legacy concatenated format, cannot parse properly")
+                    logger.warning(f"Full 'memory' value: {result['memory'][:200]}")
                     return []
+                else:
+                    logger.error(f"❌ Unexpected response format from AI-Memory service")
                 return []
             else:
                 logger.error(f"Memory search failed: {response.status_code} {response.text}")
