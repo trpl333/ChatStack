@@ -85,8 +85,143 @@ def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
             ttl_days=7  # Keep for 7 days
         )
         logger.info(f"💾 Saved {len(messages)} messages to database for thread {thread_id}")
+        
+        # ✅ Check if consolidation is needed (at 400/500 messages)
+        if len(messages) >= 400:
+            try:
+                consolidate_thread_memories(thread_id, mem_store, user_id)
+            except Exception as e:
+                logger.error(f"Memory consolidation failed: {e}")
     except Exception as e:
         logger.warning(f"Failed to save thread history: {e}")
+
+def consolidate_thread_memories(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
+    """
+    Extract important information from thread history and save as structured long-term memories.
+    Triggered when THREAD_HISTORY reaches 400 messages to prevent information loss.
+    """
+    import json
+    
+    history = THREAD_HISTORY.get(thread_id)
+    if not history or len(history) < 400:
+        return
+    
+    logger.info(f"🧠 Starting memory consolidation for thread {thread_id} ({len(history)} messages)")
+    
+    # Take the oldest 200 messages (100 turns) for consolidation
+    messages_to_analyze = list(history)[:200]
+    
+    # Build conversation text for LLM analysis
+    conversation_text = "\n".join([
+        f"{role.upper()}: {content[:200]}" 
+        for role, content in messages_to_analyze
+    ])
+    
+    # Ask LLM to extract structured information
+    extraction_prompt = f"""Analyze this conversation and extract important information in JSON format.
+
+Conversation:
+{conversation_text}
+
+Extract:
+1. **people**: Family members, friends (name, relationship)
+2. **facts**: Important dates, events, details (description, value)
+3. **preferences**: Likes, dislikes, interests (category, preference)
+4. **commitments**: Promises, follow-ups, action items (description, deadline)
+
+Return ONLY valid JSON in this format:
+{{
+  "people": [{{"name": "Kelly", "relationship": "wife"}}],
+  "facts": [{{"description": "Kelly's birthday", "value": "January 3rd, 1966"}}],
+  "preferences": [{{"category": "activities", "preference": "spa days"}}],
+  "commitments": [{{"description": "plan birthday celebration", "deadline": "soon"}}]
+}}"""
+    
+    try:
+        # Call LLM for extraction
+        from app.llm import chat as llm_chat
+        extracted_text, _ = llm_chat(
+            [{"role": "user", "content": extraction_prompt}],
+            temperature=0.3,  # Low temperature for structured output
+            max_tokens=1000
+        )
+        
+        # Parse JSON response
+        extracted_data = json.loads(extracted_text.strip())
+        logger.info(f"✅ Extracted data: {len(extracted_data.get('people', []))} people, {len(extracted_data.get('facts', []))} facts")
+        
+        # Store extracted information with de-duplication
+        import time
+        import hashlib
+        
+        def stable_hash(text: str) -> str:
+            """Generate stable deterministic hash for de-duplication"""
+            return hashlib.sha1(text.lower().encode('utf-8')).hexdigest()[:8]
+        
+        timestamp = int(time.time())
+        
+        # Store people
+        for person in extracted_data.get("people", []):
+            if person.get("name"):
+                key = f"person:{thread_id}:{person['name'].lower().replace(' ', '_')}"
+                mem_store.write(
+                    memory_type="person",
+                    key=key,
+                    value={**person, "extracted_at": timestamp, "source": "consolidation"},
+                    user_id=user_id,
+                    scope="user",
+                    ttl_days=365
+                )
+        
+        # Store facts
+        for fact in extracted_data.get("facts", []):
+            if fact.get("description"):
+                key = f"fact:{thread_id}:{stable_hash(fact['description'])}"
+                mem_store.write(
+                    memory_type="fact",
+                    key=key,
+                    value={**fact, "extracted_at": timestamp, "source": "consolidation"},
+                    user_id=user_id,
+                    scope="user",
+                    ttl_days=365
+                )
+        
+        # Store preferences
+        for pref in extracted_data.get("preferences", []):
+            if pref.get("preference"):
+                key = f"preference:{thread_id}:{stable_hash(pref['preference'])}"
+                mem_store.write(
+                    memory_type="preference",
+                    key=key,
+                    value={**pref, "extracted_at": timestamp, "source": "consolidation"},
+                    user_id=user_id,
+                    scope="user",
+                    ttl_days=365
+                )
+        
+        # Store commitments
+        for commit in extracted_data.get("commitments", []):
+            if commit.get("description"):
+                key = f"project:{thread_id}:{stable_hash(commit['description'])}"
+                mem_store.write(
+                    memory_type="project",
+                    key=key,
+                    value={**commit, "extracted_at": timestamp, "source": "consolidation"},
+                    user_id=user_id,
+                    scope="user",
+                    ttl_days=90  # Shorter TTL for action items
+                )
+        
+        # Prune old messages from deque (keep last 300)
+        while len(THREAD_HISTORY[thread_id]) > 300:
+            THREAD_HISTORY[thread_id].popleft()
+        
+        logger.info(f"✅ Memory consolidation complete. Pruned history to {len(THREAD_HISTORY[thread_id])} messages")
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse LLM extraction: {e}")
+    except Exception as e:
+        logger.error(f"Memory consolidation error: {e}")
 
 # Feature flags
 ENABLE_RECAP = True           # write/read tiny durable recap to AI-Memory
