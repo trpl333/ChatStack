@@ -672,17 +672,26 @@ def get_personalized_greeting(user_id):
             # Apply greeting template
             greeting_template = get_admin_setting("existing_user_greeting")
             if greeting_template:
+                # Get agent name for placeholder replacement
+                agent_name = get_admin_setting("agent_name", "Amanda")
+                
                 if user_name:
                     resolved = greeting_template.replace("{user_name}", user_name)
                     logging.info(f"👤 Existing user greeting with name '{user_name}': {resolved}")
                 else:
                     resolved = greeting_template.replace("{user_name}", "")
                     logging.info(f"👤 Existing user greeting (no name found): {resolved}")
+                
+                # Replace agent_name placeholder
+                resolved = resolved.replace("{agent_name}", agent_name)
                 return resolved
         
         # ✅ Step 4: New caller or fallback - get new caller greeting
         greeting_template = get_admin_setting("new_caller_greeting")
         if greeting_template:
+            # Get agent name for placeholder replacement
+            agent_name = get_admin_setting("agent_name", "Amanda")
+            
             # Add time-based greeting
             try:
                 pst = pytz.timezone('US/Pacific')
@@ -697,6 +706,7 @@ def get_personalized_greeting(user_id):
                 time_greeting = "Hello"
             
             resolved = greeting_template.replace("{time_greeting}", time_greeting)
+            resolved = resolved.replace("{agent_name}", agent_name)
             logging.info(f"🆕 New caller greeting resolved: {resolved}")
             return resolved
             
