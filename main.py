@@ -707,11 +707,10 @@ def get_personalized_greeting(user_id):
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
     try:
-        # Keep it simple - no conversation history to avoid confusion
-        # Just process the current message directly
-        
-        # Call FastAPI backend with user identification - this handles memory integration automatically
-        conversation_history = call_sessions.get(call_sid, {}).get('conversation', [])
+        # Get call session info
+        session = call_sessions.get(call_sid, {})
+        is_callback = session.get('is_callback', False)
+        first_message_handled = session.get('first_message_handled', False)
         
         logging.info(f"🔍 Calling FastAPI with user_id: {user_id} and message: {message}")
         
@@ -719,7 +718,14 @@ def get_ai_response(user_id, message, call_sid=None):
         # Build messages array in the format FastAPI expects
         messages = []
         
-        # ✅ DON'T send conversation history - FastAPI maintains THREAD_HISTORY internally
+        # ✅ For callbacks on first message, inject fresh start prompt
+        if is_callback and not first_message_handled:
+            messages.append({"role": "system", "content": "This is a new call. After greeting, ask 'How can I help you today?' instead of continuing previous conversation topics."})
+            # Guard against missing call_sid
+            if call_sid and call_sid in call_sessions:
+                call_sessions[call_sid]['first_message_handled'] = True
+            logging.info("🔄 Injected fresh start prompt for callback")
+        
         # Only send the current user message
         messages.append({"role": "user", "content": message})
         
@@ -768,13 +774,37 @@ def handle_incoming_call():
     
     logging.info(f"📞 Incoming call from {from_number} - Using improved streaming APIs")
     
+    # ✅ Check if this user has previous call history (callback detection)
+    # Use SAME normalization as everywhere else in the system
+    normalized_user_id = from_number
+    if from_number:
+        normalized_digits = ''.join(filter(str.isdigit, from_number))
+        if len(normalized_digits) >= 10:
+            normalized_user_id = normalized_digits[-10:]
+    
+    is_callback = False
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        # Search with both raw and normalized IDs to handle inconsistent storage
+        user_memories = mem_store.search("", user_id=normalized_user_id, k=3)
+        if not user_memories:
+            # Try with raw from_number in case memories stored with different format
+            user_memories = mem_store.search("", user_id=from_number, k=3)
+        is_callback = len(user_memories) > 0
+        logging.info(f"🔄 Callback detection: user {normalized_user_id} has {len(user_memories)} memories, is_callback={is_callback}")
+    except Exception as e:
+        logging.warning(f"Failed to check callback status: {e}")
+    
     response = VoiceResponse()
     greeting = get_personalized_greeting(from_number)
     
-    # ✅ Fix: Store call session with greeting in conversation history
+    # ✅ Store call session with greeting and callback flag
     call_sessions[call_sid] = {
         'user_id': from_number,
         'call_count': 1,
+        'is_callback': is_callback,
+        'first_message_handled': False,  # Track if we've injected fresh start prompt
         'conversation': [
             {"role": "assistant", "content": greeting}  # Include initial greeting!
         ]

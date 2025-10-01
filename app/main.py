@@ -30,8 +30,8 @@ logger = logging.getLogger(__name__)
 memory_store: Optional[HTTPMemoryStore] = None
 
 # In-process rolling history per thread (survives across calls in same container)
-# 100 msgs ~= ~50 user/assistant turns. Tune as needed.
-THREAD_HISTORY: Dict[str, Deque[Tuple[str, str]]] = defaultdict(lambda: deque(maxlen=100))
+# 500 msgs ~= ~250 user/assistant turns. Consolidation triggers at 400.
+THREAD_HISTORY: Dict[str, Deque[Tuple[str, str]]] = defaultdict(lambda: deque(maxlen=500))
 
 # Track which threads have been loaded from database
 THREAD_LOADED: Dict[str, bool] = {}
@@ -53,7 +53,7 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
                 # Restore to in-memory deque
                 THREAD_HISTORY[thread_id] = deque(
                     [(msg["role"], msg["content"]) for msg in messages],
-                    maxlen=100
+                    maxlen=500
                 )
                 logger.info(f"🔄 Loaded {len(messages)} messages from database for thread {thread_id}")
             else:
