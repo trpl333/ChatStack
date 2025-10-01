@@ -52,13 +52,15 @@ The system now operates as a true microservices architecture with complete separ
 ### Core Components:
 - **LLM Integration**: ✅ **FULLY MIGRATED TO OPENAI** - Uses OpenAI Realtime API (gpt-realtime-2025-08-28) for AI responses with 2-2.5 second response times. Completely replaced previous RunPod integration.
 
-- **Memory System**: ✅ **HYBRID ARCHITECTURE (Oct 1, 2025)** - Dual-layer memory system for optimal conversation continuity:
+- **Memory System**: ✅ **PERSISTENT HYBRID ARCHITECTURE (Oct 1, 2025)** - Dual-layer memory system for optimal conversation continuity with database-backed persistence:
   
-  **Layer 1: Rolling Thread History (In-Process)**
+  **Layer 1: Rolling Thread History (Database-Backed)**
   - FastAPI maintains `THREAD_HISTORY` deque (maxlen=100) per stable `thread_id`
   - Thread ID format: `user_{phone_number}` (e.g., `user_9495565377`)
+  - ✅ **NEW**: Automatically loads from database on first access
+  - ✅ **NEW**: Saves to database after each turn (survives container restarts!)
   - Provides within-call AND cross-call conversation continuity
-  - Survives container uptime, resets on restart
+  - Persists indefinitely (7-day TTL in ai-memory service)
   
   **Layer 2: AI-Memory Service (Durable Storage)**
   - HTTP-based service at http://209.38.143.71:8100
@@ -70,15 +72,19 @@ The system now operates as a true microservices architecture with complete separ
   
   **Implementation Details:**
   - Flask (`main.py` line 686): Generates `thread_id = f"user_{user_id}"` instead of CallSid
-  - FastAPI (`app/main.py` line 34): Maintains THREAD_HISTORY dict with deques
+  - FastAPI (`app/main.py` line 37): Maintains THREAD_HISTORY dict with deques
+  - ✅ **NEW** (`app/main.py` line 42-92): `load_thread_history()` and `save_thread_history()` functions
   - Memory parser (`app/http_memory.py` line 175-191): Parses newline-separated JSON format
   - Message storage (line 81): Sends full JSON content via `json.dumps(value)`
+  - Thread persistence: Stored as `thread_history:{thread_id}` in ai-memory service
   
   **Benefits:**
   - Fast conversation flow without database queries every turn
+  - ✅ **Conversation history survives container restarts and worker reloads**
   - Persistent facts survive server restarts
   - 200+ message history window (tunable via maxlen parameter)
   - Natural cross-call continuity (same thread_id = same history)
+  - Zero data loss on deployment/restart events
 
 - **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing from memory, and safety triggers for content filtering.
 - **Tool System**: An extensible, JSON schema-based architecture for external tool execution (e.g., meeting booking, message sending) with a central dispatcher and error recovery.

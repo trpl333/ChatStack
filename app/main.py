@@ -33,6 +33,61 @@ memory_store: Optional[HTTPMemoryStore] = None
 # 100 msgs ~= ~50 user/assistant turns. Tune as needed.
 THREAD_HISTORY: Dict[str, Deque[Tuple[str, str]]] = defaultdict(lambda: deque(maxlen=100))
 
+# Track which threads have been loaded from database
+THREAD_LOADED: Dict[str, bool] = {}
+
+def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
+    """Load thread history from ai-memory database if not already loaded"""
+    if THREAD_LOADED.get(thread_id):
+        return  # Already loaded
+    
+    try:
+        # Search for stored thread history
+        history_key = f"thread_history:{thread_id}"
+        results = mem_store.search(history_key, user_id=user_id, k=1)
+        
+        if results:
+            value = results[0].get("value", {})
+            if isinstance(value, dict) and "messages" in value:
+                messages = value["messages"]
+                # Restore to in-memory deque
+                THREAD_HISTORY[thread_id] = deque(
+                    [(msg["role"], msg["content"]) for msg in messages],
+                    maxlen=100
+                )
+                logger.info(f"🔄 Loaded {len(messages)} messages from database for thread {thread_id}")
+            else:
+                logger.info(f"🧵 No stored history found for thread {thread_id}")
+        
+        THREAD_LOADED[thread_id] = True
+    except Exception as e:
+        logger.warning(f"Failed to load thread history: {e}")
+        THREAD_LOADED[thread_id] = True  # Mark as attempted to avoid retry loops
+
+def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
+    """Save thread history to ai-memory database for persistence"""
+    try:
+        history = THREAD_HISTORY.get(thread_id)
+        if not history:
+            return
+        
+        # Convert deque to list of dicts
+        messages = [{"role": role, "content": content} for role, content in history]
+        
+        # Store in ai-memory
+        history_key = f"thread_history:{thread_id}"
+        mem_store.write(
+            memory_type="thread_recap",
+            key=history_key,
+            value={"messages": messages, "count": len(messages)},
+            user_id=user_id,
+            scope="user",
+            ttl_days=7  # Keep for 7 days
+        )
+        logger.info(f"💾 Saved {len(messages)} messages to database for thread {thread_id}")
+    except Exception as e:
+        logger.warning(f"Failed to save thread history: {e}")
+
 # Feature flags
 ENABLE_RECAP = True           # write/read tiny durable recap to AI-Memory
 DISCOURAGE_GUESSING = True    # add a system rail when no memories are retrieved
@@ -213,7 +268,11 @@ async def chat_completion(
         # Build current request messages
         message_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
 
-        # Prepend rolling thread history (persistent within container)
+        # ✅ Load thread history from database if not already loaded
+        if thread_id:
+            load_thread_history(thread_id, mem_store, user_id)
+
+        # Prepend rolling thread history (persistent across container restarts)
         if thread_id and THREAD_HISTORY.get(thread_id):
             hist = [{"role": r, "content": c} for (r, c) in THREAD_HISTORY[thread_id]]
             # Take last ~40 messages to keep prompt lean
@@ -308,6 +367,9 @@ async def chat_completion(
                 THREAD_HISTORY[thread_id].append(("assistant", assistant_output))
                 logger.info(f"🧵 Appended ASSISTANT message to THREAD_HISTORY[{thread_id}]: {assistant_output[:50]}")
                 logger.info(f"🧵 Total messages in THREAD_HISTORY[{thread_id}]: {len(THREAD_HISTORY[thread_id])}")
+                
+                # ✅ Save thread history to database for persistence across restarts
+                save_thread_history(thread_id, mem_store, user_id)
         except Exception as e:
             logger.warning(f"THREAD_HISTORY append failed: {e}")
 
@@ -350,7 +412,7 @@ async def chat_completion(
         # Response
         response = ChatResponse(
             output=assistant_output,
-            used_memories=[mem.get("id") for mem in retrieved_memories if isinstance(mem, dict) and mem.get("id")],
+            used_memories=[str(mem.get("id")) for mem in retrieved_memories if isinstance(mem, dict) and mem.get("id")],
             prompt_tokens=usage_stats.get("prompt_tokens", 0),
             completion_tokens=usage_stats.get("completion_tokens", 0),
             total_tokens=usage_stats.get("total_tokens", 0),
