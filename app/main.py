@@ -42,12 +42,31 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
         return  # Already loaded
     
     try:
-        # Search for stored thread history
+        # Search for stored thread history with exact key match
         history_key = f"thread_history:{thread_id}"
-        results = mem_store.search(history_key, user_id=user_id, k=1)
         
+        # Strategy 1: Search for thread_recap type memories
+        results = mem_store.search(history_key, user_id=user_id, k=100, memory_types=["thread_recap"])
+        
+        # Debug: Log all keys to understand format
+        logger.info(f"🔍 Searching for key: {history_key}")
         if results:
-            value = results[0].get("value", {})
+            logger.info(f"🔍 Found {len(results)} thread_recap memories, first 10 keys:")
+            for i, result in enumerate(results[:10]):
+                result_key = result.get("key") or result.get("k") or ""
+                logger.info(f"  [{i}] key={result_key}, type={result.get('type')}")
+        
+        # Filter for exact key match
+        matching_memory = None
+        for result in results:
+            result_key = result.get("key") or result.get("k") or ""
+            if result_key == history_key:
+                matching_memory = result
+                logger.info(f"✅ Found exact match for key: {history_key}")
+                break
+        
+        if matching_memory:
+            value = matching_memory.get("value", {})
             if isinstance(value, dict) and "messages" in value:
                 messages = value["messages"]
                 # Restore to in-memory deque
@@ -56,9 +75,10 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
                     maxlen=500
                 )
                 logger.info(f"🔄 Loaded {len(messages)} messages from database for thread {thread_id}")
-            else:
-                logger.info(f"🧵 No stored history found for thread {thread_id}")
+                THREAD_LOADED[thread_id] = True
+                return
         
+        logger.info(f"🧵 No stored history found for thread {thread_id} (searched {len(results)} memories, key not matched)")
         THREAD_LOADED[thread_id] = True
     except Exception as e:
         logger.warning(f"Failed to load thread history: {e}")
