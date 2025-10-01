@@ -149,8 +149,8 @@ def get_admin_setting(setting_key, default=None):
             if stored_key == setting_key:
                 value_json = result.get("value_json", {})
                 if isinstance(value_json, dict):
-                    # Extract value from stored admin setting
-                    value = value_json.get("value") or value_json.get(setting_key) or str(value_json)
+                    # Extract value from stored admin setting - check both "value" and "setting_value"
+                    value = value_json.get("value") or value_json.get("setting_value") or value_json.get(setting_key) or str(value_json)
                     logging.info(f"📖 Retrieved admin setting {setting_key} from ai-memory: {value}")
                     return value
                 return str(value_json)
@@ -747,9 +747,9 @@ def handle_incoming_call():
     )
     response.append(gather)
     
-    # Fallback if no speech detected - RETRY instead of hangup
-    response.say("I didn't catch that. Let me try again.")
-    response.redirect('/phone/incoming')  # Retry the call instead of hanging up
+    # Fallback if no speech detected - end gracefully
+    response.say("I didn't hear anything. Please call back if you need assistance. Goodbye!")
+    response.hangup()
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 
@@ -1215,52 +1215,26 @@ def update_personality():
         
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
-    """Save greetings into AI-Memory service using correct API format"""
+    """Save greetings to config.json (ai-memory service has broken admin setting retrieval)"""
     try:
         data = request.get_json()
         existing_greeting = data.get('existing_user_greeting', '')
         new_greeting = data.get('new_caller_greeting', '')
         
-        from app.http_memory import HTTPMemoryStore
-        mem_store = HTTPMemoryStore()
-        
-        # ✅ Save existing user greeting with correct AI-Memory API format
+        # ✅ Save to config.json directly (ai-memory service admin settings are broken)
         if existing_greeting:
-            mem_store.write(
-                memory_type="admin_setting",
-                key="existing_user_greeting",
-                value={
-                    "setting_key": "existing_user_greeting",
-                    "setting_value": existing_greeting,
-                    "updated_by": "admin_panel"
-                },
-                user_id="admin",
-                scope="shared",
-                source="admin_panel"
-            )
-            logging.info(f"✅ Saved existing user greeting: {existing_greeting}")
+            _update_config_setting('existing_user_greeting', existing_greeting)
+            logging.info(f"✅ Saved existing user greeting to config.json: {existing_greeting}")
 
-        # ✅ Save new caller greeting with correct AI-Memory API format  
         if new_greeting:
-            mem_store.write(
-                memory_type="admin_setting",
-                key="new_caller_greeting",
-                value={
-                    "setting_key": "new_caller_greeting", 
-                    "setting_value": new_greeting,
-                    "updated_by": "admin_panel"
-                },
-                user_id="admin",
-                scope="shared",
-                source="admin_panel"
-            )
-            logging.info(f"✅ Saved new caller greeting: {new_greeting}")
+            _update_config_setting('new_caller_greeting', new_greeting)
+            logging.info(f"✅ Saved new caller greeting to config.json: {new_greeting}")
 
-        logging.info("✅ Greetings saved to AI-Memory service successfully")
+        logging.info("✅ Greetings saved to config.json successfully")
         return jsonify({"success": True, "message": "Greetings updated successfully"})
         
     except Exception as e:
-        logging.error(f"❌ Failed to save greetings to AI-Memory: {e}")
+        logging.error(f"❌ Failed to save greetings: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/update-routing', methods=['POST'])

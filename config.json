@@ -27,8 +27,8 @@
   "environment_description": "Specifies the current environment (e.g., development, staging, production).",
   "version": "2.2",
   "version_description": "Semantic version of this configuration file. Increment whenever config.json changes.",
-  "last_updated": "2025-09-20",
+  "last_updated": "2025-10-01",
   "last_updated_description": "Date this configuration file was last updated.",
-  "existing_user_greeting": "admin:existingUserGreeting",
-  "new_caller_greeting": "admin:newCallerGreeting"
+  "existing_user_greeting": "Hi {user_name}! Its Betsy again from Peterson Insurance.",
+  "new_caller_greeting": "Hi! This is Betsy from Peterson Insurance. How can I help you today?"
 }
