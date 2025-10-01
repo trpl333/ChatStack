@@ -138,23 +138,29 @@ def get_admin_setting(setting_key, default=None):
         results = mem_store.search(
             query_text=setting_key,  # Search for exact key name
             user_id="admin", 
-            k=10,  # Get more results to find exact match
+            k=20,  # Get more results to find all matches
             memory_types=["admin_setting"],
             include_shared=True
         )
         
-        # Look for exact key match in results
+        # ✅ Collect all exact matches with timestamps
+        matches = []
         for result in results:
             stored_key = result.get("k") or result.get("key") or result.get("setting_key", "")
-            if stored_key == setting_key:
-                # ✅ Extract from "value" field (normalized by parser)
-                value_obj = result.get("value", {})
-                if isinstance(value_obj, dict):
-                    # Extract value from stored admin setting
-                    value = value_obj.get("value") or value_obj.get("setting_value") or value_obj.get(setting_key) or str(value_obj)
-                    logging.info(f"📖 Retrieved admin setting {setting_key} from ai-memory: {value}")
-                    return value
-                return str(value_obj)
+            value_obj = result.get("value", {})
+            
+            if stored_key == setting_key and isinstance(value_obj, dict):
+                # Extract value and timestamp
+                value = value_obj.get("value") or value_obj.get("setting_value") or value_obj.get(setting_key) or str(value_obj)
+                timestamp = result.get("timestamp") or result.get("created_at") or 0
+                matches.append({"value": value, "timestamp": timestamp})
+        
+        # ✅ Sort by timestamp (most recent first) and return latest
+        if matches:
+            matches.sort(key=lambda x: x["timestamp"], reverse=True)
+            latest_value = matches[0]["value"]
+            logging.info(f"📖 Retrieved LATEST admin setting {setting_key} from ai-memory (found {len(matches)} versions): {latest_value}")
+            return latest_value
         
         # If no exact match, try partial match in message content
         for result in results:
@@ -1225,13 +1231,14 @@ def update_greetings():
     """Save greetings to AI-Memory service"""
     try:
         from app.http_memory import HTTPMemoryStore
+        import time
         mem_store = HTTPMemoryStore()
         
         data = request.get_json()
         existing_greeting = data.get('existing_user_greeting', '')
         new_greeting = data.get('new_caller_greeting', '')
         
-        # ✅ Save to AI-Memory service as admin settings
+        # ✅ Save to AI-Memory service as admin settings with timestamp
         if existing_greeting:
             mem_store.write(
                 memory_type="admin_setting",
@@ -1239,7 +1246,9 @@ def update_greetings():
                 value={
                     "setting_key": "existing_user_greeting",
                     "value": existing_greeting,
-                    "setting_value": existing_greeting
+                    "setting_value": existing_greeting,
+                    "timestamp": time.time(),  # ✅ Add timestamp for sorting
+                    "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
                 },
                 user_id="admin",
                 scope="shared",
@@ -1255,7 +1264,9 @@ def update_greetings():
                 value={
                     "setting_key": "new_caller_greeting",
                     "value": new_greeting,
-                    "setting_value": new_greeting
+                    "setting_value": new_greeting,
+                    "timestamp": time.time(),  # ✅ Add timestamp for sorting
+                    "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
                 },
                 user_id="admin",
                 scope="shared",
