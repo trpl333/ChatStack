@@ -63,8 +63,29 @@ def pack_prompt(
         Complete message list ready for LLM
     """
     
-    # Select appropriate system prompt
-    system_prompt = SYSTEM_SAFETY if safety_mode else SYSTEM_BASE
+    # ✅ Load AI instructions from admin panel settings (ai-memory)
+    system_prompt = SYSTEM_BASE  # Default fallback
+    if not safety_mode:
+        try:
+            from app.http_memory import HTTPMemoryStore
+            mem_store = HTTPMemoryStore()
+            
+            # Search for personality settings from admin panel
+            results = mem_store.search("personality_settings", user_id="admin", k=5)
+            
+            for result in results:
+                if result.get("key") == "personality_settings" or result.get("setting_key") == "personality_settings":
+                    value = result.get("value", {})
+                    admin_instructions = value.get("setting_value", {}).get("ai_instructions") or value.get("ai_instructions")
+                    if admin_instructions:
+                        system_prompt = admin_instructions
+                        logger.info(f"✅ Using AI instructions from admin panel: {admin_instructions[:100]}...")
+                        break
+        except Exception as e:
+            logger.warning(f"Failed to load admin personality settings, using default: {e}")
+    
+    if safety_mode:
+        system_prompt = SYSTEM_SAFETY
     
     # Get conversation recap
     recap = stm_manager.get_recap(thread_id)
