@@ -688,11 +688,8 @@ def get_ai_response(user_id, message, call_sid=None):
         # Build messages array in the format FastAPI expects
         messages = []
         
-        # Add recent conversation history
-        if conversation_history:
-            messages.extend(conversation_history[-6:])  # Last 6 messages for context
-            
-        # Add current user message
+        # ✅ DON'T send conversation history - FastAPI maintains THREAD_HISTORY internally
+        # Only send the current user message
         messages.append({"role": "user", "content": message})
         
         payload = {
