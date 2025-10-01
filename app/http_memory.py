@@ -97,9 +97,9 @@ class HTTPMemoryStore:
             if response.status_code == 200:
                 result = response.json()
                 # ✅ Fix: AI-Memory service may return different ID field names or just success message
-                memory_id = result.get("id") or result.get("memory_id") or result.get("session_id")
-                if not memory_id and "data" in result:
-                    memory_id = result["data"].get("id")
+               memory_id = result.get("id") or result.get("memory_id") or result.get("session_id")
+               if not memory_id and "data" in result:
+                   memory_id = result["data"].get("id")
                 
                 if memory_id:
                     scope_info = f" [{scope}]" + (f" user:{user_id}" if user_id else "")
@@ -107,13 +107,10 @@ class HTTPMemoryStore:
                     return str(memory_id)
                 else:
                     # ✅ Fix: Don't fail on successful 200 response, generate fallback ID
-                    import uuid
-                    generated_id = str(uuid.uuid4())
                     logger.warning(f"AI-Memory service returned 200 but no ID field found. Response: {result}")
-                    logger.info(f"Generated fallback ID: {generated_id} for {memory_type}:{key}")
                     scope_info = f" [{scope}]" + (f" user:{user_id}" if user_id else "")
-                    logger.info(f"Stored memory: {memory_type}:{key} with ID {generated_id}{scope_info}")
-                    return generated_id
+                    logger.info(f"Stored memory: {memory_type}:{key} with fallback KEY {key}{scope_info}")
+                    return key
             else:
                 raise Exception(f"AI-Memory service returned {response.status_code}: {response.text}")
                 
