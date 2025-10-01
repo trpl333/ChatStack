@@ -1383,6 +1383,54 @@ def update_greetings():
         logging.error(f"❌ Failed to save greetings to ai-memory: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/update-agent-name', methods=['POST'])
+def update_agent_name():
+    """Save agent name to AI-Memory service"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        import time
+        mem_store = HTTPMemoryStore()
+        
+        data = request.get_json()
+        agent_name = data.get('agent_name', '').strip()
+        
+        if not agent_name:
+            return jsonify({"success": False, "error": "Agent name cannot be empty"}), 400
+        
+        # Save to AI-Memory service as admin setting with timestamp
+        mem_store.write(
+            memory_type="admin_setting",
+            key="agent_name",
+            value={
+                "setting_key": "agent_name",
+                "value": agent_name,
+                "setting_value": agent_name,
+                "timestamp": time.time(),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            },
+            user_id="admin",
+            scope="shared",
+            ttl_days=365,
+            source="admin_panel"
+        )
+        logging.info(f"✅ Saved agent name to ai-memory: {agent_name}")
+        
+        return jsonify({"success": True, "message": f"Agent name updated to {agent_name}"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to save agent name to ai-memory: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/get-agent-name', methods=['GET'])
+def get_agent_name():
+    """Get agent name from AI-Memory service"""
+    try:
+        agent_name = get_admin_setting("agent_name", "Amanda")  # Default to Amanda
+        return jsonify({"agent_name": agent_name})
+    except Exception as e:
+        logging.error(f"❌ Failed to get agent name: {e}")
+        return jsonify({"agent_name": "Amanda"})  # Return default on error
+
 @app.route('/update-routing', methods=['POST'])
 def update_routing():
     """Update call routing settings"""
