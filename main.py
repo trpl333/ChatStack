@@ -711,17 +711,19 @@ def handle_incoming_call():
     from_number = request.form.get('From')
     call_sid = request.form.get('CallSid')
     
-    # Store call session with conversation history
-    call_sessions[call_sid] = {
-        'user_id': from_number,
-        'call_count': 1,
-        'conversation': []
-    }
-    
     logging.info(f"📞 Incoming call from {from_number} - Using improved streaming APIs")
     
     response = VoiceResponse()
     greeting = get_personalized_greeting(from_number)
+    
+    # ✅ Fix: Store call session with greeting in conversation history
+    call_sessions[call_sid] = {
+        'user_id': from_number,
+        'call_count': 1,
+        'conversation': [
+            {"role": "assistant", "content": greeting}  # Include initial greeting!
+        ]
+    }
     
     # Use improved ElevenLabs streaming for faster response
     audio_url = text_to_speech(greeting, VOICE_ID)
