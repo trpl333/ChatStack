@@ -51,12 +51,35 @@ The system now operates as a true microservices architecture with complete separ
 
 ### Core Components:
 - **LLM Integration**: ✅ **FULLY MIGRATED TO OPENAI** - Uses OpenAI Realtime API (gpt-realtime-2025-08-28) for AI responses with 2-2.5 second response times. Completely replaced previous RunPod integration.
-- **Memory System**: ✅ **MICROSERVICES COMPLETE** - HTTP-based AI-Memory service (http://209.38.143.71:8100) handles ALL persistent data:
-  - Conversation memories (person, preference, project, rule, moment, fact)
-  - Admin settings (greetings, voice settings, AI instructions)
+
+- **Memory System**: ✅ **HYBRID ARCHITECTURE (Oct 1, 2025)** - Dual-layer memory system for optimal conversation continuity:
+  
+  **Layer 1: Rolling Thread History (In-Process)**
+  - FastAPI maintains `THREAD_HISTORY` deque (maxlen=100) per stable `thread_id`
+  - Thread ID format: `user_{phone_number}` (e.g., `user_9495565377`)
+  - Provides within-call AND cross-call conversation continuity
+  - Survives container uptime, resets on restart
+  
+  **Layer 2: AI-Memory Service (Durable Storage)**
+  - HTTP-based service at http://209.38.143.71:8100
+  - Stores structured facts: person, preference, project, rule, moment, fact
+  - Handles admin settings (greetings, voice settings, AI instructions)
   - User registration and caller management
-  - Robust HTTPMemoryStore with fallback ID generation
-  - Eliminated all "degraded mode" and localhost dependency issues
+  - Robust HTTPMemoryStore with concatenated JSON parser
+  - Optional durable recap per thread (1-paragraph summary)
+  
+  **Implementation Details:**
+  - Flask (`main.py` line 686): Generates `thread_id = f"user_{user_id}"` instead of CallSid
+  - FastAPI (`app/main.py` line 34): Maintains THREAD_HISTORY dict with deques
+  - Memory parser (`app/http_memory.py` line 175-191): Parses newline-separated JSON format
+  - Message storage (line 81): Sends full JSON content via `json.dumps(value)`
+  
+  **Benefits:**
+  - Fast conversation flow without database queries every turn
+  - Persistent facts survive server restarts
+  - 200+ message history window (tunable via maxlen parameter)
+  - Natural cross-call continuity (same thread_id = same history)
+
 - **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing from memory, and safety triggers for content filtering.
 - **Tool System**: An extensible, JSON schema-based architecture for external tool execution (e.g., meeting booking, message sending) with a central dispatcher and error recovery.
 - **Data Models**: Pydantic for type-safe validation of request/response models, including role-based messages and structured memory objects.
