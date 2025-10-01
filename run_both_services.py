@@ -39,13 +39,15 @@ def main():
         fastapi_process.terminate()
         sys.exit(1)
     
-    # Start Flask frontend on port 5000
+    # Start Flask frontend on port 5000 with single worker for conversation memory
     print("🌐 Starting Flask phone system on port 5000...")
     try:
         subprocess.run([
             "gunicorn", 
             "--bind", "0.0.0.0:5000",
-            "--reuse-port",
+            "--workers", "1",  # Single worker to maintain conversation state
+            "--threads", "4",  # Use threads for concurrency within the worker
+            "--timeout", "120",
             "--reload",
             "main:app"
         ])
