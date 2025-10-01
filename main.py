@@ -150,16 +150,32 @@ def get_admin_setting(setting_key, default=None):
             value_obj = result.get("value", {})
             
             if stored_key == setting_key and isinstance(value_obj, dict):
-                # Extract value and timestamp
+                # Extract value and timestamp (check multiple locations)
                 value = value_obj.get("value") or value_obj.get("setting_value") or value_obj.get(setting_key) or str(value_obj)
-                timestamp = result.get("timestamp") or result.get("created_at") or 0
-                matches.append({"value": value, "timestamp": timestamp})
+                # Try multiple timestamp fields, prefer the one in value_obj
+                timestamp = (
+                    value_obj.get("timestamp") or 
+                    value_obj.get("created_at") or 
+                    value_obj.get("updated_at") or
+                    result.get("timestamp") or 
+                    result.get("created_at") or 
+                    0  # Old entries without timestamps get 0 (oldest)
+                )
+                # Convert string timestamps to float if needed
+                if isinstance(timestamp, str):
+                    try:
+                        import time
+                        from datetime import datetime
+                        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").timestamp()
+                    except:
+                        timestamp = 0
+                matches.append({"value": value, "timestamp": float(timestamp)})
         
         # ✅ Sort by timestamp (most recent first) and return latest
         if matches:
             matches.sort(key=lambda x: x["timestamp"], reverse=True)
             latest_value = matches[0]["value"]
-            logging.info(f"📖 Retrieved LATEST admin setting {setting_key} from ai-memory (found {len(matches)} versions): {latest_value}")
+            logging.info(f"📖 Retrieved LATEST admin setting {setting_key} from ai-memory (found {len(matches)} versions, timestamps: {[m['timestamp'] for m in matches[:3]]}): {latest_value}")
             return latest_value
         
         # If no exact match, try partial match in message content

@@ -239,6 +239,13 @@ async def chat_completion(
         if DISCOURAGE_GUESSING and not retrieved_memories:
             message_dicts = [{"role":"system","content":
                 "If you are not given a fact in retrieved memories or the current messages, say you don't know rather than guessing."}] + message_dicts
+        
+        # 🔍 DEBUG: Log complete message list being sent to LLM
+        logger.info(f"🔍 DEBUG: Sending {len(message_dicts)} total messages to LLM:")
+        for i, msg in enumerate(message_dicts[-10:]):  # Last 10 messages
+            role = msg.get('role', 'unknown')
+            content_preview = msg.get('content', '')[:80]
+            logger.info(f"  [{i}] {role}: {content_preview}")
 
         # Final pack with system context + retrieved memories
         final_messages = pack_prompt(
