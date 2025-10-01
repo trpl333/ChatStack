@@ -1,65 +1,79 @@
 import os
+import time
 import logging
-from typing import List, Optional
-from fastapi import FastAPI, HTTPException, Depends
+from typing import List, Optional, Deque, Tuple, Dict, Any
+from collections import defaultdict, deque
+
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi import Request
+from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
-from config_loader import get_secret, get_setting
 
+from config_loader import get_secret, get_setting
 from app.models import ChatRequest, ChatResponse, MemoryObject
 from app.llm import chat as llm_chat, chat_realtime_stream, _get_llm_config, validate_llm_connection
 from app.http_memory import HTTPMemoryStore
 from app.packer import pack_prompt, should_remember, extract_carry_kit_items, detect_safety_triggers
 from app.tools import tool_dispatcher, parse_tool_calls, execute_tool_calls
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+logging.basicConfig(level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# Global memory store instance
-memory_store = None
+# -----------------------------------------------------------------------------
+# Globals
+# -----------------------------------------------------------------------------
+memory_store: Optional[HTTPMemoryStore] = None
 
+# In-process rolling history per thread (survives across calls in same container)
+# 100 msgs ~= ~50 user/assistant turns. Tune as needed.
+THREAD_HISTORY: Dict[str, Deque[Tuple[str, str]]] = defaultdict(lambda: deque(maxlen=100))
+
+# Feature flags
+ENABLE_RECAP = True           # write/read tiny durable recap to AI-Memory
+DISCOURAGE_GUESSING = True    # add a system rail when no memories are retrieved
+
+# -----------------------------------------------------------------------------
+# Lifespan
+# -----------------------------------------------------------------------------
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan manager."""
     global memory_store
-    
-    # Startup
     logger.info("Starting NeuroSphere Orchestrator...")
-    
     try:
-        # Initialize memory store
         memory_store = HTTPMemoryStore()
         if memory_store.available:
             logger.info("✅ Memory store initialized")
-            # Cleanup expired memories
-            cleanup_count = memory_store.cleanup_expired()
-            logger.info(f"Cleaned up {cleanup_count} expired memories")
+            try:
+                cleanup_count = memory_store.cleanup_expired()
+                logger.info(f"🧹 Cleaned up {cleanup_count} expired memories")
+            except Exception as e:
+                logger.warning(f"Cleanup expired failed (non-fatal): {e}")
         else:
             logger.warning("⚠️ Memory store running in degraded mode (database unavailable)")
-        
-        # Validate LLM connection
+
         if not validate_llm_connection():
-            logger.warning("LLM connection validation failed - service may be unavailable")
-        
+            logger.warning("⚠️ LLM connection validation failed - service may be unavailable")
+
         yield
-        
     except Exception as e:
         logger.error(f"Startup failed: {e}")
-        # Don't raise - allow app to start in degraded mode
         logger.info("Starting app in degraded mode...")
     finally:
-        # Shutdown
         logger.info("Shutting down NeuroSphere Orchestrator...")
-        if memory_store:
-            memory_store.close()
+        try:
+            if memory_store:
+                memory_store.close()
+        except Exception:
+            pass
 
-# Create FastAPI app
+# -----------------------------------------------------------------------------
+# App
+# -----------------------------------------------------------------------------
 app = FastAPI(
     title="NeuroSphere Orchestrator",
     description="ChatGPT-style conversational AI with long-term memory and tool calling",
@@ -67,171 +81,166 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=["*"],    # tighten for prod
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 def get_memory_store() -> HTTPMemoryStore:
-    """Dependency to get memory store instance."""
     if memory_store is None:
         raise HTTPException(status_code=503, detail="Memory store not initialized - service degraded")
     if not memory_store.available:
-        raise HTTPException(status_code=503, detail="Memory store unavailable - service degraded") 
+        raise HTTPException(status_code=503, detail="Memory store unavailable - service degraded")
     return memory_store
 
-# Memory write heuristics
 IMPORTANT_TYPES = {"person", "preference", "project", "rule", "moment"}
 
 def should_store_memory(user_text: str, memory_type: str = "") -> bool:
-    """
-    Determine if content should be stored in long-term memory.
-    
-    Args:
-        user_text: User message content
-        memory_type: Type of memory being considered
-        
-    Returns:
-        True if should be stored
-    """
     return (
-        should_remember(user_text) or 
-        memory_type in IMPORTANT_TYPES or
-        "remember this" in user_text.lower() or
-        "save this" in user_text.lower()
+        should_remember(user_text)
+        or memory_type in IMPORTANT_TYPES
+        or "remember this" in user_text.lower()
+        or "save this" in user_text.lower()
     )
 
+# -----------------------------------------------------------------------------
+# Routes
+# -----------------------------------------------------------------------------
 @app.get("/")
 async def root():
-    """Root endpoint with service information."""
     return {
         "service": "NeuroSphere Orchestrator",
         "version": "1.0.0",
         "status": "running",
-        "description": "ChatGPT-style AI with memory and tools"
+        "description": "ChatGPT-style AI with memory and tools",
     }
 
 @app.get("/admin")
 async def admin_interface():
-    """Serve the knowledge base admin interface."""
     return FileResponse("static/admin.html")
 
 @app.get("/health")
 async def health_check(mem_store: HTTPMemoryStore = Depends(get_memory_store)):
-    """Health check endpoint."""
     try:
-        # Check memory store availability and get accurate stats
         memory_status = "connected" if mem_store.available else "unavailable"
-        
+        total_memories = 0
         if mem_store.available:
             try:
                 stats = mem_store.get_memory_stats()
-                total_memories = stats.get("total", 0)  # Fixed: use 'total' not 'total_memories'
+                total_memories = stats.get("total", 0)
             except Exception as e:
                 logger.error(f"Memory stats failed: {e}")
                 memory_status = "error"
-                total_memories = 0
-        else:
-            total_memories = 0
-        
-        # Check LLM connection
+
         llm_status = validate_llm_connection()
-        
+
         return {
             "status": "healthy" if (mem_store.available and llm_status) else "degraded",
             "memory_store": memory_status,
             "llm_service": "connected" if llm_status else "unavailable",
-            "total_memories": total_memories
+            "total_memories": total_memories,
         }
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service unhealthy")
 
+# -----------------------------------------------------------------------------
+# Chat with persistent thread history + optional recap
+# -----------------------------------------------------------------------------
 @app.post("/v1/chat", response_model=ChatResponse)
 async def chat_completion(
     request: ChatRequest,
     thread_id: str = "default",
     user_id: Optional[str] = None,
-    mem_store: HTTPMemoryStore = Depends(get_memory_store)
+    mem_store: HTTPMemoryStore = Depends(get_memory_store),
 ):
     """
-    Main chat completion endpoint with memory and tool calling.
-    
-    Args:
-        request: Chat request with messages and parameters
-        thread_id: Conversation thread identifier
-        mem_store: Memory store dependency
-        
-    Returns:
-        Chat response with output and metadata
+    Main chat completion endpoint with rolling thread history, durable recap,
+    long-term memory retrieval, and tool calling.
     """
     try:
         logger.info(f"Chat request: {len(request.messages)} messages, thread={thread_id}")
-        
+
         if not request.messages:
             raise HTTPException(status_code=400, detail="No messages provided")
-        
-        # Get the latest user message
+
+        # Latest user message
         user_message = None
         for msg in reversed(request.messages):
             if msg.role == "user":
                 user_message = msg.content
                 break
-        
         if not user_message:
             raise HTTPException(status_code=400, detail="No user message found")
-        
-        # Check for safety triggers
+
+        # Safety rails
         safety_mode = request.safety_mode or detect_safety_triggers(user_message)
         if safety_mode:
-            logger.info("Safety mode activated")
-        
-        # Process carry-kit items for memory storage
+            logger.info("🛡️ Safety mode activated")
+
+        # Opportunistic carry-kit write
         if should_remember(user_message):
-            carry_kit_items = extract_carry_kit_items(user_message)
-            for item in carry_kit_items:
+            for item in extract_carry_kit_items(user_message):
                 try:
                     memory_id = mem_store.write(
-                        item["type"],
-                        item["key"], 
-                        item["value"],
-                        user_id=user_id,  # Use the actual user_id
-                        scope="user",
-                        ttl_days=item.get("ttl_days", 365)
+                        item["type"], item["key"], item["value"],
+                        user_id=user_id, scope="user", ttl_days=item.get("ttl_days", 365)
                     )
-                    logger.info(f"Stored carry-kit item for user {user_id}: {item['type']}:{item['key']} -> {memory_id}")
+                    logger.info(f"🧠 Stored carry-kit for user {user_id}: {item['type']}:{item['key']} -> {memory_id}")
                 except Exception as e:
-                    logger.error(f"Failed to store carry-kit item: {e}")
-        
-        # Retrieve relevant memories (user-specific + shared)
-        # Use higher k for relationship/family questions to ensure we capture all relevant info
-        search_k = 15 if any(word in user_message.lower() for word in ["wife", "husband", "family", "friend", "name", "who is", "kelly", "job", "work", "teacher"]) else 6
+                    logger.error(f"Carry-kit write failed: {e}")
+
+        # Long-term memory retrieve (user-specific + shared)
+        search_k = 15 if any(w in (user_message.lower()) for w in
+                             ["wife","husband","family","friend","name","who is","kelly","job","work","teacher"]) else 6
         retrieved_memories = mem_store.search(user_message, user_id=user_id, k=search_k)
-        logger.info(f"Retrieved {len(retrieved_memories)} relevant memories")
-        
-        # Convert messages to dict format for processing
-        message_dicts = [{"role": msg.role, "content": msg.content} for msg in request.messages]
-        
-        # Pack prompt with system context, memories, and conversation
+        logger.info(f"🔎 Retrieved {len(retrieved_memories)} relevant memories")
+
+        # Build current request messages
+        message_dicts = [{"role": m.role, "content": m.content} for m in request.messages]
+
+        # Prepend rolling thread history (persistent within container)
+        if thread_id and THREAD_HISTORY.get(thread_id):
+            hist = [{"role": r, "content": c} for (r, c) in THREAD_HISTORY[thread_id]]
+            # Take last ~40 messages to keep prompt lean
+            hist = hist[-40:]
+            message_dicts = hist + message_dicts
+
+        # Optional durable recap from AI-Memory (1 paragraph)
+        if ENABLE_RECAP and thread_id and user_id:
+            try:
+                rec = mem_store.search(f"thread:{thread_id}:recap", user_id=user_id, k=1)
+                if rec:
+                    v = rec[0].get("value") or {}
+                    summary = v.get("summary")
+                    if summary:
+                        message_dicts = [{"role":"system","content":f"Conversation recap:\n{summary}"}] + message_dicts
+            except Exception as e:
+                logger.warning(f"Recap load failed: {e}")
+
+        # Add anti-guessing rail when we have no retrieved memories
+        if DISCOURAGE_GUESSING and not retrieved_memories:
+            message_dicts = [{"role":"system","content":
+                "If you are not given a fact in retrieved memories or the current messages, say you don't know rather than guessing."}] + message_dicts
+
+        # Final pack with system context + retrieved memories
         final_messages = pack_prompt(
             message_dicts,
             retrieved_memories,
             safety_mode=safety_mode,
             thread_id=thread_id
         )
-        
-        # Call LLM - detect realtime models and route appropriately  
+
+        # Select path based on model
         logger.info("Calling LLM...")
         config = _get_llm_config()
         logger.info(f"🟢 Model in config: {config['model']}")
-        
+
         if "realtime" in config["model"].lower():
             logger.info("🚀 Using realtime LLM")
             tokens = []
@@ -241,42 +250,64 @@ async def chat_completion(
                 max_tokens=request.max_tokens or 800
             ):
                 tokens.append(token)
-            
             assistant_output = "".join(tokens).strip()
             usage_stats = {
-                "prompt_tokens": sum(len(msg.get("content", "").split()) for msg in final_messages),
-                "completion_tokens": len(tokens),
-                "total_tokens": sum(len(msg.get("content", "").split()) for msg in final_messages) + len(tokens)
+                "prompt_tokens": sum(len(m.get("content","").split()) for m in final_messages),
+                "completion_tokens": len(assistant_output.split()),
+                "total_tokens": 0
             }
+            usage_stats["total_tokens"] = usage_stats["prompt_tokens"] + usage_stats["completion_tokens"]
         else:
-            logger.info("⚠️ Using standard chat LLM")
+            logger.info("🧠 Using standard chat LLM")
             assistant_output, usage_stats = llm_chat(
                 final_messages,
                 temperature=request.temperature,
                 top_p=request.top_p,
                 max_tokens=request.max_tokens
             )
-        
-        # Parse and execute tool calls if present
+
+        # Tool calling (if present)
         tool_results = []
         tool_calls = parse_tool_calls(assistant_output)
         if tool_calls:
-            logger.info(f"Executing {len(tool_calls)} tool calls")
+            logger.info(f"🛠️ Executing {len(tool_calls)} tool calls")
             tool_results = execute_tool_calls(tool_calls)
-            
-            # Append tool results to assistant output
             if tool_results:
-                result_summaries = []
-                for result in tool_results:
-                    if result["success"]:
-                        result_summaries.append(result["result"])
-                    else:
-                        result_summaries.append(f"Tool error: {result['error']}")
-                
-                if result_summaries:
-                    assistant_output += "\n\n" + "\n".join(result_summaries)
-        
-        # Store important information from the conversation
+                summaries = []
+                for r in tool_results:
+                    summaries.append(r["result"] if r["success"] else f"Tool error: {r['error']}")
+                if summaries:
+                    assistant_output += "\n\n" + "\n".join(summaries)
+
+        # Rolling in-process history append
+        try:
+            if thread_id:
+                last_user = next((m for m in reversed(request.messages) if m.role == "user"), None)
+                if last_user:
+                    THREAD_HISTORY[thread_id].append(("user", last_user.content))
+                THREAD_HISTORY[thread_id].append(("assistant", assistant_output))
+        except Exception as e:
+            logger.warning(f"THREAD_HISTORY append failed: {e}")
+
+        # Opportunistic durable recap write (tiny)
+        if ENABLE_RECAP and thread_id and user_id:
+            try:
+                last_user = next((m for m in reversed(request.messages) if m.role == "user"), None)
+                snippet_user = (last_user.content if last_user else "")[:300]
+                snippet_assistant = assistant_output[:400]
+                recap = f"{snippet_user} || {snippet_assistant}"
+                mem_store.write(
+                    "thread_recap",
+                    key=f"thread:{thread_id}:recap",
+                    value={"summary": recap, "updated_at": time.time()},
+                    user_id=user_id,
+                    scope="user",
+                    source="recap"
+                )
+            except Exception as e:
+                logger.warning(f"Recap write failed: {e}")
+
+        # Store important info as short-lived "moment"
         if should_store_memory(assistant_output, "moment"):
             try:
                 mem_store.write(
@@ -287,32 +318,32 @@ async def chat_completion(
                         "assistant_response": assistant_output[:500],
                         "summary": f"Conversation about: {user_message[:100]}..."
                     },
-                    user_id=user_id,  # ✅ Fixed: Include user_id for per-user conversation memories
+                    user_id=user_id,
                     scope="user",
-                    ttl_days=90  # Shorter TTL for conversation moments
+                    ttl_days=90
                 )
             except Exception as e:
                 logger.error(f"Failed to store conversation moment: {e}")
-        
-        # Prepare response
+
+        # Response
         response = ChatResponse(
             output=assistant_output,
-            used_memories=[mem["id"] for mem in retrieved_memories],
+            used_memories=[mem.get("id") for mem in retrieved_memories if isinstance(mem, dict) and mem.get("id")],
             prompt_tokens=usage_stats.get("prompt_tokens", 0),
             completion_tokens=usage_stats.get("completion_tokens", 0),
             total_tokens=usage_stats.get("total_tokens", 0),
-            memory_count=len(retrieved_memories)
+            memory_count=len(retrieved_memories),
         )
-        
-        logger.info(f"Chat completed: {response.total_tokens} tokens, {len(retrieved_memories)} memories used")
+        logger.info(f"✅ Chat completed: {response.total_tokens} tokens, memories used={len(retrieved_memories)}")
         return response
-        
+
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Chat completion failed: {e}")
         raise HTTPException(status_code=500, detail=f"Chat completion failed: {str(e)}")
 
+# OpenAI-style alias
 @app.post("/v1/chat/completions", response_model=ChatResponse)
 async def chat_completions_alias(
     request: Request,
@@ -320,24 +351,19 @@ async def chat_completions_alias(
     user_id: Optional[str] = None,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """
-    Alias endpoint for OpenAI-style /v1/chat/completions.
-    Simply forwards the request body to the existing /v1/chat handler.
-    """
     try:
         body = await request.json()
-        # Reuse the same logic by creating a ChatRequest object
         chat_req = ChatRequest(**body)
         return await chat_completion(
-            chat_req,
-            thread_id=thread_id,
-            user_id=user_id,
-            mem_store=mem_store
+            chat_req, thread_id=thread_id, user_id=user_id, mem_store=mem_store
         )
     except Exception as e:
         logger.error(f"Alias /v1/chat/completions failed: {e}")
         raise HTTPException(status_code=500, detail=f"Alias failed: {str(e)}")
 
+# -----------------------------------------------------------------------------
+# Memory APIs (unchanged interfaces)
+# -----------------------------------------------------------------------------
 @app.get("/v1/memories")
 async def get_memories(
     limit: int = 50,
@@ -345,21 +371,13 @@ async def get_memories(
     user_id: Optional[str] = None,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Get stored memories with optional filtering."""
     try:
         if user_id:
-            # Get user-specific memories
             memories = mem_store.get_user_memories(user_id, limit=limit, include_shared=True)
         else:
-            # Simple query to get recent memories
             query = "general" if not memory_type else memory_type
             memories = mem_store.search(query, k=limit)
-        
-        return {
-            "memories": memories,
-            "count": len(memories),
-            "stats": mem_store.get_memory_stats()
-        }
+        return {"memories": memories, "count": len(memories), "stats": mem_store.get_memory_stats()}
     except Exception as e:
         logger.error(f"Failed to get memories: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve memories")
@@ -369,24 +387,14 @@ async def store_memory(
     memory: MemoryObject,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Manually store a memory object."""
     try:
         memory_id = mem_store.write(
-            memory.type,
-            memory.key,
-            memory.value,
-            user_id=None,
-            scope="shared",  # Fixed: use 'shared' when user_id is None
-            ttl_days=memory.ttl_days,
-            source=memory.source
+            memory.type, memory.key, memory.value,
+            user_id=None, scope="shared",
+            ttl_days=memory.ttl_days, source=memory.source
         )
-        
-        return {
-            "success": True,
-            "id": memory_id,
-            "memory_id": memory_id,
-            "message": f"Memory stored: {memory.type}:{memory.key}"
-        }
+        return {"success": True, "id": memory_id, "memory_id": memory_id,
+                "message": f"Memory stored: {memory.type}:{memory.key}"}
     except Exception as e:
         logger.error(f"Failed to store memory: {e}")
         raise HTTPException(status_code=500, detail="Failed to store memory")
@@ -396,46 +404,31 @@ async def delete_memory(
     memory_id: str,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Delete a specific memory by ID."""
     try:
         success = mem_store.delete_memory(memory_id)
-        
         if success:
             return {"success": True, "message": f"Memory {memory_id} deleted"}
-        else:
-            raise HTTPException(status_code=404, detail="Memory not found")
-            
+        raise HTTPException(status_code=404, detail="Memory not found")
     except HTTPException:
         raise
     except Exception as e:
         logger.error(f"Failed to delete memory {memory_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete memory")
 
-# User Memory Management Endpoints
 @app.post("/v1/memories/user")
 async def store_user_memory(
     memory: MemoryObject,
     user_id: str,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Store a memory for a specific user."""
     try:
         memory_id = mem_store.write(
-            memory.type,
-            memory.key,
-            memory.value,
-            user_id=user_id,
-            scope="user",
-            ttl_days=memory.ttl_days,
-            source=memory.source or "api"
+            memory.type, memory.key, memory.value,
+            user_id=user_id, scope="user",
+            ttl_days=memory.ttl_days, source=memory.source or "api"
         )
-        
-        return {
-            "success": True,
-            "memory_id": memory_id,
-            "user_id": user_id,
-            "message": f"User memory stored: {memory.type}:{memory.key}"
-        }
+        return {"success": True, "memory_id": memory_id, "user_id": user_id,
+                "message": f"User memory stored: {memory.type}:{memory.key}"}
     except Exception as e:
         logger.error(f"Failed to store user memory: {e}")
         raise HTTPException(status_code=500, detail="Failed to store user memory")
@@ -445,24 +438,14 @@ async def store_shared_memory(
     memory: MemoryObject,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Store a shared memory available to all users."""
     try:
         memory_id = mem_store.write(
-            memory.type,
-            memory.key,
-            memory.value,
-            user_id=None,
-            scope="shared",
-            ttl_days=memory.ttl_days,
-            source=memory.source or "admin"
+            memory.type, memory.key, memory.value,
+            user_id=None, scope="shared",
+            ttl_days=memory.ttl_days, source=memory.source or "admin"
         )
-        
-        return {
-            "success": True,
-            "memory_id": memory_id,
-            "scope": "shared",
-            "message": f"Shared memory stored: {memory.type}:{memory.key}"
-        }
+        return {"success": True, "memory_id": memory_id, "scope": "shared",
+                "message": f"Shared memory stored: {memory.type}:{memory.key}"}
     except Exception as e:
         logger.error(f"Failed to store shared memory: {e}")
         raise HTTPException(status_code=500, detail="Failed to store shared memory")
@@ -475,24 +458,12 @@ async def get_user_memories(
     include_shared: bool = True,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Get memories for a specific user."""
     try:
         if query:
-            memories = mem_store.search(
-                query, 
-                user_id=user_id, 
-                k=limit,
-                include_shared=include_shared
-            )
+            memories = mem_store.search(query, user_id=user_id, k=limit, include_shared=include_shared)
         else:
-            # Get recent memories for user
             memories = mem_store.get_user_memories(user_id, limit=limit, include_shared=include_shared)
-        
-        return {
-            "user_id": user_id,
-            "memories": memories,
-            "count": len(memories)
-        }
+        return {"user_id": user_id, "memories": memories, "count": len(memories)}
     except Exception as e:
         logger.error(f"Failed to get user memories: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve user memories")
@@ -503,46 +474,32 @@ async def get_shared_memories(
     limit: int = 20,
     mem_store: HTTPMemoryStore = Depends(get_memory_store)
 ):
-    """Get shared memories available to all users."""
     try:
         if query:
-            memories = mem_store.search(
-                query, 
-                user_id=None, 
-                k=limit,
-                include_shared=True
-            )
-            # Filter to only shared memories
+            memories = mem_store.search(query, user_id=None, k=limit, include_shared=True)
             memories = [m for m in memories if m.get("scope") in ("shared", "global")]
         else:
             memories = mem_store.get_shared_memories(limit=limit)
-        
-        return {
-            "memories": memories,
-            "count": len(memories)
-        }
+        return {"memories": memories, "count": len(memories)}
     except Exception as e:
         logger.error(f"Failed to get shared memories: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve shared memories")
 
 @app.get("/v1/tools")
 async def get_available_tools():
-    """Get list of available tools and their schemas."""
-    return {
-        "tools": tool_dispatcher.get_available_tools(),
-        "count": len(tool_dispatcher.tools)
-    }
+    return {"tools": tool_dispatcher.get_available_tools(), "count": len(tool_dispatcher.tools)}
 
 @app.post("/v1/tools/{tool_name}")
 async def execute_tool(tool_name: str, parameters: dict):
-    """Execute a specific tool with given parameters."""
     try:
-        result = tool_dispatcher.dispatch(tool_name, parameters)
-        return result
+        return tool_dispatcher.dispatch(tool_name, parameters)
     except Exception as e:
         logger.error(f"Tool execution failed: {e}")
         raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
 
+# -----------------------------------------------------------------------------
+# Entrypoint (dev)
+# -----------------------------------------------------------------------------
 if __name__ == "__main__":
     import uvicorn
     port = int(get_setting("port", 8000))
