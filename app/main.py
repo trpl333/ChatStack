@@ -4,11 +4,19 @@ import logging
 from typing import List, Optional, Deque, Tuple, Dict, Any
 from collections import defaultdict, deque
 
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from contextlib import asynccontextmanager
+from starlette.websockets import WebSocketState
+import json
+import base64
+import audioop
+import numpy as np
+import asyncio
+import threading
+from websocket import WebSocketApp
 
 from config_loader import get_secret, get_setting
 from app.models import ChatRequest, ChatResponse, MemoryObject
@@ -737,6 +745,245 @@ async def execute_tool(tool_name: str, parameters: dict):
     except Exception as e:
         logger.error(f"Tool execution failed: {e}")
         raise HTTPException(status_code=500, detail=f"Tool execution failed: {str(e)}")
+
+# -----------------------------------------------------------------------------
+# OpenAI Realtime API Bridge for Twilio Media Streams
+# -----------------------------------------------------------------------------
+
+def pcmu8k_to_pcm16_8k(b: bytes) -> bytes:
+    """Convert Twilio mulaw to PCM16"""
+    return audioop.ulaw2lin(b, 2)
+
+def upsample_8k_to_24k(pcm16_8k: bytes) -> bytes:
+    """Upsample 8kHz to 24kHz (3x)"""
+    arr = np.frombuffer(pcm16_8k, dtype=np.int16)
+    arr3 = np.repeat(arr, 3)
+    return arr3.tobytes()
+
+def downsample_24k_to_8k(pcm16_24k: bytes) -> bytes:
+    """Downsample 24kHz to 8kHz (1/3)"""
+    arr = np.frombuffer(pcm16_24k, dtype=np.int16)
+    arr8k = arr[::3]
+    return arr8k.tobytes()
+
+def pcm16_8k_to_pcmu8k(pcm16_8k: bytes) -> bytes:
+    """Convert PCM16 to Twilio mulaw"""
+    return audioop.lin2ulaw(pcm16_8k, 2)
+
+class OAIRealtime:
+    """OpenAI Realtime API WebSocket client"""
+    
+    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta):
+        self.ws = None
+        self.system_instructions = system_instructions
+        self.on_audio_delta = on_audio_delta
+        self.on_text_delta = on_text_delta
+        self._connected = threading.Event()
+    
+    def _on_open(self, ws):
+        """Configure session when WebSocket opens"""
+        session_update = {
+            "type": "session.update",
+            "session": {
+                "modalities": ["text", "audio"],
+                "instructions": self.system_instructions,
+                "input_audio_format": "pcm16",
+                "output_audio_format": "pcm16",
+                "turn_detection": {"type": "server_vad"},
+                "temperature": 0.7,
+                "voice": "alloy"
+            }
+        }
+        ws.send(json.dumps(session_update))
+        logger.info("✅ OpenAI Realtime session configured")
+        self._connected.set()
+    
+    def _on_message(self, ws, msg):
+        """Handle incoming messages from OpenAI"""
+        try:
+            ev = json.loads(msg)
+        except Exception:
+            return
+        
+        event_type = ev.get("type")
+        
+        if event_type == "response.audio.delta":
+            b64 = ev.get("delta", "")
+            if b64:
+                pcm24 = base64.b64decode(b64)
+                self.on_audio_delta(pcm24)
+        
+        elif event_type == "response.text.delta":
+            delta = ev.get("delta", "")
+            if delta:
+                self.on_text_delta(delta)
+        
+        elif event_type == "session.created":
+            logger.info(f"✅ OpenAI session created: {ev.get('session', {}).get('id')}")
+        
+        elif event_type == "input_audio_buffer.speech_started":
+            logger.info("🎤 User started speaking")
+        
+        elif event_type == "input_audio_buffer.speech_stopped":
+            logger.info("🎤 User stopped speaking")
+        
+        elif event_type == "response.done":
+            logger.info("✅ OpenAI response complete")
+        
+        elif event_type == "error":
+            error_msg = ev.get("error", {}).get("message", "Unknown error")
+            logger.error(f"❌ OpenAI error: {error_msg}")
+    
+    def _on_error(self, ws, err):
+        logger.error(f"OpenAI WebSocket error: {err}")
+    
+    def _on_close(self, ws, code, reason):
+        logger.info(f"OpenAI WebSocket closed: {code} {reason}")
+    
+    def connect(self):
+        """Establish WebSocket connection to OpenAI Realtime API"""
+        openai_key = get_secret("OPENAI_API_KEY")
+        model = get_setting("realtime_model", "gpt-4o-realtime-preview-2024-10-01")
+        realtime_url = f"wss://api.openai.com/v1/realtime?model={model}"
+        
+        headers = [
+            f"Authorization: Bearer {openai_key}",
+            "OpenAI-Beta: realtime=v1"
+        ]
+        
+        self.ws = WebSocketApp(
+            realtime_url,
+            header=headers,
+            on_open=self._on_open,
+            on_message=self._on_message,
+            on_error=self._on_error,
+            on_close=self._on_close
+        )
+        
+        threading.Thread(target=self.ws.run_forever, daemon=True).start()
+        self._connected.wait(timeout=5)
+    
+    def send_pcm16_24k(self, chunk: bytes):
+        """Send audio chunk to OpenAI"""
+        if not self.ws:
+            return
+        ev = {
+            "type": "input_audio_buffer.append",
+            "audio": base64.b64encode(chunk).decode("ascii")
+        }
+        self.ws.send(json.dumps(ev))
+    
+    def commit_and_respond(self):
+        """Commit audio buffer and request response"""
+        if not self.ws:
+            return
+        self.ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+        self.ws.send(json.dumps({"type": "response.create"}))
+    
+    def close(self):
+        """Close the WebSocket connection"""
+        if self.ws:
+            self.ws.close()
+
+@app.websocket("/phone/media-stream")
+async def media_stream_endpoint(websocket: WebSocket):
+    """Twilio Media Streams WebSocket endpoint"""
+    await websocket.accept()
+    logger.info("🌐 Twilio Media Stream connected")
+    
+    stream_sid = None
+    oai = None
+    last_media_ts = time.time()
+    
+    def on_oai_audio(pcm24):
+        """Handle audio from OpenAI - send to Twilio"""
+        pcm8 = downsample_24k_to_8k(pcm24)
+        mulaw = pcm16_8k_to_pcmu8k(pcm8)
+        payload = base64.b64encode(mulaw).decode("ascii")
+        
+        if websocket.application_state == WebSocketState.CONNECTED:
+            asyncio.create_task(websocket.send_text(json.dumps({
+                "event": "media",
+                "streamSid": stream_sid,
+                "media": {"payload": payload}
+            })))
+    
+    def on_oai_text(delta):
+        """Handle text transcript from OpenAI"""
+        logger.info(f"📝 OpenAI: {delta}")
+    
+    try:
+        while True:
+            msg = await websocket.receive_text()
+            ev = json.loads(msg)
+            event_type = ev.get("event")
+            
+            if event_type == "start":
+                stream_sid = ev["start"]["streamSid"]
+                custom_params = ev["start"].get("customParameters", {})
+                user_id = custom_params.get("user_id")
+                is_callback = custom_params.get("is_callback") == "True"
+                
+                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Callback: {is_callback}")
+                
+                # Build system instructions with memory context
+                try:
+                    mem_store = HTTPMemoryStore()
+                    memories = mem_store.search("", user_id=user_id, k=5) if user_id else []
+                    
+                    instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
+                    
+                    if memories:
+                        instructions += "\n\nContext from previous conversations:\n"
+                        for mem in memories[:3]:
+                            value = mem.get("value", {})
+                            if isinstance(value, dict):
+                                if "name" in value:
+                                    instructions += f"- {value.get('name')} ({value.get('relationship', 'contact')})\n"
+                                elif "description" in value:
+                                    instructions += f"- {value.get('description')}\n"
+                
+                except Exception as e:
+                    logger.error(f"Failed to load memory context: {e}")
+                    instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
+                
+                # Connect to OpenAI
+                oai = OAIRealtime(instructions, on_oai_audio, on_oai_text)
+                oai.connect()
+            
+            elif event_type == "media":
+                # Audio from Twilio (mulaw 8kHz base64)
+                b64 = ev["media"]["payload"]
+                mulaw = base64.b64decode(b64)
+                pcm16_8k = pcmu8k_to_pcm16_8k(mulaw)
+                pcm16_24k = upsample_8k_to_24k(pcm16_8k)
+                
+                if oai:
+                    oai.send_pcm16_24k(pcm16_24k)
+                last_media_ts = time.time()
+            
+            elif event_type == "mark":
+                # Mark event - commit audio buffer
+                if oai:
+                    oai.commit_and_respond()
+            
+            elif event_type == "stop":
+                logger.info(f"📞 Stream stopped: {stream_sid}")
+                break
+            
+            # Auto-commit on pause (rudimentary VAD assist)
+            if (time.time() - last_media_ts) > 0.7 and oai:
+                oai.commit_and_respond()
+                last_media_ts = time.time()
+    
+    except WebSocketDisconnect:
+        logger.info("Twilio disconnected")
+    except Exception as e:
+        logger.exception(f"Media stream error: {e}")
+    finally:
+        if oai:
+            oai.close()
+        logger.info("🔌 WebSocket closed")
 
 # -----------------------------------------------------------------------------
 # Entrypoint (dev)
