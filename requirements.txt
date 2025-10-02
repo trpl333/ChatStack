@@ -64,3 +64,6 @@ websocket-client
 websocket-client
 openai==1.58.1
 websocket-client==0.59.0
+openai>=1.52.0
+python-socketio
+websockets
