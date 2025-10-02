@@ -785,10 +785,14 @@ def get_ai_response(user_id, message, call_sid=None):
 @app.route('/phone/incoming', methods=['POST'])
 def handle_incoming_call():
     """Handle incoming phone calls from Twilio - Improved streaming version"""
+    import time
+    t0 = time.time()  # ⏱️ Start timing
+    
     from_number = request.form.get('From')
     call_sid = request.form.get('CallSid')
     
     logging.info(f"📞 Incoming call from {from_number} - Using improved streaming APIs")
+    logging.info(f"⏱️ Stage: Call received | Elapsed: {time.time() - t0:.3f}s")
     
     # ✅ Check if this user has previous call history (callback detection)
     # Use SAME normalization as everywhere else in the system
@@ -809,11 +813,13 @@ def handle_incoming_call():
             user_memories = mem_store.search("", user_id=from_number, k=3)
         is_callback = len(user_memories) > 0
         logging.info(f"🔄 Callback detection: user {normalized_user_id} has {len(user_memories)} memories, is_callback={is_callback}")
+        logging.info(f"⏱️ Stage: Callback detection | Elapsed: {time.time() - t0:.3f}s")
     except Exception as e:
         logging.warning(f"Failed to check callback status: {e}")
     
     response = VoiceResponse()
     greeting = get_personalized_greeting(from_number)
+    logging.info(f"⏱️ Stage: Greeting chosen | Elapsed: {time.time() - t0:.3f}s")
     
     # ✅ Store call session with greeting and callback flag
     call_sessions[call_sid] = {
@@ -827,13 +833,18 @@ def handle_incoming_call():
     }
     
     # Use improved ElevenLabs streaming for faster response
+    tts_start = time.time()
     audio_url = text_to_speech(greeting, VOICE_ID)
+    logging.info(f"⏱️ Stage: TTS generation | Elapsed: {time.time() - t0:.3f}s | TTS duration: {time.time() - tts_start:.3f}s")
+    
     if audio_url:
         # Play the generated audio file (with streaming optimizations)
         response.play(audio_url)
+        logging.info(f"⏱️ Stage: Audio sent to Twilio | Elapsed: {time.time() - t0:.3f}s")
     else:
         # Fallback to Twilio voice if ElevenLabs fails
         response.say(greeting, voice='Polly.Joanna')
+        logging.info(f"⏱️ Stage: Fallback TTS sent | Elapsed: {time.time() - t0:.3f}s")
     
     # Gather user speech with optimized settings
     # Use absolute HTTPS URL and ensure action is called even without speech
@@ -859,6 +870,9 @@ def handle_incoming_call():
 @app.route('/phone/process-speech', methods=['POST'])
 def process_speech():
     """Process speech input from caller"""
+    import time
+    t0 = time.time()  # ⏱️ Start timing for this interaction
+    
     # Log entry to confirm route is being hit
     logging.info(f"📞 /phone/process-speech route called - verifying Twilio webhook")
     
@@ -867,6 +881,7 @@ def process_speech():
     from_number = request.form.get('From')
     
     logging.info(f"🎤 Speech from {from_number} (CallSid: {call_sid}): '{speech_result}'")
+    logging.info(f"⏱️ Stage: Caller speech received | Elapsed: {time.time() - t0:.3f}s")
     
     if not speech_result:
         response = VoiceResponse()
@@ -1098,8 +1113,13 @@ def process_speech():
     except Exception as e:
         logging.error(f"Memory saving error: {e}")
     
+    logging.info(f"⏱️ Stage: Memory storage complete | Elapsed: {time.time() - t0:.3f}s")
+    
     # Get AI response from NeuroSphere with conversation context
+    llm_start = time.time()
+    logging.info(f"⏱️ Stage: LLM request start | Elapsed: {time.time() - t0:.3f}s")
     ai_response = get_ai_response(user_id, speech_result, call_sid)
+    logging.info(f"⏱️ Stage: LLM response complete | Elapsed: {time.time() - t0:.3f}s | LLM duration: {time.time() - llm_start:.3f}s")
     
     # Store conversation history
     if call_sid in call_sessions:
@@ -1117,13 +1137,19 @@ def process_speech():
     response = VoiceResponse()
     
     # Use ElevenLabs for AI response (consistent with greeting)
+    tts_start = time.time()
+    logging.info(f"⏱️ Stage: TTS request start | Elapsed: {time.time() - t0:.3f}s")
     audio_url = text_to_speech(ai_response, VOICE_ID)
+    logging.info(f"⏱️ Stage: TTS complete | Elapsed: {time.time() - t0:.3f}s | TTS duration: {time.time() - tts_start:.3f}s")
+    
     if audio_url:
         # Play the generated audio file
         response.play(audio_url)
+        logging.info(f"⏱️ Stage: Response audio sent to Twilio | Elapsed: {time.time() - t0:.3f}s")
     else:
         # Fallback to Twilio voice if ElevenLabs fails
         response.say(ai_response, voice='alice')
+        logging.info(f"⏱️ Stage: Fallback response sent | Elapsed: {time.time() - t0:.3f}s")
     
     # Skip the "anything else" question - just wait for user input
     
