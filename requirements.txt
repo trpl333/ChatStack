@@ -67,3 +67,4 @@ websocket-client==0.59.0
 openai>=1.52.0
 python-socketio
 websockets
+flask-sock

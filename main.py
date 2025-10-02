@@ -7,13 +7,15 @@ import json
 import io
 import base64
 from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response, send_from_directory
+from flask_sock import Sock
 from twilio.rest import Client
 from twilio.twiml import TwiML
-from twilio.twiml.voice_response import VoiceResponse, Gather, Start, Stream
+from twilio.twiml.voice_response import VoiceResponse, Gather, Start, Stream, Connect
 # Temporarily disabled ElevenLabs due to pydantic compatibility issues
 # from elevenlabs import ElevenLabs, VoiceSettings
 import tempfile
 import logging
+import asyncio
 from config_loader import get_secret, get_setting, get_twilio_config, get_elevenlabs_config, get_llm_config, get_all_config
 
 # Configure logging
@@ -72,6 +74,9 @@ app = Flask(__name__, static_folder='static', static_url_path='/static')
 app.secret_key = SESSION_SECRET or "temporary-dev-secret"
 if not SESSION_SECRET:
     print("⚠️ Warning: SESSION_SECRET not set, using temporary key")
+
+# Initialize WebSocket support for Twilio Media Streams
+sock = Sock(app)
 
 # Configure Flask to work behind HTTPS proxy (nginx)
 from werkzeug.middleware.proxy_fix import ProxyFix
@@ -866,6 +871,217 @@ def handle_incoming_call():
     response.hangup()
     
     return str(response), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/phone/incoming-realtime', methods=['POST'])
+def handle_incoming_call_realtime():
+    """Handle incoming phone calls using OpenAI Realtime API with Twilio Media Streams"""
+    import time
+    t0 = time.time()
+    
+    from_number = request.form.get('From')
+    call_sid = request.form.get('CallSid')
+    
+    logging.info(f"📞 Incoming call from {from_number} - Using OpenAI Realtime API")
+    logging.info(f"⏱️ Stage: Call received | Elapsed: {time.time() - t0:.3f}s")
+    
+    # Normalize user ID
+    normalized_user_id = from_number
+    if from_number:
+        normalized_digits = ''.join(filter(str.isdigit, from_number))
+        if len(normalized_digits) >= 10:
+            normalized_user_id = normalized_digits[-10:]
+    
+    # Check callback status
+    is_callback = False
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        user_memories = mem_store.search("", user_id=normalized_user_id, k=3)
+        if not user_memories:
+            user_memories = mem_store.search("", user_id=from_number, k=3)
+        is_callback = len(user_memories) > 0
+        logging.info(f"🔄 Callback detection: user {normalized_user_id}, is_callback={is_callback}")
+    except Exception as e:
+        logging.warning(f"Failed to check callback status: {e}")
+    
+    # Create TwiML response with Media Streams
+    response = VoiceResponse()
+    
+    # Add initial greeting message
+    greeting = get_personalized_greeting(from_number)
+    response.say(greeting, voice='Polly.Joanna')
+    
+    # Connect to WebSocket for bidirectional audio streaming
+    connect = Connect()
+    config = _get_config()
+    server_url = config["server_url"]
+    
+    # Construct wss:// URL for WebSocket
+    ws_url = server_url.replace("https://", "wss://").replace("http://", "ws://")
+    ws_url = f"{ws_url}/phone/media-stream"
+    
+    # Create Stream with custom parameters
+    stream_elem = Stream(url=ws_url)
+    stream_elem.parameter(name='user_id', value=normalized_user_id)
+    stream_elem.parameter(name='call_sid', value=call_sid)
+    stream_elem.parameter(name='is_callback', value=str(is_callback))
+    
+    connect.append(stream_elem)
+    response.append(connect)
+    
+    logging.info(f"⏱️ Stage: TwiML generated with Media Stream | Elapsed: {time.time() - t0:.3f}s")
+    logging.info(f"🔗 WebSocket URL: {ws_url}")
+    
+    return str(response), 200, {'Content-Type': 'text/xml'}
+
+@sock.route('/phone/media-stream')
+def media_stream(ws):
+    """WebSocket endpoint for Twilio Media Streams <-> OpenAI Realtime API bridge"""
+    import time
+    from app.realtime_bridge import RealtimeBridge
+    from app.http_memory import HTTPMemoryStore
+    
+    t0 = time.time()
+    logging.info("🌐 WebSocket connection established from Twilio")
+    
+    bridge = None
+    stream_sid = None
+    user_id = None
+    loop = None
+    
+    try:
+        # Get OpenAI API key
+        config = _get_config()
+        openai_api_key = config.get("openai_api_key")
+        
+        if not openai_api_key:
+            logging.error("❌ OPENAI_API_KEY not configured")
+            ws.close()
+            return
+        
+        # Create bridge instance
+        bridge = RealtimeBridge(openai_api_key)
+        
+        # Event loop for async operations
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
+        # Wait for initial messages from Twilio
+        initial_message = ws.receive()
+        if initial_message:
+            data = json.loads(initial_message)
+            bridge.handle_twilio_message(data)
+            
+            if data.get("event") == "start":
+                stream_sid = data.get("streamSid")
+                custom_params = data.get("start", {}).get("customParameters", {})
+                user_id = custom_params.get("user_id")
+                is_callback = custom_params.get("is_callback") == "True"
+                
+                logging.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Callback: {is_callback}")
+                
+                # Build system instructions with memory context
+                system_instructions = build_system_instructions_with_memory(user_id, is_callback)
+                
+                # Get voice settings from admin
+                voice = get_admin_setting("voice_id", "alloy")  # OpenAI voices: alloy, echo, fable, onyx, nova, shimmer
+                
+                # Connect to OpenAI Realtime API
+                connected = loop.run_until_complete(
+                    bridge.connect_to_openai(system_instructions, voice)
+                )
+                
+                if not connected:
+                    logging.error("❌ Failed to connect to OpenAI Realtime API")
+                    ws.close()
+                    return
+                
+                logging.info(f"⏱️ OpenAI connection established | Elapsed: {time.time() - t0:.3f}s")
+                
+                # Start async tasks for audio bridging
+                async def run_bridge():
+                    await asyncio.gather(
+                        bridge.forward_twilio_to_openai(),
+                        bridge.listen_to_openai(),
+                        bridge.forward_openai_to_twilio(ws)
+                    )
+                
+                # Start bridge in background thread
+                bridge_task = loop.create_task(run_bridge())
+                
+                # Main loop: receive messages from Twilio
+                while not bridge.should_stop:
+                    try:
+                        message = ws.receive(timeout=0.1)
+                        if message:
+                            data = json.loads(message)
+                            bridge.handle_twilio_message(data)
+                            
+                            if data.get("event") == "stop":
+                                logging.info("📞 Twilio requested stream stop")
+                                break
+                    except:
+                        # Timeout or no message
+                        pass
+                
+                # Cleanup
+                bridge_task.cancel()
+                loop.run_until_complete(bridge.close())
+        
+    except Exception as e:
+        logging.error(f"❌ Media stream error: {e}", exc_info=True)
+    
+    finally:
+        if bridge and loop:
+            try:
+                loop.run_until_complete(bridge.close())
+            except:
+                pass
+        logging.info(f"🔌 WebSocket connection closed | Total time: {time.time() - t0:.3f}s")
+
+def build_system_instructions_with_memory(user_id: str, is_callback: bool) -> str:
+    """Build system instructions with conversation context from memory"""
+    base_instructions = "You are Samantha, a helpful AI assistant for Peterson Family Insurance Agency."
+    
+    try:
+        from app.http_memory import HTTPMemoryStore
+        
+        # Get AI instructions from admin settings
+        base_instructions = get_admin_setting("ai_instructions") or base_instructions
+        
+        # Replace agent_name placeholder
+        agent_name = get_admin_setting("agent_name", "Samantha")
+        base_instructions = base_instructions.replace("{agent_name}", agent_name)
+        
+        if not user_id:
+            return base_instructions
+        
+        # Load recent memories
+        mem_store = HTTPMemoryStore()
+        memories = mem_store.search("", user_id=user_id, k=10)
+        
+        if not memories:
+            return base_instructions
+        
+        # Build memory context
+        memory_context = "\n\n## Previous Conversation Context:\n"
+        for mem in memories[:5]:  # Top 5 most relevant
+            mem_type = mem.get("memory_type", "fact")
+            value = mem.get("value", {})
+            
+            if isinstance(value, dict):
+                if "name" in value:
+                    memory_context += f"- Person: {value.get('name')} ({value.get('relationship', 'N/A')})\n"
+                elif "description" in value:
+                    memory_context += f"- {value.get('description')}\n"
+                elif "preference" in value:
+                    memory_context += f"- Preference: {value.get('preference')}\n"
+        
+        return base_instructions + memory_context
+        
+    except Exception as e:
+        logging.error(f"Failed to build system instructions: {e}")
+        return base_instructions
 
 @app.route('/phone/process-speech', methods=['POST'])
 def process_speech():
