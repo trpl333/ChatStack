@@ -359,7 +359,9 @@
                         
                         <!-- MIDDLE: User List -->
                         <div class="col-md-3">
-                            <h5>Users with Memories</h5>
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5>Users with Memories</h5>
+                            </div>
                             <div id="user-list" style="max-height: 600px; overflow-y: auto;">
                                 <div class="text-center text-muted py-4">
                                     <div class="spinner-border" role="status"></div>
@@ -1361,8 +1363,9 @@
                 </div>
                 
                 <button class="btn btn-success btn-sm w-100 mt-3" onclick="saveSchema('${userId}')">💾 Save Profile</button>
+                <button class="btn btn-primary btn-sm w-100 mt-2" onclick="processAllMemories('${userId}')">🔄 Extract from All Memories</button>
                 <div class="text-muted mt-2 small text-center">
-                    Edits here override auto-extracted data
+                    Extract will process all ${totalMemories || '800+'} memories and populate this schema automatically
                 </div>
             `;
         }
@@ -1383,6 +1386,43 @@
                 </div>
             `;
             vehiclesList.insertAdjacentHTML('beforeend', html);
+        }
+        
+        // ✅ NEW: Process all memories and extract to schema
+        async function processAllMemories(userId) {
+            if (!confirm('This will process ALL memories for this user and extract information into the structured schema. Continue?')) {
+                return;
+            }
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Processing...';
+            
+            try {
+                const response = await fetch(`/phone/process-all-memories/${userId}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Success', 
+                        `Extracted: ${data.stats.contacts} contacts, ${data.stats.vehicles} vehicles, ${data.stats.policies} policies, ${data.stats.facts} facts from ${data.stats.total_memories} memories!`, 
+                        false);
+                    
+                    // Reload the schema editor to show extracted data
+                    loadUserSchema(userId);
+                } else {
+                    showNotification('Error', 'Failed to process memories: ' + (data.error || 'Unknown error'), true);
+                }
+            } catch (error) {
+                console.error('Process error:', error);
+                showNotification('Error', 'Failed to process: ' + error.message, true);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '🔄 Extract from All Memories';
+            }
         }
         
         // ✅ NEW: Save schema changes from collapsible tree

@@ -1941,6 +1941,98 @@ def get_user_schema(user_id):
         logging.error(f"❌ Failed to get user schema: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/phone/process-all-memories/<user_id>', methods=['POST'])
+def process_all_memories(user_id):
+    """Process ALL memories for a user and extract into structured schema"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Normalize user_id
+        normalized_user_id = user_id
+        if user_id:
+            normalized_digits = ''.join(filter(str.isdigit, user_id))
+            if len(normalized_digits) >= 10:
+                normalized_user_id = normalized_digits[-10:]
+        
+        logging.info(f"🔄 Processing ALL memories for user: {normalized_user_id}")
+        
+        # Get ALL memories for this user (high limit)
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        response = requests.post(
+            f"{ai_memory_url}/memory/retrieve",
+            json={"user_id": normalized_user_id, "message": "", "limit": 2000},
+            timeout=30
+        )
+        
+        if response.status_code != 200:
+            return jsonify({"success": False, "error": f"Failed to fetch memories: {response.status_code}"}), 500
+        
+        data = response.json()
+        all_memories = []
+        
+        # Parse all memories
+        if "memory" in data and data["memory"].strip():
+            for idx, line in enumerate(data["memory"].split('\n')):
+                line = line.strip()
+                if line:
+                    try:
+                        mem_obj = json.loads(line)
+                        all_memories.append(mem_obj)
+                    except:
+                        pass
+        
+        logging.info(f"📊 Found {len(all_memories)} total memories for user {normalized_user_id}")
+        
+        # Run normalization pipeline on ALL memories
+        normalized_schema = mem_store.normalize_memories(all_memories)
+        
+        # Count what was extracted
+        contacts_count = sum(1 for rel in ["spouse", "father", "mother"] 
+                           if normalized_schema.get("contacts", {}).get(rel, {}).get("name"))
+        contacts_count += len(normalized_schema.get("contacts", {}).get("children", []))
+        
+        stats = {
+            "total_memories": len(all_memories),
+            "contacts": contacts_count,
+            "vehicles": len(normalized_schema.get("vehicles", [])),
+            "policies": len(normalized_schema.get("policies", [])),
+            "facts": len(normalized_schema.get("facts", [])),
+            "commitments": len(normalized_schema.get("commitments", []))
+        }
+        
+        logging.info(f"✅ Extracted: {stats['contacts']} contacts, {stats['vehicles']} vehicles, {stats['policies']} policies, {stats['facts']} facts")
+        
+        # Save the normalized schema
+        response = requests.post(
+            f"{ai_memory_url}/memory/store",
+            json={
+                "user_id": normalized_user_id,
+                "message": json.dumps({
+                    "type": "normalized_schema",
+                    "key": "user_profile",
+                    "value": normalized_schema,
+                    "timestamp": int(__import__('time').time() * 1000)
+                })
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logging.info(f"✅ Normalized schema saved successfully for user {normalized_user_id}")
+            return jsonify({
+                "success": True, 
+                "user_id": normalized_user_id,
+                "stats": stats,
+                "schema": normalized_schema
+            })
+        else:
+            return jsonify({"success": False, "error": f"Save failed: {response.status_code}"}), 500
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to process all memories: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/phone/save-schema', methods=['POST'])
 def save_user_schema():
     """Save normalized schema for a specific user"""
