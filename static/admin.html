@@ -1269,21 +1269,35 @@
                         <div class="modal-body">
                             <div class="mb-3">
                                 <label class="form-label">Type</label>
-                                <select class="form-select" id="new-memory-type">
-                                    <option value="fact">Fact</option>
+                                <select class="form-select" id="new-memory-type" onchange="updateMemoryInputs()">
                                     <option value="person">Person</option>
+                                    <option value="fact">Fact</option>
                                     <option value="preference">Preference</option>
                                     <option value="project">Project</option>
                                     <option value="rule">Rule</option>
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Key</label>
-                                <input type="text" class="form-control" id="new-memory-key" placeholder="e.g., birthday_wife">
+                                <label class="form-label">Key (Identifier)</label>
+                                <input type="text" class="form-control" id="new-memory-key" placeholder="e.g., fathers_name">
+                                <small class="text-muted">Unique identifier like: fathers_name, wifes_birthday, favorite_car</small>
                             </div>
-                            <div class="mb-3">
-                                <label class="form-label">Value (JSON)</label>
-                                <textarea class="form-control json-editor" id="new-memory-value" rows="8" placeholder='{"name": "Kelly", "birthday": "January 3rd"}'></textarea>
+                            
+                            <!-- Dynamic input fields based on type -->
+                            <div id="memory-input-fields"></div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="manual-json-toggle">
+                                <label class="form-check-label" for="manual-json-toggle">
+                                    Advanced: Edit JSON manually
+                                </label>
+                            </div>
+                            
+                            <div id="manual-json-container" style="display:none;">
+                                <div class="mb-3">
+                                    <label class="form-label">Value (JSON)</label>
+                                    <textarea class="form-control json-editor" id="new-memory-value" rows="8" placeholder='{"name": "Kelly", "birthday": "January 3rd"}'></textarea>
+                                </div>
                             </div>
                         </div>
                         <div class="modal-footer">
@@ -1294,21 +1308,208 @@
                 </div>
             `;
             document.body.appendChild(modal);
+            
+            // Initialize form
+            updateMemoryInputs();
+            
+            // Toggle manual JSON editing
+            document.getElementById('manual-json-toggle').addEventListener('change', function() {
+                const container = document.getElementById('manual-json-container');
+                const fields = document.getElementById('memory-input-fields');
+                if (this.checked) {
+                    container.style.display = 'block';
+                    fields.style.display = 'none';
+                    // Generate JSON from current fields
+                    generateJSONFromFields();
+                } else {
+                    container.style.display = 'none';
+                    fields.style.display = 'block';
+                }
+            });
+        }
+        
+        function updateMemoryInputs() {
+            const type = document.getElementById('new-memory-type').value;
+            const container = document.getElementById('memory-input-fields');
+            
+            let html = '';
+            
+            switch(type) {
+                case 'person':
+                    html = `
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Name *</label>
+                                <input type="text" class="form-control memory-field" data-field="name" placeholder="John Douglas Peterson Sr.">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Relationship</label>
+                                <input type="text" class="form-control memory-field" data-field="relationship" placeholder="father, wife, son, etc.">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Birthday</label>
+                                <input type="text" class="form-control memory-field" data-field="birthday" placeholder="March 15th">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="text" class="form-control memory-field" data-field="phone" placeholder="(949) 555-1234">
+                            </div>
+                            <div class="col-12 mb-3">
+                                <label class="form-label">Notes</label>
+                                <textarea class="form-control memory-field" data-field="notes" rows="2" placeholder="Additional information..."></textarea>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'fact':
+                    html = `
+                        <div class="mb-3">
+                            <label class="form-label">Description *</label>
+                            <textarea class="form-control memory-field" data-field="description" rows="3" placeholder="Describe the fact..."></textarea>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Date</label>
+                                <input type="text" class="form-control memory-field" data-field="date" placeholder="October 2025">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Category</label>
+                                <input type="text" class="form-control memory-field" data-field="category" placeholder="personal, business, etc.">
+                            </div>
+                        </div>
+                    `;
+                    break;
+                case 'preference':
+                    html = `
+                        <div class="mb-3">
+                            <label class="form-label">Item/Activity *</label>
+                            <input type="text" class="form-control memory-field" data-field="item" placeholder="Coffee, Golf, Italian Food, etc.">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Preference</label>
+                                <select class="form-select memory-field" data-field="preference">
+                                    <option value="likes">Likes</option>
+                                    <option value="loves">Loves</option>
+                                    <option value="dislikes">Dislikes</option>
+                                    <option value="allergic">Allergic to</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Category</label>
+                                <input type="text" class="form-control memory-field" data-field="category" placeholder="food, hobbies, sports, etc.">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Details</label>
+                            <textarea class="form-control memory-field" data-field="details" rows="2" placeholder="Additional details..."></textarea>
+                        </div>
+                    `;
+                    break;
+                case 'project':
+                    html = `
+                        <div class="mb-3">
+                            <label class="form-label">Project Name *</label>
+                            <input type="text" class="form-control memory-field" data-field="name" placeholder="Kitchen remodel, New car purchase, etc.">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Status</label>
+                                <select class="form-select memory-field" data-field="status">
+                                    <option value="planning">Planning</option>
+                                    <option value="in_progress">In Progress</option>
+                                    <option value="completed">Completed</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Timeline</label>
+                                <input type="text" class="form-control memory-field" data-field="timeline" placeholder="Q1 2025, Next month, etc.">
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-control memory-field" data-field="notes" rows="2" placeholder="Project details..."></textarea>
+                        </div>
+                    `;
+                    break;
+                case 'rule':
+                    html = `
+                        <div class="mb-3">
+                            <label class="form-label">Rule *</label>
+                            <textarea class="form-control memory-field" data-field="rule" rows="3" placeholder="Always call before 9 PM, Never mention politics, etc."></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Priority</label>
+                            <select class="form-select memory-field" data-field="priority">
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function generateJSONFromFields() {
+            const fields = document.querySelectorAll('.memory-field');
+            const data = {};
+            
+            fields.forEach(field => {
+                const fieldName = field.getAttribute('data-field');
+                const value = field.value.trim();
+                if (value) {
+                    data[fieldName] = value;
+                }
+            });
+            
+            const jsonTextarea = document.getElementById('new-memory-value');
+            if (jsonTextarea) {
+                jsonTextarea.value = JSON.stringify(data, null, 2);
+            }
+            
+            return data;
         }
 
         async function saveNewMemory() {
             const type = document.getElementById('new-memory-type').value;
             const key = document.getElementById('new-memory-key').value;
-            const valueText = document.getElementById('new-memory-value').value;
             
-            if (!key || !valueText) {
-                showNotification('Error', 'Please fill in all fields', true);
+            if (!key) {
+                showNotification('Error', 'Please enter a key/identifier', true);
                 return;
             }
             
-            try {
-                const value = JSON.parse(valueText);
+            let value;
+            
+            // Check if using manual JSON mode
+            const manualMode = document.getElementById('manual-json-toggle').checked;
+            
+            if (manualMode) {
+                const valueText = document.getElementById('new-memory-value').value;
+                if (!valueText) {
+                    showNotification('Error', 'Please enter a value', true);
+                    return;
+                }
+                try {
+                    value = JSON.parse(valueText);
+                } catch (error) {
+                    showNotification('Error', 'Invalid JSON format', true);
+                    return;
+                }
+            } else {
+                // Generate JSON from form fields
+                value = generateJSONFromFields();
                 
+                if (Object.keys(value).length === 0) {
+                    showNotification('Error', 'Please fill in at least one field', true);
+                    return;
+                }
+            }
+            
+            try {
                 const response = await fetch('/phone/update-memory', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -1330,7 +1531,7 @@
                     showNotification('Error', 'Failed to add: ' + data.error, true);
                 }
             } catch (error) {
-                showNotification('Error', 'Invalid JSON or network error: ' + error.message, true);
+                showNotification('Error', 'Network error: ' + error.message, true);
             }
         }
 
