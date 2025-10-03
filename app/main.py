@@ -1139,7 +1139,17 @@ async def media_stream_endpoint(websocket: WebSocket):
                         load_thread_history(thread_id, mem_store, user_id)
                         logger.info(f"🔄 Loaded thread history for {thread_id}: {len(THREAD_HISTORY.get(thread_id, []))} messages")
                     
-                    memories = mem_store.search("", user_id=user_id, k=20) if user_id else []
+                    # ✅ CRITICAL FIX: Use get_user_memories instead of search("") to retrieve ALL user memories
+                    if user_id:
+                        memories = mem_store.get_user_memories(user_id, limit=50, include_shared=True)
+                        logger.info(f"🧠 Retrieved {len(memories)} memories for user {user_id}")
+                        # DEBUG: Log first few memories
+                        for i, mem in enumerate(memories[:5]):
+                            mem_type = mem.get('type', 'unknown')
+                            mem_key = mem.get('key') or mem.get('k', 'no-key')
+                            logger.info(f"  Memory {i+1}: {mem_type}:{mem_key}")
+                    else:
+                        memories = []
                     
                     # Load base system prompt
                     system_prompt_path = "app/prompts/system_sam.txt"
