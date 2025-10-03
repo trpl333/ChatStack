@@ -812,6 +812,18 @@ class OAIRealtime:
         }
         ws.send(json.dumps(session_update))
         logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice}")
+        
+        # Trigger immediate greeting - tell AI to start speaking first
+        response_create = {
+            "type": "response.create",
+            "response": {
+                "modalities": ["text", "audio"],
+                "instructions": "Answer the phone call with your greeting immediately."
+            }
+        }
+        ws.send(json.dumps(response_create))
+        logger.info("📞 Triggered AI to greet caller immediately")
+        
         self._connected.set()
     
     def _on_message(self, ws, msg):
