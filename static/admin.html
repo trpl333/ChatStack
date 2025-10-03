@@ -1174,104 +1174,258 @@
             }
         }
         
-        // ✅ NEW: Display editable schema form
+        // ✅ NEW: Display collapsible tree schema editor
         function displaySchemaEditor(schema, userId) {
             const schemaEl = document.getElementById('schema-editor');
             const contacts = schema.contacts || {};
-            const spouse = contacts.spouse || {};
-            const father = contacts.father || {};
-            const mother = contacts.mother || {};
+            const children = contacts.children || [];
             
             schemaEl.innerHTML = `
-                <div class="card bg-dark border-secondary mb-2">
-                    <div class="card-header bg-secondary"><small>👤 Identity</small></div>
-                    <div class="card-body p-2">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-caller-name" 
-                               placeholder="Name" value="${schema.identity?.caller_name || ''}">
-                        <input type="text" class="form-control form-control-sm" id="schema-caller-phone" 
-                               placeholder="Phone" value="${schema.identity?.caller_phone || ''}">
+                <div class="accordion accordion-flush" id="schemaAccordion">
+                    
+                    <!-- IDENTITY CATEGORY -->
+                    <div class="accordion-item bg-dark border-secondary mb-1">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white py-2 px-2" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#identity-collapse">
+                                <small>👤 Identity</small>
+                            </button>
+                        </h2>
+                        <div id="identity-collapse" class="accordion-collapse collapse" data-bs-parent="#schemaAccordion">
+                            <div class="accordion-body p-2">
+                                <input type="text" class="form-control form-control-sm mb-1" id="schema-caller-name" 
+                                       placeholder="Name" value="${schema.identity?.caller_name || ''}">
+                                <input type="text" class="form-control form-control-sm" id="schema-caller-phone" 
+                                       placeholder="Phone" value="${schema.identity?.caller_phone || ''}">
+                            </div>
+                        </div>
                     </div>
+                    
+                    <!-- CONTACTS CATEGORY -->
+                    <div class="accordion-item bg-dark border-secondary mb-1">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white py-2 px-2" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#contacts-collapse">
+                                <small>👥 Contacts</small>
+                            </button>
+                        </h2>
+                        <div id="contacts-collapse" class="accordion-collapse collapse" data-bs-parent="#schemaAccordion">
+                            <div class="accordion-body p-1">
+                                
+                                <!-- Spouse Subcategory -->
+                                <div class="card bg-secondary border-0 mb-1">
+                                    <div class="card-header p-1 bg-secondary border-0">
+                                        <button class="btn btn-sm btn-link text-white text-decoration-none p-0 w-100 text-start" 
+                                                type="button" data-bs-toggle="collapse" data-bs-target="#spouse-fields">
+                                            <small>💑 Spouse</small>
+                                        </button>
+                                    </div>
+                                    <div id="spouse-fields" class="collapse show">
+                                        <div class="card-body p-2 bg-dark">
+                                            <input type="text" class="form-control form-control-sm mb-1" id="schema-spouse-name" 
+                                                   placeholder="Name (e.g., Kelly)" value="${contacts.spouse?.name || ''}">
+                                            <input type="text" class="form-control form-control-sm mb-1" id="schema-spouse-birthday" 
+                                                   placeholder="Birthday" value="${contacts.spouse?.birthday || ''}">
+                                            <input type="text" class="form-control form-control-sm" id="schema-spouse-phone" 
+                                                   placeholder="Phone" value="${contacts.spouse?.phone || ''}">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Father Subcategory -->
+                                <div class="card bg-secondary border-0 mb-1">
+                                    <div class="card-header p-1 bg-secondary border-0">
+                                        <button class="btn btn-sm btn-link text-white text-decoration-none p-0 w-100 text-start" 
+                                                type="button" data-bs-toggle="collapse" data-bs-target="#father-fields">
+                                            <small>👴 Father</small>
+                                        </button>
+                                    </div>
+                                    <div id="father-fields" class="collapse">
+                                        <div class="card-body p-2 bg-dark">
+                                            <input type="text" class="form-control form-control-sm mb-1" id="schema-father-name" 
+                                                   placeholder="Name" value="${contacts.father?.name || ''}">
+                                            <input type="text" class="form-control form-control-sm mb-1" id="schema-father-birthday" 
+                                                   placeholder="Birthday" value="${contacts.father?.birthday || ''}">
+                                            <input type="text" class="form-control form-control-sm" id="schema-father-phone" 
+                                                   placeholder="Phone" value="${contacts.father?.phone || ''}">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Mother Subcategory -->
+                                <div class="card bg-secondary border-0 mb-1">
+                                    <div class="card-header p-1 bg-secondary border-0">
+                                        <button class="btn btn-sm btn-link text-white text-decoration-none p-0 w-100 text-start" 
+                                                type="button" data-bs-toggle="collapse" data-bs-target="#mother-fields">
+                                            <small>👵 Mother</small>
+                                        </button>
+                                    </div>
+                                    <div id="mother-fields" class="collapse">
+                                        <div class="card-body p-2 bg-dark">
+                                            <input type="text" class="form-control form-control-sm mb-1" id="schema-mother-name" 
+                                                   placeholder="Name" value="${contacts.mother?.name || ''}">
+                                            <input type="text" class="form-control form-control-sm mb-1" id="schema-mother-birthday" 
+                                                   placeholder="Birthday" value="${contacts.mother?.birthday || ''}">
+                                            <input type="text" class="form-control form-control-sm" id="schema-mother-phone" 
+                                                   placeholder="Phone" value="${contacts.mother?.phone || ''}">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Children Subcategory (Dynamic) -->
+                                ${children.length > 0 ? `
+                                <div class="card bg-secondary border-0 mb-1">
+                                    <div class="card-header p-1 bg-secondary border-0">
+                                        <button class="btn btn-sm btn-link text-white text-decoration-none p-0 w-100 text-start" 
+                                                type="button" data-bs-toggle="collapse" data-bs-target="#children-fields">
+                                            <small>👶 Children (${children.length})</small>
+                                        </button>
+                                    </div>
+                                    <div id="children-fields" class="collapse">
+                                        <div class="card-body p-2 bg-dark">
+                                            ${children.map((child, idx) => `
+                                                <div class="mb-2 pb-2 border-bottom border-secondary">
+                                                    <input type="text" class="form-control form-control-sm mb-1" 
+                                                           placeholder="Name" value="${child.name || ''}" readonly>
+                                                    <small class="text-muted">${child.relationship || 'child'}</small>
+                                                </div>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- VEHICLES CATEGORY -->
+                    <div class="accordion-item bg-dark border-secondary mb-1">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white py-2 px-2" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#vehicles-collapse">
+                                <small>🚗 Vehicles (${(schema.vehicles || []).length})</small>
+                            </button>
+                        </h2>
+                        <div id="vehicles-collapse" class="accordion-collapse collapse" data-bs-parent="#schemaAccordion">
+                            <div class="accordion-body p-2">
+                                <div id="vehicles-list">
+                                    ${(schema.vehicles || []).map((v, idx) => `
+                                        <div class="card bg-secondary border-0 mb-1">
+                                            <div class="card-body p-2">
+                                                <input type="number" class="form-control form-control-sm mb-1" 
+                                                       id="vehicle-${idx}-year" placeholder="Year" value="${v.year || ''}">
+                                                <input type="text" class="form-control form-control-sm mb-1" 
+                                                       id="vehicle-${idx}-make" placeholder="Make" value="${v.make || ''}">
+                                                <input type="text" class="form-control form-control-sm" 
+                                                       id="vehicle-${idx}-model" placeholder="Model" value="${v.model || ''}">
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                <button class="btn btn-sm btn-outline-light w-100" onclick="addVehicle()">+ Add Vehicle</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- POLICIES CATEGORY -->
+                    <div class="accordion-item bg-dark border-secondary mb-1">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white py-2 px-2" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#policies-collapse">
+                                <small>📋 Policies (${(schema.policies || []).length})</small>
+                            </button>
+                        </h2>
+                        <div id="policies-collapse" class="accordion-collapse collapse" data-bs-parent="#schemaAccordion">
+                            <div class="accordion-body p-2">
+                                <small class="text-muted">Policy data auto-extracted from conversations</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- PREFERENCES CATEGORY -->
+                    <div class="accordion-item bg-dark border-secondary mb-1">
+                        <h2 class="accordion-header">
+                            <button class="accordion-button collapsed bg-dark text-white py-2 px-2" type="button" 
+                                    data-bs-toggle="collapse" data-bs-target="#preferences-collapse">
+                                <small>⭐ Preferences</small>
+                            </button>
+                        </h2>
+                        <div id="preferences-collapse" class="accordion-collapse collapse" data-bs-parent="#schemaAccordion">
+                            <div class="accordion-body p-2">
+                                <textarea class="form-control form-control-sm" id="schema-preferences" rows="3" 
+                                          placeholder="Communication preferences, interests, etc.">${JSON.stringify(schema.preferences || {}, null, 2)}</textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
                 </div>
                 
-                <div class="card bg-dark border-secondary mb-2">
-                    <div class="card-header bg-secondary"><small>💑 Spouse</small></div>
-                    <div class="card-body p-2">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-spouse-name" 
-                               placeholder="Name (e.g., Kelly)" value="${spouse.name || ''}">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-spouse-birthday" 
-                               placeholder="Birthday (e.g., January 3rd)" value="${spouse.birthday || ''}">
-                        <input type="text" class="form-control form-control-sm" id="schema-spouse-phone" 
-                               placeholder="Phone" value="${spouse.phone || ''}">
-                    </div>
-                </div>
-                
-                <div class="card bg-dark border-secondary mb-2">
-                    <div class="card-header bg-secondary"><small>👴 Father</small></div>
-                    <div class="card-body p-2">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-father-name" 
-                               placeholder="Name (e.g., Jack)" value="${father.name || ''}">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-father-birthday" 
-                               placeholder="Birthday" value="${father.birthday || ''}">
-                        <input type="text" class="form-control form-control-sm" id="schema-father-phone" 
-                               placeholder="Phone" value="${father.phone || ''}">
-                    </div>
-                </div>
-                
-                <div class="card bg-dark border-secondary mb-2">
-                    <div class="card-header bg-secondary"><small>👵 Mother</small></div>
-                    <div class="card-body p-2">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-mother-name" 
-                               placeholder="Name (e.g., Arlene)" value="${mother.name || ''}">
-                        <input type="text" class="form-control form-control-sm mb-1" id="schema-mother-birthday" 
-                               placeholder="Birthday" value="${mother.birthday || ''}">
-                        <input type="text" class="form-control form-control-sm" id="schema-mother-phone" 
-                               placeholder="Phone" value="${mother.phone || ''}">
-                    </div>
-                </div>
-                
-                <div class="card bg-dark border-secondary mb-3">
-                    <div class="card-header bg-secondary"><small>🚗 Vehicles</small></div>
-                    <div class="card-body p-2">
-                        <textarea class="form-control form-control-sm" id="schema-vehicles" rows="2" 
-                                  placeholder="JSON array: [{'year': 2022, 'make': 'BMW', 'model': '745e'}]">${JSON.stringify(schema.vehicles || [], null, 2)}</textarea>
-                    </div>
-                </div>
-                
-                <button class="btn btn-success btn-sm w-100" onclick="saveSchema('${userId}')">💾 Save Profile</button>
+                <button class="btn btn-success btn-sm w-100 mt-3" onclick="saveSchema('${userId}')">💾 Save Profile</button>
                 <div class="text-muted mt-2 small text-center">
-                    Changes saved here take priority over auto-extracted data
+                    Edits here override auto-extracted data
                 </div>
             `;
         }
         
-        // ✅ NEW: Save schema changes
+        function addVehicle() {
+            const vehiclesList = document.getElementById('vehicles-list');
+            const idx = vehiclesList.children.length;
+            const html = `
+                <div class="card bg-secondary border-0 mb-1">
+                    <div class="card-body p-2">
+                        <input type="number" class="form-control form-control-sm mb-1" 
+                               id="vehicle-${idx}-year" placeholder="Year">
+                        <input type="text" class="form-control form-control-sm mb-1" 
+                               id="vehicle-${idx}-make" placeholder="Make">
+                        <input type="text" class="form-control form-control-sm" 
+                               id="vehicle-${idx}-model" placeholder="Model">
+                    </div>
+                </div>
+            `;
+            vehiclesList.insertAdjacentHTML('beforeend', html);
+        }
+        
+        // ✅ NEW: Save schema changes from collapsible tree
         async function saveSchema(userId) {
+            // Collect vehicles from dynamic inputs
+            const vehiclesList = document.getElementById('vehicles-list');
+            const vehicles = [];
+            for (let i = 0; i < vehiclesList.children.length; i++) {
+                const year = document.getElementById(`vehicle-${i}-year`)?.value;
+                const make = document.getElementById(`vehicle-${i}-make`)?.value;
+                const model = document.getElementById(`vehicle-${i}-model`)?.value;
+                if (year || make || model) {
+                    vehicles.push({ year: parseInt(year) || null, make, model });
+                }
+            }
+            
             const schema = {
                 identity: {
-                    caller_name: document.getElementById('schema-caller-name').value,
-                    caller_phone: document.getElementById('schema-caller-phone').value
+                    caller_name: document.getElementById('schema-caller-name')?.value || '',
+                    caller_phone: document.getElementById('schema-caller-phone')?.value || ''
                 },
                 contacts: {
                     spouse: {
-                        name: document.getElementById('schema-spouse-name').value,
-                        birthday: document.getElementById('schema-spouse-birthday').value,
-                        phone: document.getElementById('schema-spouse-phone').value,
+                        name: document.getElementById('schema-spouse-name')?.value || '',
+                        birthday: document.getElementById('schema-spouse-birthday')?.value || '',
+                        phone: document.getElementById('schema-spouse-phone')?.value || '',
                         relationship: 'spouse'
                     },
                     father: {
-                        name: document.getElementById('schema-father-name').value,
-                        birthday: document.getElementById('schema-father-birthday').value,
-                        phone: document.getElementById('schema-father-phone').value,
+                        name: document.getElementById('schema-father-name')?.value || '',
+                        birthday: document.getElementById('schema-father-birthday')?.value || '',
+                        phone: document.getElementById('schema-father-phone')?.value || '',
                         relationship: 'father'
                     },
                     mother: {
-                        name: document.getElementById('schema-mother-name').value,
-                        birthday: document.getElementById('schema-mother-birthday').value,
-                        phone: document.getElementById('schema-mother-phone').value,
+                        name: document.getElementById('schema-mother-name')?.value || '',
+                        birthday: document.getElementById('schema-mother-birthday')?.value || '',
+                        phone: document.getElementById('schema-mother-phone')?.value || '',
                         relationship: 'mother'
                     }
                 },
-                vehicles: JSON.parse(document.getElementById('schema-vehicles').value || '[]')
+                vehicles: vehicles,
+                preferences: JSON.parse(document.getElementById('schema-preferences')?.value || '{}')
             };
             
             try {
