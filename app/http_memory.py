@@ -336,9 +336,82 @@ class HTTPMemoryStore:
             
             # Handle STRING values (plain text)
             elif isinstance(value, str) and len(value) > 5:
+                value_lower = value.lower()
+                
+                # ✅ ENHANCED: Parse text for family relationships and names
+                # Patterns: "My wife Kelly", "wife's name is Kelly", "Kelly (wife)", etc.
+                import re
+                
+                # Check for wife/spouse patterns
+                wife_patterns = [
+                    r"(?:my )?wife(?:'s name)? is (\w+)",
+                    r"(\w+)(?:,| is| \().*?(?:wife|spouse)",
+                    r"wife.*?name.*?(\w+)",
+                ]
+                for pattern in wife_patterns:
+                    match = re.search(pattern, value_lower)
+                    if match and "wife" not in seen_people and "spouse" not in seen_people:
+                        name = match.group(1).strip().title()
+                        if len(name) > 2:  # Valid name
+                            normalized["contacts"]["spouse"] = {
+                                "name": name,
+                                "relationship": "wife",
+                                "notes": value[:200]
+                            }
+                            seen_people["spouse"] = True
+                            break
+                
+                # Check for father patterns
+                father_patterns = [
+                    r"(?:my )?(?:father|dad)(?:'s name)? is (\w+)",
+                    r"(\w+)(?:,| is| \().*?(?:father|dad)",
+                ]
+                for pattern in father_patterns:
+                    match = re.search(pattern, value_lower)
+                    if match and "father" not in seen_people:
+                        name = match.group(1).strip().title()
+                        if len(name) > 2:
+                            normalized["contacts"]["father"] = {
+                                "name": name,
+                                "relationship": "father",
+                                "notes": value[:200]
+                            }
+                            seen_people["father"] = True
+                            break
+                
+                # Check for mother patterns
+                mother_patterns = [
+                    r"(?:my )?(?:mother|mom)(?:'s name)? is (\w+)",
+                    r"(\w+)(?:,| is| \().*?(?:mother|mom)",
+                ]
+                for pattern in mother_patterns:
+                    match = re.search(pattern, value_lower)
+                    if match and "mother" not in seen_people:
+                        name = match.group(1).strip().title()
+                        if len(name) > 2:
+                            normalized["contacts"]["mother"] = {
+                                "name": name,
+                                "relationship": "mother",
+                                "notes": value[:200]
+                            }
+                            seen_people["mother"] = True
+                            break
+                
+                # Check for birthday patterns (extract from text)
+                birthday_pattern = r"birthday.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4})"
+                bday_match = re.search(birthday_pattern, value_lower)
+                if bday_match:
+                    birthday_str = bday_match.group(1)
+                    # Check if it mentions who (wife, father, etc.)
+                    for rel_keyword in ["wife", "spouse", "kelly"]:
+                        if rel_keyword in value_lower[:50]:  # Check near birthday mention
+                            if "spouse" in normalized["contacts"]:
+                                normalized["contacts"]["spouse"]["birthday"] = birthday_str
+                            break
+                
                 # Only include important string memories
                 if mem_type in ("person", "preference", "project", "rule", "moment"):
-                    # Check if it looks like structured info
+                    # Check if key contains family keywords
                     if any(keyword in mem_key for keyword in ["father", "mother", "wife", "spouse", "husband", "son", "daughter", "family"]):
                         # Try to extract relationship from key
                         rel = None
