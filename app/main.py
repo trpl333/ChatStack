@@ -1227,6 +1227,16 @@ async def media_stream_endpoint(websocket: WebSocket):
                             
                             logger.info(f"📝 Injected normalized memory dict: {fact_count} structured facts from {len(memories)} raw entries")
                             logger.info(f"   └─ Contacts: {len(normalized.get('contacts', {}))}, Vehicles: {len(normalized.get('vehicles', []))}, Preferences: {len(normalized.get('preferences', {}))}")
+                            
+                            # 🔍 DEBUG: Log actual contacts found
+                            if normalized.get('contacts'):
+                                logger.info(f"   🔍 DEBUG - Extracted contacts:")
+                                for rel, info in list(normalized['contacts'].items())[:5]:
+                                    logger.info(f"      {rel}: {info}")
+                            
+                            # 🔍 DEBUG: Log full normalized dict (first 1000 chars)
+                            normalized_json = json.dumps(normalized, indent=2)
+                            logger.info(f"   🔍 DEBUG - Full normalized dict (preview):\n{normalized_json[:1000]}")
                         else:
                             logger.warning(f"⚠️ normalize_memories returned empty dict from {len(memories)} raw memories")
                 
