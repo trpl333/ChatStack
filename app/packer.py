@@ -232,54 +232,155 @@ def extract_carry_kit_items(message_content: str) -> List[Dict[str, Any]]:
     Returns:
         List of memory objects to store
     """
+    import re
     items = []
+    content_lower = message_content.lower()
     
     # Look for explicit memory markers
-    if "remember this" in message_content.lower():
+    if "remember this" in content_lower or "don't forget" in content_lower:
         items.append({
-            "type": "rule",
+            "type": "fact",
             "key": f"explicit_memory_{hash(message_content) % 10000}",
             "value": {
-                "summary": message_content[:500],
+                "description": message_content[:500],
                 "content": message_content,
                 "importance": "high"
             },
             "ttl_days": 730  # 2 years for explicit memories
         })
     
-    # Look for preference statements
-    preference_keywords = ["i prefer", "i like", "i don't like", "i hate", "my preference", "my favorite", "favorite"]
-    for keyword in preference_keywords:
-        if keyword in message_content.lower():
-            # Extract specific preference type
-            pref_type = "general"
-            if any(food in message_content.lower() for food in ["ice cream", "flavor", "food", "coffee", "drink"]):
-                pref_type = "food_drink"
-            elif any(hobby in message_content.lower() for hobby in ["music", "movie", "book", "sport", "game"]):
-                pref_type = "entertainment"
+    # Extract relationship names (wife, husband, son, daughter, etc.)
+    # Patterns: "my wife Kelly", "my wife's name is Kelly", "her name is Kelly"
+    relationship_patterns = [
+        (r"my (wife|husband|partner|spouse)(?:'s name)? (?:is |called )?(\w+)", "spouse"),
+        (r"my (son|daughter|child|kid)(?:'s name)? (?:is |called )?(\w+)", "child"),
+        (r"my (mom|mother|dad|father|parent)(?:'s name)? (?:is |called )?(\w+)", "parent"),
+        (r"my (brother|sister|sibling)(?:'s name)? (?:is |called )?(\w+)", "sibling"),
+        (r"my (friend|buddy|colleague)(?:'s name)? (?:is |called )?(\w+)", "friend"),
+        (r"(?:his|her|their) name (?:is |called )?(\w+)", "person"),
+    ]
+    
+    for pattern, relationship_type in relationship_patterns:
+        match = re.search(pattern, content_lower, re.IGNORECASE)
+        if match and match.lastindex:
+            # Get the name (last captured group)
+            name = match.group(match.lastindex).capitalize()
+            relation = match.group(1) if match.lastindex > 1 else relationship_type
             
             items.append({
-                "type": "preference",
-                "key": f"user_preference_{pref_type}_{hash(message_content) % 10000}",
+                "type": "person",
+                "key": f"person_{name.lower()}",
                 "value": {
-                    "summary": message_content[:200],
-                    "preference_type": pref_type,
-                    "content": message_content
+                    "name": name,
+                    "relationship": relation,
+                    "context": message_content[:300]
+                },
+                "ttl_days": 730
+            })
+            break
+    
+    # Extract birthdays and dates
+    # Patterns: "birthday is January 3rd", "born on 1/3/1966", "birthday January 3"
+    birthday_patterns = [
+        r"birthday (?:is |on )?([A-Za-z]+ \d+(?:st|nd|rd|th)?(?:,? \d{4})?)",
+        r"born (?:on |in )?([A-Za-z]+ \d+(?:st|nd|rd|th)?(?:,? \d{4})?)",
+        r"birthday (?:is )?(\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)",
+    ]
+    
+    for pattern in birthday_patterns:
+        match = re.search(pattern, content_lower, re.IGNORECASE)
+        if match:
+            date_str = match.group(1)
+            # Try to identify whose birthday
+            person_name = "user"
+            if re.search(r"(?:her|his|their) birthday", content_lower):
+                # Look for a name mentioned earlier in the message
+                name_match = re.search(r"(\w+)(?:'s)? birthday", message_content, re.IGNORECASE)
+                if name_match:
+                    person_name = name_match.group(1)
+            
+            items.append({
+                "type": "fact",
+                "key": f"birthday_{person_name.lower()}",
+                "value": {
+                    "description": f"{person_name}'s birthday is {date_str}",
+                    "date": date_str,
+                    "person": person_name,
+                    "fact_type": "birthday"
+                },
+                "ttl_days": 730
+            })
+            break
+    
+    # Extract car/vehicle information
+    # Patterns: "drives a Honda", "has a Tesla", "owns a Ford"
+    car_patterns = [
+        r"(?:drive|drives|driving|has|have|own|owns) (?:a |an )?(\w+)(?: (\w+))?(?:\s+car|\s+truck|\s+vehicle)?",
+    ]
+    
+    if any(word in content_lower for word in ["car", "vehicle", "truck", "drive", "drives", "honda", "toyota", "ford", "tesla", "bmw", "mercedes"]):
+        for pattern in car_patterns:
+            match = re.search(pattern, content_lower, re.IGNORECASE)
+            if match:
+                make = match.group(1).capitalize()
+                model = match.group(2).capitalize() if match.group(2) else ""
+                vehicle = f"{make} {model}".strip()
+                
+                # Determine owner
+                owner = "user"
+                if re.search(r"(?:she|he|her|his|their) (?:drives|has|owns)", content_lower):
+                    # Look for a name
+                    name_match = re.search(r"(\w+) (?:drives|has|owns)", message_content, re.IGNORECASE)
+                    if name_match:
+                        owner = name_match.group(1)
+                
+                items.append({
+                    "type": "fact",
+                    "key": f"vehicle_{owner.lower()}",
+                    "value": {
+                        "description": f"{owner} drives a {vehicle}",
+                        "vehicle": vehicle,
+                        "owner": owner,
+                        "fact_type": "vehicle"
+                    },
+                    "ttl_days": 365
+                })
+                break
+    
+    # Look for preference statements
+    preference_keywords = ["i prefer", "i like", "i don't like", "i hate", "my favorite", "favorite"]
+    for keyword in preference_keywords:
+        if keyword in content_lower:
+            items.append({
+                "type": "preference",
+                "key": f"user_preference_{hash(message_content) % 10000}",
+                "value": {
+                    "description": message_content[:300],
+                    "preference": message_content,
                 },
                 "ttl_days": 365
             })
             break
     
-    # Look for personal information and relationships
-    person_keywords = ["my name is", "i am", "i work", "my job", "my role", "my wife", "my husband", "my partner", "my friend", "my family"]
-    for keyword in person_keywords:
-        if keyword in message_content.lower():
+    # Extract user's own name
+    name_patterns = [
+        r"my name is (\w+)",
+        r"i'?m (\w+)",
+        r"this is (\w+) (?:calling|speaking)",
+        r"call me (\w+)"
+    ]
+    
+    for pattern in name_patterns:
+        match = re.search(pattern, content_lower, re.IGNORECASE)
+        if match:
+            user_name = match.group(1).capitalize()
             items.append({
                 "type": "person",
-                "key": "user_info" if "my name" in keyword else "relationship_info",
+                "key": "user_name",
                 "value": {
-                    "summary": message_content[:200],
-                    "info_type": "personal" if "my name" in keyword else "relationship"
+                    "name": user_name,
+                    "relationship": "self",
+                    "caller_name": user_name
                 },
                 "ttl_days": 730
             })
@@ -309,9 +410,20 @@ def should_remember(message_content: str, context: Optional[Dict[str, Any]] = No
     important_patterns = [
         "my name is", "i am", "i work at", "my contact", "my email",
         "my phone", "my address", "my preference", "i prefer", "i like",
-        "i don't like", "important to me"
+        "i don't like", "important to me", "my wife", "my husband", "my partner",
+        "my son", "my daughter", "my child", "my friend", "my family"
     ]
     if any(pattern in content_lower for pattern in important_patterns):
+        return True
+    
+    # Dates and birthdays
+    date_patterns = ["birthday", "born on", "anniversary", "born in"]
+    if any(pattern in content_lower for pattern in date_patterns):
+        return True
+    
+    # Vehicles and possessions
+    vehicle_patterns = ["car", "truck", "vehicle", "drives", "honda", "toyota", "ford", "tesla"]
+    if any(pattern in content_lower for pattern in vehicle_patterns):
         return True
     
     # Project or task-related information

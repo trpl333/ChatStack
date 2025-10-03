@@ -925,6 +925,30 @@ class OAIRealtime:
                 try:
                     mem_store = HTTPMemoryStore()
                     save_thread_history(self.thread_id, mem_store, self.user_id)
+                    
+                    # ✅ Extract and save structured facts from recent conversation
+                    # Get last user message from thread history for memory extraction
+                    history = THREAD_HISTORY.get(self.thread_id, [])
+                    if history:
+                        # Check last 5 messages for important information
+                        recent_messages = list(history)[-5:]
+                        for role, content in recent_messages:
+                            if role == "user" and should_remember(content):
+                                logger.info(f"🧠 Extracting memories from: {content[:100]}...")
+                                items = extract_carry_kit_items(content)
+                                for item in items:
+                                    try:
+                                        memory_id = mem_store.write(
+                                            memory_type=item["type"],
+                                            key=item["key"],
+                                            value=item["value"],
+                                            user_id=self.user_id,
+                                            scope="user",
+                                            ttl_days=item.get("ttl_days", 365)
+                                        )
+                                        logger.info(f"💾 Saved structured memory: {item['type']}:{item['key']} -> {memory_id}")
+                                    except Exception as e:
+                                        logger.error(f"Failed to save structured memory: {e}")
                 except Exception as e:
                     logger.warning(f"Failed to save thread history: {e}")
         
