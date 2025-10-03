@@ -3,6 +3,8 @@ import json
 import uuid
 import logging
 import requests
+import re
+import copy
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
 
@@ -12,6 +14,106 @@ from config_loader import get_setting
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# ============================================================================
+# COMPREHENSIVE MEMORY SCHEMA - Fill-in-the-blanks template
+# ============================================================================
+
+MEMORY_TEMPLATE = {
+    "identity": {
+        "caller_name": None,
+        "caller_phone": None,
+        "caller_email": None,
+        "caller_address": None,
+        "date_of_birth": None,
+        "notes": []
+    },
+    "contacts": {
+        "spouse": {
+            "name": None,
+            "nickname": None,
+            "relationship": "spouse",
+            "birthday": None,
+            "phone": None,
+            "email": None,
+            "notes": []
+        },
+        "father": {
+            "name": None,
+            "nickname": None,
+            "relationship": "father",
+            "birthday": None,
+            "phone": None,
+            "notes": []
+        },
+        "mother": {
+            "name": None,
+            "nickname": None,
+            "relationship": "mother",
+            "birthday": None,
+            "phone": None,
+            "notes": []
+        },
+        "children": [],  # List of child dicts
+        "siblings": [],
+        "friends": [],
+        "business": []
+    },
+    "vehicles": [],  # List of vehicle dicts
+    "policies": [],  # List of policy dicts
+    "claims": [],    # List of claim dicts
+    "properties": [], # List of property dicts
+    "preferences": {
+        "communication_method": None,
+        "language": None,
+        "timezone": None,
+        "interests": [],
+        "notes": []
+    },
+    "commitments": [],  # Promises, follow-ups, reminders
+    "facts": [],        # General important facts
+    "recent_conversations": []  # Last 5 conversation snippets
+}
+
+# ============================================================================
+# KEYWORD MAPS for Classification
+# ============================================================================
+
+RELATIONSHIP_KEYWORDS = {
+    "spouse": ["wife", "husband", "spouse", "kelly", "married"],
+    "father": ["dad", "father", "jack", "pop", "papa"],
+    "mother": ["mom", "mother", "arlene", "mama"],
+    "son": ["son", "boy", "male child"],
+    "daughter": ["daughter", "girl", "female child"],
+    "child": ["child", "kid"],
+    "brother": ["brother", "bro"],
+    "sister": ["sister", "sis"],
+    "friend": ["friend", "buddy", "pal"],
+}
+
+POLICY_KEYWORDS = {
+    "auto": ["auto", "car", "vehicle", "automobile"],
+    "home": ["home", "house", "property", "homeowners"],
+    "life": ["life insurance", "life policy"],
+    "umbrella": ["umbrella", "excess liability"],
+    "business": ["commercial", "business", "liability"]
+}
+
+VEHICLE_KEYWORDS = ["bmw", "toyota", "honda", "ford", "chevrolet", "car", "truck", "suv", "sedan"]
+
+# ============================================================================
+# REGEX PATTERNS for Extraction
+# ============================================================================
+
+PATTERNS = {
+    "birthday": re.compile(r"\b((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b", re.IGNORECASE),
+    "phone": re.compile(r"\b(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})\b"),
+    "email": re.compile(r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b"),
+    "vin": re.compile(r"\b([A-HJ-NPR-Z0-9]{17})\b"),
+    "policy_number": re.compile(r"\b(?:policy|pol)#?\s*([A-Z0-9-]{5,})\b", re.IGNORECASE),
+    "year": re.compile(r"\b(19\d{2}|20\d{2})\b"),
+    "names": re.compile(r"\b([A-Z][a-z]+ [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")  # Proper names
+}
 
 class HTTPMemoryStore:
     """
@@ -215,228 +317,301 @@ class HTTPMemoryStore:
     
     def normalize_memories(self, raw_memories: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
-        Normalize raw memory entries into a structured dictionary.
+        ✅ COMPREHENSIVE Memory Normalization Pipeline
         
-        Converts 800+ scattered memory entries into organized categories:
-        - contacts: People (family, friends) with names, birthdays, relationships
-        - vehicles: Cars with year, make, model, VIN
-        - policies: Insurance policies
-        - preferences: User likes/dislikes
-        - history: Recent conversation summaries
+        Transforms 800+ scattered raw memories into predictable fill-in-the-blanks schema.
+        Uses staged pipeline: preprocess → classify → extract → populate → finalize
+        
+        Returns MEMORY_TEMPLATE with all fields populated where data exists.
+        AI always receives same structure regardless of completeness.
         
         Args:
             raw_memories: List of raw memory dicts from ai-memory service
             
         Returns:
-            Organized dict with categorized, deduplicated data
+            Complete MEMORY_TEMPLATE dict with populated fields
         """
-        normalized = {
-            "contacts": {},
-            "vehicles": [],
-            "policies": [],
-            "preferences": {},
-            "facts": [],
-            "recent_conversations": []
-        }
+        # Stage 1: Initialize with full template
+        result = copy.deepcopy(MEMORY_TEMPLATE)
         
-        # Track seen items for deduplication
-        seen_people = {}  # key: name.lower() -> full contact dict
-        seen_vehicles = set()  # VINs or "year_make_model"
+        # Tracking for deduplication (timestamp-based: latest wins)
+        seen_contacts = {}  # relationship -> (timestamp, data)
+        seen_vehicles = {}  # vin or composite_key -> (timestamp, data)
+        seen_policies = {}  # policy_number -> (timestamp, data)
         
-        for mem in raw_memories:
-            mem_type = mem.get("type", "unknown")
+        logger.info(f"🔄 Normalizing {len(raw_memories)} raw memories...")
+        
+        # Stage 2: Process each memory
+        for idx, mem in enumerate(raw_memories):
+            mem_type = mem.get("type", "").lower()
+            mem_key = (mem.get("key") or mem.get("k") or "").lower()
             value = mem.get("value", {})
-            mem_key = (mem.get("key") or mem.get("k", "")).lower()
+            timestamp = mem.get("timestamp", idx)  # Use index if no timestamp
             
-            # Handle DICT values (structured data)
+            # Convert value to string for text mining if needed
+            value_str = json.dumps(value) if isinstance(value, dict) else str(value)
+            value_lower = value_str.lower()
+            
+            # ================================================================
+            # STAGE 3: CLASSIFY & EXTRACT by Category
+            # ================================================================
+            
+            # -------------------
+            # IDENTITY (Caller info)
+            # -------------------
+            if "phone_number" in value_lower or mem_type == "registration":
+                if isinstance(value, dict):
+                    if not result["identity"]["caller_phone"] and value.get("phone_number"):
+                        result["identity"]["caller_phone"] = value["phone_number"]
+                    if not result["identity"]["caller_name"] and value.get("name"):
+                        result["identity"]["caller_name"] = value["name"]
+            
+            # -------------------
+            # CONTACTS (Family, friends, relationships)
+            # -------------------
+            self._extract_contacts(value, value_str, value_lower, mem_key, timestamp, seen_contacts, result)
+            
+            # -------------------
+            # VEHICLES
+            # -------------------
+            self._extract_vehicles(value, value_str, value_lower, timestamp, seen_vehicles, result)
+            
+            # -------------------
+            # POLICIES
+            # -------------------
+            self._extract_policies(value, mem_type, mem_key, timestamp, seen_policies, result)
+            
+            # -------------------
+            # PREFERENCES
+            # -------------------
+            if mem_type == "preference" or "preference" in mem_key:
+                if isinstance(value, dict):
+                    if value.get("item"):
+                        result["preferences"]["interests"].append(value["item"])
+                elif isinstance(value, str) and len(value) > 5:
+                    result["preferences"]["notes"].append(value[:100])
+            
+            # -------------------
+            # COMMITMENTS (Promises, follow-ups)
+            # -------------------
+            if "follow" in value_lower or "remind" in value_lower or "promise" in value_lower:
+                if len(result["commitments"]) < 10:
+                    result["commitments"].append(value_str[:150])
+            
+            # -------------------
+            # CONVERSATION SUMMARIES
+            # -------------------
+            if isinstance(value, dict) and "summary" in value:
+                if len(result["recent_conversations"]) < 5:
+                    result["recent_conversations"].append(value["summary"])
+            elif "assistant_response" in value_lower or "user_message" in value_lower:
+                # Skip - these are thread history, not facts
+                pass
+            
+            # -------------------
+            # GENERAL FACTS (fallback)
+            # -------------------
+            elif mem_type in ("fact", "moment", "rule") and len(result["facts"]) < 20:
+                if isinstance(value, dict) and "description" in value:
+                    result["facts"].append(value["description"][:150])
+                elif isinstance(value, str) and len(value) > 10 and len(value) < 300:
+                    # Filter out conversational responses
+                    if not any(x in value_lower for x in ["assistant:", "user:", "hey", "how's it going", "great to"]):
+                        result["facts"].append(value[:150])
+        
+        # Stage 4: Finalize - Clean up empty nested structures
+        result = self._cleanup_template(result)
+        
+        # Stage 5: Summary
+        stats = {
+            "contacts": len([v for v in result.get("contacts", {}).values() if isinstance(v, dict) and v.get("name")]),
+            "vehicles": len(result.get("vehicles", [])),
+            "policies": len(result.get("policies", [])),
+            "facts": len(result.get("facts", [])),
+            "preferences": len(result.get("preferences", {}).get("interests", []))
+        }
+        logger.info(f"✅ Normalized memory: {stats}")
+        
+        return result
+    
+    def _extract_contacts(self, value: Any, value_str: str, value_lower: str, mem_key: str, 
+                         timestamp: float, seen_contacts: Dict, result: Dict) -> None:
+        """Extract contact information from memory value."""
+        
+        # Check for structured contact data (DICT format)
+        if isinstance(value, dict) and ("name" in value or "relationship" in value):
+            name = value.get("name", "").strip()
+            relationship = value.get("relationship", "").strip().lower()
+            
+            if name and relationship in ["spouse", "father", "mother", "son", "daughter"]:
+                # Update template if newer
+                if relationship not in seen_contacts or timestamp > seen_contacts[relationship][0]:
+                    result["contacts"][relationship]["name"] = name
+                    if value.get("birthday"):
+                        result["contacts"][relationship]["birthday"] = value["birthday"]
+                    if value.get("phone"):
+                        result["contacts"][relationship]["phone"] = value["phone"]
+                    if value.get("nickname") or value.get("goes_by"):
+                        result["contacts"][relationship]["nickname"] = value.get("nickname") or value.get("goes_by")
+                    if value.get("notes"):
+                        if not result["contacts"][relationship]["notes"]:
+                            result["contacts"][relationship]["notes"] = []
+                        result["contacts"][relationship]["notes"].append(str(value["notes"])[:100])
+                    
+                    seen_contacts[relationship] = (timestamp, name)
+        
+        # Text mining for contacts (STRING format)
+        else:
+            # Check each relationship type
+            for rel, keywords in RELATIONSHIP_KEYWORDS.items():
+                if any(kw in value_lower for kw in keywords):
+                    # Try to extract name
+                    name_match = PATTERNS["names"].search(value_str)
+                    if name_match:
+                        name = name_match.group(1)
+                        
+                        # Map child relationships
+                        if rel in ["son", "daughter", "child"]:
+                            target_list = "children"
+                            child_dict = {"name": name, "relationship": rel}
+                            if not any(c.get("name") == name for c in result["contacts"]["children"]):
+                                result["contacts"]["children"].append(child_dict)
+                        
+                        # Primary contacts (spouse, father, mother)
+                        elif rel in ["spouse", "father", "mother"]:
+                            if not result["contacts"][rel].get("name"):
+                                result["contacts"][rel]["name"] = name
+                                
+                                # Extract birthday if in same text
+                                bday_match = PATTERNS["birthday"].search(value_str)
+                                if bday_match:
+                                    result["contacts"][rel]["birthday"] = bday_match.group(1)
+                                
+                                # Extract phone if in same text
+                                phone_match = PATTERNS["phone"].search(value_str)
+                                if phone_match:
+                                    result["contacts"][rel]["phone"] = phone_match.group(1)
+    
+    def _extract_vehicles(self, value: Any, value_str: str, value_lower: str, 
+                         timestamp: float, seen_vehicles: Dict, result: Dict) -> None:
+        """Extract vehicle information from memory value."""
+        
+        # Check for structured vehicle data
+        if isinstance(value, dict) and any(k in value for k in ["make", "model", "vin", "year"]):
+            vin = value.get("vin", "")
+            vehicle_key = vin if vin else f"{value.get('year', '')}_{value.get('make', '')}_{value.get('model', '')}"
+            
+            if vehicle_key and (vehicle_key not in seen_vehicles or timestamp > seen_vehicles[vehicle_key][0]):
+                vehicle_dict = {}
+                if value.get("year"):
+                    vehicle_dict["year"] = value["year"]
+                if value.get("make"):
+                    vehicle_dict["make"] = value["make"]
+                if value.get("model"):
+                    vehicle_dict["model"] = value["model"]
+                if value.get("vin"):
+                    vehicle_dict["vin"] = value["vin"]
+                if value.get("owner"):
+                    vehicle_dict["owner"] = value["owner"]
+                
+                if vehicle_dict:
+                    # Update or append
+                    existing_idx = None
+                    for idx, v in enumerate(result["vehicles"]):
+                        if v.get("vin") == vin or (v.get("make") == vehicle_dict.get("make") and v.get("model") == vehicle_dict.get("model")):
+                            existing_idx = idx
+                            break
+                    
+                    if existing_idx is not None:
+                        result["vehicles"][existing_idx] = vehicle_dict
+                    else:
+                        result["vehicles"].append(vehicle_dict)
+                    
+                    seen_vehicles[vehicle_key] = (timestamp, vehicle_dict)
+        
+        # Text mining for vehicles
+        else:
+            for veh_keyword in VEHICLE_KEYWORDS:
+                if veh_keyword in value_lower:
+                    # Try to extract year
+                    year_match = PATTERNS["year"].search(value_str)
+                    if year_match and len(result["vehicles"]) < 5:  # Limit
+                        vehicle_dict = {"year": int(year_match.group(1)), "make": veh_keyword.upper()}
+                        if not any(v.get("make") == vehicle_dict["make"] for v in result["vehicles"]):
+                            result["vehicles"].append(vehicle_dict)
+                    break
+    
+    def _extract_policies(self, value: Any, mem_type: str, mem_key: str, 
+                         timestamp: float, seen_policies: Dict, result: Dict) -> None:
+        """Extract insurance policy information from memory value."""
+        
+        if mem_type == "policy" or "policy" in mem_key:
             if isinstance(value, dict):
-                # CONTACTS: People with names, relationships, birthdays
-                if "name" in value or "relationship" in value:
-                    name = value.get("name", "").strip()
-                    relationship = value.get("relationship", "").strip().lower()
+                policy_dict = {}
+                
+                # Determine policy type
+                policy_type = value.get("type") or value.get("policy_type")
+                if not policy_type:
+                    # Infer from keywords
+                    value_str = json.dumps(value).lower()
+                    for ptype, keywords in POLICY_KEYWORDS.items():
+                        if any(kw in value_str for kw in keywords):
+                            policy_type = ptype
+                            break
+                
+                if policy_type:
+                    policy_dict["type"] = policy_type
                     
-                    if name:
-                        # Deduplicate by name
-                        name_key = name.lower()
-                        
-                        # Use relationship as key if available (father, mother, spouse, etc.)
-                        contact_key = relationship if relationship else name_key
-                        
-                        if contact_key not in seen_people:
-                            contact_info = {
-                                "name": name,
-                                "relationship": relationship or "contact"
-                            }
-                            
-                            # Add optional fields
-                            if value.get("birthday"):
-                                contact_info["birthday"] = value["birthday"]
-                            if value.get("phone"):
-                                contact_info["phone"] = value["phone"]
-                            if value.get("notes"):
-                                contact_info["notes"] = value["notes"]
-                            if value.get("goes_by"):
-                                contact_info["nickname"] = value["goes_by"]
-                            
-                            normalized["contacts"][contact_key] = contact_info
-                            seen_people[contact_key] = True
-                
-                # VEHICLES: Cars with make, model, year, VIN
-                elif any(k in value for k in ["make", "model", "vin", "car", "vehicle"]):
-                    vin = value.get("vin", "")
-                    vehicle_key = vin if vin else f"{value.get('year', '')}_{value.get('make', '')}_{value.get('model', '')}"
+                    if value.get("carrier"):
+                        policy_dict["carrier"] = value["carrier"]
+                    if value.get("status"):
+                        policy_dict["status"] = value["status"]
+                    if value.get("policy_number"):
+                        policy_dict["policy_number"] = value["policy_number"]
+                    if value.get("premium"):
+                        policy_dict["premium"] = value["premium"]
                     
-                    if vehicle_key and vehicle_key not in seen_vehicles:
-                        vehicle_info = {}
-                        if value.get("year"):
-                            vehicle_info["year"] = value["year"]
-                        if value.get("make"):
-                            vehicle_info["make"] = value["make"]
-                        if value.get("model"):
-                            vehicle_info["model"] = value["model"]
-                        if value.get("vin"):
-                            vehicle_info["vin"] = value["vin"]
-                        if value.get("owner"):
-                            vehicle_info["owner"] = value["owner"]
-                        
-                        if vehicle_info:
-                            normalized["vehicles"].append(vehicle_info)
-                            seen_vehicles.add(vehicle_key)
-                
-                # PREFERENCES: Likes/dislikes
-                elif "preference" in value or "item" in value or mem_type == "preference":
-                    if "item" in value:
-                        pref_type = value.get("preference", "likes")
-                        item = value["item"]
-                        normalized["preferences"][item] = pref_type
-                    elif "description" in value:
-                        normalized["facts"].append({
-                            "type": "preference",
-                            "content": value["description"]
-                        })
-                
-                # CONVERSATION SUMMARIES
-                elif "summary" in value:
-                    summary = value["summary"]
-                    if len(normalized["recent_conversations"]) < 5:  # Keep last 5
-                        normalized["recent_conversations"].append(summary)
-                
-                # POLICIES: Insurance policies
-                elif mem_type == "policy" or "policy" in mem_key:
-                    policy_info = {k: v for k, v in value.items() if k not in ["type", "key"]}
-                    if policy_info:
-                        normalized["policies"].append(policy_info)
-                
-                # GENERAL FACTS with description
-                elif "description" in value:
-                    normalized["facts"].append({
-                        "type": mem_type,
-                        "content": value["description"]
-                    })
-            
-            # Handle STRING values (plain text)
-            elif isinstance(value, str) and len(value) > 5:
-                value_lower = value.lower()
-                
-                # ✅ ENHANCED: Parse text for family relationships and names
-                # Patterns: "My wife Kelly", "wife's name is Kelly", "Kelly (wife)", etc.
-                import re
-                
-                # Check for wife/spouse patterns
-                wife_patterns = [
-                    r"(?:my )?wife(?:'s name)? is (\w+)",
-                    r"(\w+)(?:,| is| \().*?(?:wife|spouse)",
-                    r"wife.*?name.*?(\w+)",
-                ]
-                for pattern in wife_patterns:
-                    match = re.search(pattern, value_lower)
-                    if match and "wife" not in seen_people and "spouse" not in seen_people:
-                        name = match.group(1).strip().title()
-                        if len(name) > 2:  # Valid name
-                            normalized["contacts"]["spouse"] = {
-                                "name": name,
-                                "relationship": "wife",
-                                "notes": value[:200]
-                            }
-                            seen_people["spouse"] = True
-                            break
-                
-                # Check for father patterns
-                father_patterns = [
-                    r"(?:my )?(?:father|dad)(?:'s name)? is (\w+)",
-                    r"(\w+)(?:,| is| \().*?(?:father|dad)",
-                ]
-                for pattern in father_patterns:
-                    match = re.search(pattern, value_lower)
-                    if match and "father" not in seen_people:
-                        name = match.group(1).strip().title()
-                        if len(name) > 2:
-                            normalized["contacts"]["father"] = {
-                                "name": name,
-                                "relationship": "father",
-                                "notes": value[:200]
-                            }
-                            seen_people["father"] = True
-                            break
-                
-                # Check for mother patterns
-                mother_patterns = [
-                    r"(?:my )?(?:mother|mom)(?:'s name)? is (\w+)",
-                    r"(\w+)(?:,| is| \().*?(?:mother|mom)",
-                ]
-                for pattern in mother_patterns:
-                    match = re.search(pattern, value_lower)
-                    if match and "mother" not in seen_people:
-                        name = match.group(1).strip().title()
-                        if len(name) > 2:
-                            normalized["contacts"]["mother"] = {
-                                "name": name,
-                                "relationship": "mother",
-                                "notes": value[:200]
-                            }
-                            seen_people["mother"] = True
-                            break
-                
-                # Check for birthday patterns (extract from text)
-                birthday_pattern = r"birthday.*?(\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4})"
-                bday_match = re.search(birthday_pattern, value_lower)
-                if bday_match:
-                    birthday_str = bday_match.group(1)
-                    # Check if it mentions who (wife, father, etc.)
-                    for rel_keyword in ["wife", "spouse", "kelly"]:
-                        if rel_keyword in value_lower[:50]:  # Check near birthday mention
-                            if "spouse" in normalized["contacts"]:
-                                normalized["contacts"]["spouse"]["birthday"] = birthday_str
-                            break
-                
-                # Only include important string memories
-                if mem_type in ("person", "preference", "project", "rule", "moment"):
-                    # Check if key contains family keywords
-                    if any(keyword in mem_key for keyword in ["father", "mother", "wife", "spouse", "husband", "son", "daughter", "family"]):
-                        # Try to extract relationship from key
-                        rel = None
-                        for keyword in ["father", "mother", "wife", "spouse", "son", "daughter"]:
-                            if keyword in mem_key:
-                                rel = keyword
+                    # Deduplicate by policy_number or type
+                    policy_key = value.get("policy_number") or policy_type
+                    if policy_key not in seen_policies or timestamp > seen_policies[policy_key][0]:
+                        # Update or append
+                        existing_idx = None
+                        for idx, p in enumerate(result["policies"]):
+                            if p.get("policy_number") == policy_dict.get("policy_number") or p.get("type") == policy_type:
+                                existing_idx = idx
                                 break
                         
-                        if rel and rel not in seen_people:
-                            normalized["contacts"][rel] = {
-                                "relationship": rel,
-                                "notes": value[:200]
-                            }
-                            seen_people[rel] = True
-                    elif len(normalized["facts"]) < 10:  # Limit plain facts
-                        normalized["facts"].append({
-                            "type": mem_type,
-                            "key": mem_key,
-                            "content": value[:200]
-                        })
+                        if existing_idx is not None:
+                            result["policies"][existing_idx] = policy_dict
+                        else:
+                            result["policies"].append(policy_dict)
+                        
+                        seen_policies[policy_key] = (timestamp, policy_dict)
+    
+    def _cleanup_template(self, result: Dict) -> Dict:
+        """Clean up empty nested structures in the template."""
         
-        # Clean up empty sections
-        normalized = {k: v for k, v in normalized.items() if v}
+        # Remove empty contact entries
+        for rel in ["spouse", "father", "mother"]:
+            if result["contacts"][rel].get("name") is None:
+                # Keep structure but mark as empty
+                pass
+            else:
+                # Clean up empty notes lists
+                if not result["contacts"][rel].get("notes"):
+                    result["contacts"][rel]["notes"] = []
         
-        return normalized
+        # Remove empty lists from identity
+        if not result["identity"]["notes"]:
+            result["identity"]["notes"] = []
+        
+        # Remove empty lists from preferences
+        if not result["preferences"]["notes"]:
+            result["preferences"]["notes"] = []
+        if not result["preferences"]["interests"]:
+            result["preferences"]["interests"] = []
+        
+        return result
 
     def get_shared_memories(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get shared memories."""
