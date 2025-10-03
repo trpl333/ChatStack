@@ -1207,36 +1207,46 @@ async def media_stream_endpoint(websocket: WebSocket):
                     
                     # Inject normalized memory context (organized dict instead of raw entries)
                     if memories:
-                        # ✅ NEW: Normalize 800+ scattered memories into organized dict
+                        # ✅ COMPREHENSIVE: Normalize 800+ scattered memories into fill-in-the-blanks template
                         normalized = mem_store.normalize_memories(memories)
                         
                         if normalized:
-                            instructions += "\n\n=== PERSISTENT_MEMORY (structured user data) ===\n"
+                            # Format as structured memory for AI
+                            instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
+                            instructions += "Below is everything you know about this caller, organized by category:\n\n"
                             instructions += json.dumps(normalized, indent=2)
-                            instructions += "\n=== END_MEMORY ===\n"
+                            instructions += "\n\nIMPORTANT: Use this structured data naturally in conversation. "
+                            instructions += "If you see a spouse name, use it. If you see a birthday, remember it. "
+                            instructions += "Empty fields (null values) mean you haven't learned that info yet.\n"
+                            instructions += "=== END_MEMORY ===\n"
                             
-                            # Count total facts stored
-                            fact_count = (
-                                len(normalized.get("contacts", {})) +
-                                len(normalized.get("vehicles", [])) +
-                                len(normalized.get("policies", [])) +
-                                len(normalized.get("preferences", {})) +
-                                len(normalized.get("facts", [])) +
-                                len(normalized.get("recent_conversations", []))
-                            )
+                            # Count actual populated data
+                            filled_contacts = sum(1 for rel in ["spouse", "father", "mother"] 
+                                                if normalized.get("contacts", {}).get(rel, {}).get("name"))
+                            filled_contacts += len(normalized.get("contacts", {}).get("children", []))
                             
-                            logger.info(f"📝 Injected normalized memory dict: {fact_count} structured facts from {len(memories)} raw entries")
-                            logger.info(f"   └─ Contacts: {len(normalized.get('contacts', {}))}, Vehicles: {len(normalized.get('vehicles', []))}, Preferences: {len(normalized.get('preferences', {}))}")
+                            stats = {
+                                "contacts": filled_contacts,
+                                "vehicles": len(normalized.get("vehicles", [])),
+                                "policies": len(normalized.get("policies", [])),
+                                "facts": len(normalized.get("facts", [])),
+                                "commitments": len(normalized.get("commitments", []))
+                            }
                             
-                            # 🔍 DEBUG: Log actual contacts found
-                            if normalized.get('contacts'):
-                                logger.info(f"   🔍 DEBUG - Extracted contacts:")
-                                for rel, info in list(normalized['contacts'].items())[:5]:
-                                    logger.info(f"      {rel}: {info}")
+                            logger.info(f"📝 Injected comprehensive memory template from {len(memories)} raw entries:")
+                            logger.info(f"   └─ Contacts: {stats['contacts']}, Vehicles: {stats['vehicles']}, Policies: {stats['policies']}, Facts: {stats['facts']}")
                             
-                            # 🔍 DEBUG: Log full normalized dict (first 1000 chars)
-                            normalized_json = json.dumps(normalized, indent=2)
-                            logger.info(f"   🔍 DEBUG - Full normalized dict (preview):\n{normalized_json[:1000]}")
+                            # 🔍 DEBUG: Show what contacts were extracted
+                            if stats['contacts'] > 0:
+                                logger.info(f"   👥 Contacts found:")
+                                for rel in ["spouse", "father", "mother"]:
+                                    contact = normalized.get("contacts", {}).get(rel, {})
+                                    if contact.get("name"):
+                                        logger.info(f"      • {rel.title()}: {contact['name']}" + 
+                                                  (f" (birthday: {contact['birthday']})" if contact.get("birthday") else ""))
+                                
+                                for child in normalized.get("contacts", {}).get("children", []):
+                                    logger.info(f"      • {child.get('relationship', 'child').title()}: {child.get('name', 'unknown')}")
                         else:
                             logger.warning(f"⚠️ normalize_memories returned empty dict from {len(memories)} raw memories")
                 

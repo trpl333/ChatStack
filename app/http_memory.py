@@ -106,13 +106,16 @@ VEHICLE_KEYWORDS = ["bmw", "toyota", "honda", "ford", "chevrolet", "car", "truck
 # ============================================================================
 
 PATTERNS = {
-    "birthday": re.compile(r"\b((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2},?\s+\d{4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})\b", re.IGNORECASE),
+    # ✅ FIXED: Birthday pattern handles dates WITH or WITHOUT year
+    # Matches: "January 3rd", "Jan 3", "January 3rd, 1966", "1/3/1966", "1/3"
+    "birthday": re.compile(r"\b((?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?(?:[,\s]+\d{4})?|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)\b", re.IGNORECASE),
     "phone": re.compile(r"\b(\d{3}[-.\s]?\d{3}[-.\s]?\d{4})\b"),
     "email": re.compile(r"\b([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b"),
     "vin": re.compile(r"\b([A-HJ-NPR-Z0-9]{17})\b"),
     "policy_number": re.compile(r"\b(?:policy|pol)#?\s*([A-Z0-9-]{5,})\b", re.IGNORECASE),
     "year": re.compile(r"\b(19\d{2}|20\d{2})\b"),
-    "names": re.compile(r"\b([A-Z][a-z]+ [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b")  # Proper names
+    "names": re.compile(r"\b([A-Z][a-z]+ [A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\b"),  # Full names
+    "single_name": re.compile(r"\b([A-Z][a-z]{2,})\b")  # ✅ NEW: Single names like "Kelly"
 }
 
 class HTTPMemoryStore:
@@ -465,11 +468,39 @@ class HTTPMemoryStore:
             # Check each relationship type
             for rel, keywords in RELATIONSHIP_KEYWORDS.items():
                 if any(kw in value_lower for kw in keywords):
-                    # Try to extract name
+                    # ✅ FIXED: Try multiple name extraction strategies
+                    name = None
+                    
+                    # Strategy 1: Try full name pattern first (First Last)
                     name_match = PATTERNS["names"].search(value_str)
                     if name_match:
                         name = name_match.group(1)
-                        
+                    
+                    # Strategy 2: Try single name after relationship keyword
+                    # Patterns: "wife Kelly", "my wife Kelly", "wife is Kelly", "wife's name is Kelly"
+                    if not name:
+                        for keyword in keywords:
+                            # Look for: "keyword NAME" or "keyword is NAME" or "keyword's name is NAME"
+                            single_pattern = re.compile(
+                                rf"\b{re.escape(keyword)}(?:'?s?\s+name)?(?:\s+is)?\s+([A-Z][a-z]{{2,}})\b",
+                                re.IGNORECASE
+                            )
+                            single_match = single_pattern.search(value_str)
+                            if single_match:
+                                name = single_match.group(1).strip().title()
+                                break
+                    
+                    # Strategy 3: If still no name, try finding ANY capitalized name in the text
+                    if not name and rel in ["spouse", "father", "mother"]:
+                        # Only use this as fallback for primary relationships
+                        single_name_match = PATTERNS["single_name"].search(value_str)
+                        if single_name_match:
+                            potential_name = single_name_match.group(1)
+                            # Filter out common words that aren't names
+                            if potential_name.lower() not in ["the", "this", "that", "they", "then", "there"]:
+                                name = potential_name
+                    
+                    if name:
                         # Map child relationships
                         if rel in ["son", "daughter", "child"]:
                             target_list = "children"
@@ -482,7 +513,7 @@ class HTTPMemoryStore:
                             if not result["contacts"][rel].get("name"):
                                 result["contacts"][rel]["name"] = name
                                 
-                                # Extract birthday if in same text
+                                # Extract birthday if in same text (now handles dates without year!)
                                 bday_match = PATTERNS["birthday"].search(value_str)
                                 if bday_match:
                                     result["contacts"][rel]["birthday"] = bday_match.group(1)
@@ -491,6 +522,8 @@ class HTTPMemoryStore:
                                 phone_match = PATTERNS["phone"].search(value_str)
                                 if phone_match:
                                     result["contacts"][rel]["phone"] = phone_match.group(1)
+                                
+                                break  # Found name for this relationship, move on
     
     def _extract_vehicles(self, value: Any, value_str: str, value_lower: str, 
                          timestamp: float, seen_vehicles: Dict, result: Dict) -> None:
