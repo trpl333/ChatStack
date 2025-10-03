@@ -212,6 +212,158 @@ class HTTPMemoryStore:
     def get_user_memories(self, user_id: str, limit: int = 10, include_shared: bool = True) -> List[Dict[str, Any]]:
         """Get memories for a specific user."""
         return self.search("", user_id=user_id, k=limit, include_shared=include_shared)
+    
+    def normalize_memories(self, raw_memories: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Normalize raw memory entries into a structured dictionary.
+        
+        Converts 800+ scattered memory entries into organized categories:
+        - contacts: People (family, friends) with names, birthdays, relationships
+        - vehicles: Cars with year, make, model, VIN
+        - policies: Insurance policies
+        - preferences: User likes/dislikes
+        - history: Recent conversation summaries
+        
+        Args:
+            raw_memories: List of raw memory dicts from ai-memory service
+            
+        Returns:
+            Organized dict with categorized, deduplicated data
+        """
+        normalized = {
+            "contacts": {},
+            "vehicles": [],
+            "policies": [],
+            "preferences": {},
+            "facts": [],
+            "recent_conversations": []
+        }
+        
+        # Track seen items for deduplication
+        seen_people = {}  # key: name.lower() -> full contact dict
+        seen_vehicles = set()  # VINs or "year_make_model"
+        
+        for mem in raw_memories:
+            mem_type = mem.get("type", "unknown")
+            value = mem.get("value", {})
+            mem_key = (mem.get("key") or mem.get("k", "")).lower()
+            
+            # Handle DICT values (structured data)
+            if isinstance(value, dict):
+                # CONTACTS: People with names, relationships, birthdays
+                if "name" in value or "relationship" in value:
+                    name = value.get("name", "").strip()
+                    relationship = value.get("relationship", "").strip().lower()
+                    
+                    if name:
+                        # Deduplicate by name
+                        name_key = name.lower()
+                        
+                        # Use relationship as key if available (father, mother, spouse, etc.)
+                        contact_key = relationship if relationship else name_key
+                        
+                        if contact_key not in seen_people:
+                            contact_info = {
+                                "name": name,
+                                "relationship": relationship or "contact"
+                            }
+                            
+                            # Add optional fields
+                            if value.get("birthday"):
+                                contact_info["birthday"] = value["birthday"]
+                            if value.get("phone"):
+                                contact_info["phone"] = value["phone"]
+                            if value.get("notes"):
+                                contact_info["notes"] = value["notes"]
+                            if value.get("goes_by"):
+                                contact_info["nickname"] = value["goes_by"]
+                            
+                            normalized["contacts"][contact_key] = contact_info
+                            seen_people[contact_key] = True
+                
+                # VEHICLES: Cars with make, model, year, VIN
+                elif any(k in value for k in ["make", "model", "vin", "car", "vehicle"]):
+                    vin = value.get("vin", "")
+                    vehicle_key = vin if vin else f"{value.get('year', '')}_{value.get('make', '')}_{value.get('model', '')}"
+                    
+                    if vehicle_key and vehicle_key not in seen_vehicles:
+                        vehicle_info = {}
+                        if value.get("year"):
+                            vehicle_info["year"] = value["year"]
+                        if value.get("make"):
+                            vehicle_info["make"] = value["make"]
+                        if value.get("model"):
+                            vehicle_info["model"] = value["model"]
+                        if value.get("vin"):
+                            vehicle_info["vin"] = value["vin"]
+                        if value.get("owner"):
+                            vehicle_info["owner"] = value["owner"]
+                        
+                        if vehicle_info:
+                            normalized["vehicles"].append(vehicle_info)
+                            seen_vehicles.add(vehicle_key)
+                
+                # PREFERENCES: Likes/dislikes
+                elif "preference" in value or "item" in value or mem_type == "preference":
+                    if "item" in value:
+                        pref_type = value.get("preference", "likes")
+                        item = value["item"]
+                        normalized["preferences"][item] = pref_type
+                    elif "description" in value:
+                        normalized["facts"].append({
+                            "type": "preference",
+                            "content": value["description"]
+                        })
+                
+                # CONVERSATION SUMMARIES
+                elif "summary" in value:
+                    summary = value["summary"]
+                    if len(normalized["recent_conversations"]) < 5:  # Keep last 5
+                        normalized["recent_conversations"].append(summary)
+                
+                # POLICIES: Insurance policies
+                elif mem_type == "policy" or "policy" in mem_key:
+                    policy_info = {k: v for k, v in value.items() if k not in ["type", "key"]}
+                    if policy_info:
+                        normalized["policies"].append(policy_info)
+                
+                # GENERAL FACTS with description
+                elif "description" in value:
+                    normalized["facts"].append({
+                        "type": mem_type,
+                        "content": value["description"]
+                    })
+            
+            # Handle STRING values (plain text)
+            elif isinstance(value, str) and len(value) > 5:
+                # Only include important string memories
+                if mem_type in ("person", "preference", "project", "rule", "moment"):
+                    # Check if it looks like structured info
+                    if any(keyword in mem_key for keyword in ["father", "mother", "wife", "spouse", "husband", "son", "daughter", "family"]):
+                        # Try to extract relationship from key
+                        rel = None
+                        for keyword in ["father", "mother", "wife", "spouse", "son", "daughter"]:
+                            if keyword in mem_key:
+                                rel = keyword
+                                break
+                        
+                        if rel and rel not in seen_people:
+                            normalized["contacts"][rel] = {
+                                "relationship": rel,
+                                "notes": value[:200]
+                            }
+                            seen_people[rel] = True
+                    elif len(normalized["facts"]) < 10:  # Limit plain facts
+                        normalized["facts"].append({
+                            "type": mem_type,
+                            "key": mem_key,
+                            "content": value[:200]
+                        })
+        
+        # Clean up empty sections
+        normalized = {k: v for k, v in normalized.items() if v}
+        
+        return normalized
 
     def get_shared_memories(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get shared memories."""
