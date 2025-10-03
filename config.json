@@ -19,6 +19,8 @@
   "log_level_description": "Logging verbosity level for orchestrator processes.",
   "elevenlabs_voice_id": "admin:voice_id",
   "elevenlabs_description": "Voice ID for ElevenLabs text-to-speech. Uses admin: pointer to fetch from ai-memory admin panel.",
+  "openai_voice": "admin:openai_voice",
+  "openai_voice_description": "OpenAI Realtime API voice (alloy, echo, shimmer). Uses admin: pointer to fetch from ai-memory admin panel.",
   "twilio_phone_number": "+19497071290",
   "twilio_description": "Your Twilio dev line. Calls to this number are routed into the orchestrator at SERVER_URL.",
   "hot_reload_enabled": true,

@@ -785,12 +785,12 @@ def pcm16_8k_to_pcmu8k(pcm16_8k: bytes) -> bytes:
 class OAIRealtime:
     """OpenAI Realtime API WebSocket client"""
     
-    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None, on_tts_needed = None):
+    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None, voice: str = "alloy"):
         self.ws = None
         self.system_instructions = system_instructions
         self.on_audio_delta = on_audio_delta
         self.on_text_delta = on_text_delta
-        self.on_tts_needed = on_tts_needed  # Callback for ElevenLabs TTS
+        self.voice = voice  # OpenAI voice (alloy, echo, shimmer)
         self.thread_id = thread_id
         self.user_id = user_id
         self._connected = threading.Event()
@@ -801,17 +801,17 @@ class OAIRealtime:
         session_update = {
             "type": "session.update",
             "session": {
-                "modalities": ["text", "audio"],  # ✅ RESTORED: Audio mode
+                "modalities": ["text", "audio"],
                 "instructions": self.system_instructions,
                 "input_audio_format": "pcm16",
                 "output_audio_format": "pcm16",
                 "turn_detection": {"type": "server_vad"},
                 "temperature": 0.7,
-                "voice": "alloy"  # Using OpenAI voice for now
+                "voice": self.voice  # Dynamic voice from admin panel
             }
         }
         ws.send(json.dumps(session_update))
-        logger.info("✅ OpenAI Realtime session configured")
+        logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice}")
         self._connected.set()
     
     def _on_message(self, ws, msg):
@@ -1164,13 +1164,18 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.error(f"Failed to load memory context: {e}")
                     instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                 
+                # Get voice from admin panel (alloy, echo, shimmer)
+                openai_voice = get_admin_setting("openai_voice", "alloy")
+                logger.info(f"🎤 Using OpenAI voice from admin panel: {openai_voice}")
+                
                 # Connect to OpenAI with thread tracking
                 oai = OAIRealtime(
                     instructions, 
                     on_oai_audio, 
                     on_oai_text, 
                     thread_id=thread_id, 
-                    user_id=user_id
+                    user_id=user_id,
+                    voice=openai_voice
                 )
                 oai.connect()
                 logger.info(f"🔗 OpenAI client initialized with thread_id={thread_id}, user_id={user_id}")
