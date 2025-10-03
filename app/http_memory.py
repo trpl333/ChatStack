@@ -334,6 +334,33 @@ class HTTPMemoryStore:
         Returns:
             Complete MEMORY_TEMPLATE dict with populated fields
         """
+        # ✅ PRIORITY 1: Check for manually saved schema (overrides auto-extraction)
+        manual_schemas = []
+        for mem in raw_memories:
+            if mem.get("type") == "normalized_schema" and mem.get("key") == "user_profile":
+                manual_schemas.append(mem.get("value"))
+        
+        if manual_schemas:
+            # Use most recent (last) manual schema
+            manual_schema = manual_schemas[-1]
+            logger.info(f"✅ Using MANUALLY SAVED schema (found {len(manual_schemas)} versions, using latest)")
+            
+            # Merge with template to ensure all fields exist
+            result = copy.deepcopy(MEMORY_TEMPLATE)
+            
+            # Deep merge manual schema into template
+            for key, value in manual_schema.items():
+                if key in result:
+                    if isinstance(value, dict) and isinstance(result[key], dict):
+                        result[key].update(value)
+                    else:
+                        result[key] = value
+            
+            return result
+        
+        # ✅ PRIORITY 2: Auto-extract from raw memories if no manual schema exists
+        logger.info(f"🔄 No manual schema found, auto-normalizing {len(raw_memories)} raw memories...")
+        
         # Stage 1: Initialize with full template
         result = copy.deepcopy(MEMORY_TEMPLATE)
         
