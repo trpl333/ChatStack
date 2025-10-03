@@ -301,13 +301,15 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],    # tighten for prod
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# CORS disabled for WebSocket compatibility with Twilio Media Streams
+# Nginx proxy provides security - no browser CORS needed
+# app.add_middleware(
+#     CORSMiddleware,
+#     allow_origins=["*"],
+#     allow_credentials=True,
+#     allow_methods=["*"],
+#     allow_headers=["*"],
+# )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
