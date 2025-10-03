@@ -1678,50 +1678,76 @@ def list_users():
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
         
-        # Query ai-memory for all user memories (excluding admin)
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        logging.info(f"🔍 Using HTTPMemoryStore.search() to find all user memories")
         
-        # Get a broad sample of memories to extract unique user IDs
-        response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
-            json={"user_id": "", "message": "", "limit": 500},
-            timeout=10
-        )
+        # Use search with empty query to get all memories
+        # This returns memories across all users
+        all_memories = mem_store.search("", k=1000)
         
-        if response.status_code == 200:
-            data = response.json()
-            # Parse the newline-separated JSON format
-            memories = []
-            if "memory" in data:
-                for line in data["memory"].split("\n"):
-                    if line.strip():
-                        try:
-                            mem = json.loads(line)
-                            memories.append(mem)
-                        except:
-                            pass
-            
-            # Extract unique user IDs
-            user_ids = set()
-            for mem in memories:
-                user_id = mem.get("user_id", "")
-                if user_id and user_id != "admin" and user_id != "unknown":
-                    user_ids.add(user_id)
-            
-            # Format as list with user info
-            users = [{"user_id": uid, "memory_count": sum(1 for m in memories if m.get("user_id") == uid)} for uid in sorted(user_ids)]
-            
-            return jsonify({"success": True, "users": users})
-        else:
-            return jsonify({"success": False, "error": "Failed to query ai-memory"}), 500
+        logging.info(f"✅ Retrieved {len(all_memories)} total memories from ai-memory")
+        
+        # Extract unique user IDs (excluding admin and unknown)
+        user_ids = set()
+        user_memory_map = {}
+        
+        for mem in all_memories:
+            user_id = mem.get("user_id", "")
+            if user_id and user_id != "admin" and user_id != "unknown" and not user_id.startswith("admin"):
+                user_ids.add(user_id)
+                if user_id not in user_memory_map:
+                    user_memory_map[user_id] = []
+                user_memory_map[user_id].append(mem)
+        
+        logging.info(f"✅ Found {len(user_ids)} unique user IDs: {sorted(user_ids)}")
+        
+        # Format as list with user info
+        users = [
+            {
+                "user_id": uid, 
+                "memory_count": len(user_memory_map[uid]),
+                "last_interaction": user_memory_map[uid][0].get("created_at", "N/A") if user_memory_map[uid] else "N/A"
+            } 
+            for uid in sorted(user_ids)
+        ]
+        
+        return jsonify({"success": True, "users": users, "total_memories": len(all_memories)})
             
     except Exception as e:
-        logging.error(f"❌ Failed to list users: {e}")
+        logging.error(f"❌ Failed to list users: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/phone/user-memories/<user_id>')
 def get_user_memories(user_id):
     """Get all memories for a specific user"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Normalize user_id
+        normalized_user_id = user_id
+        if user_id:
+            normalized_digits = ''.join(filter(str.isdigit, user_id))
+            if len(normalized_digits) >= 10:
+                normalized_user_id = normalized_digits[-10:]
+        
+        logging.info(f"🔍 Getting memories for user: {normalized_user_id}")
+        
+        # Use HTTPMemoryStore to get user-specific memories
+        # First try to get memories using search
+        all_memories = mem_store.search("", k=1000)
+        user_memories = [m for m in all_memories if m.get("user_id") == normalized_user_id]
+        
+        logging.info(f"✅ Found {len(user_memories)} memories for user {normalized_user_id}")
+        
+        return jsonify({"success": True, "memories": user_memories, "user_id": normalized_user_id})
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to get user memories: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/phone/user-memories-old/<user_id>')
+def get_user_memories_old(user_id):
+    """Get all memories for a specific user (old direct API method)"""
     try:
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()

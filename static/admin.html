@@ -1080,7 +1080,21 @@
                     `).join('');
                     userListEl.innerHTML = html;
                 } else {
-                    userListEl.innerHTML = '<div class="text-muted text-center py-4">No users found</div>';
+                    const totalMem = data.total_memories || 0;
+                    userListEl.innerHTML = `
+                        <div class="alert alert-info text-center m-3">
+                            <h5>📭 No User Memories Yet</h5>
+                            <p class="mb-2">The system is connected to ai-memory service (${totalMem} total entries).</p>
+                            <p class="mb-2"><strong>User memories are created during phone calls</strong> when the AI extracts information like:</p>
+                            <ul class="text-start small">
+                                <li>Names (wife, kids, etc.)</li>
+                                <li>Birthdays and important dates</li>
+                                <li>Vehicles and preferences</li>
+                                <li>Business projects</li>
+                            </ul>
+                            <p class="mb-0 text-muted small">💡 <strong>Tip:</strong> Make a test call to <a href="tel:+19494449988">+1 (949) 444-9988</a> and mention some personal details to see memories appear here!</p>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 userListEl.innerHTML = '<div class="text-danger text-center py-4">Failed to load users</div>';
