@@ -195,9 +195,14 @@ def get_twilio_config() -> Dict[str, str]:
 
 def get_elevenlabs_config() -> Dict[str, str]:
     """Get ElevenLabs configuration"""
+    # Check admin panel first, then env, then config.json
+    voice_id = get_setting("voice_id", 
+                          config.get("ELEVENLABS_VOICE_ID", 
+                                    default=config.get("elevenlabs_voice_id", "FGY2WhTYpPnrIDTdsKH5")))
+    
     return {
         "api_key": config.get("ELEVENLABS_API_KEY", default=""),
-        "voice_id": config.get("ELEVENLABS_VOICE_ID", default=config.get("elevenlabs_voice_id", "FGY2WhTYpPnrIDTdsKH5"))
+        "voice_id": voice_id
     }
 
 def get_all_config() -> Dict[str, Any]:

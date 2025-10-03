@@ -964,19 +964,75 @@ async def media_stream_endpoint(websocket: WebSocket):
                 # Build system instructions with memory context
                 try:
                     mem_store = HTTPMemoryStore()
-                    memories = mem_store.search("", user_id=user_id, k=5) if user_id else []
+                    memories = mem_store.search("", user_id=user_id, k=20) if user_id else []
                     
-                    instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
+                    # Load base system prompt
+                    system_prompt_path = "app/prompts/system_sam.txt"
+                    try:
+                        with open(system_prompt_path, "r") as f:
+                            instructions = f.read()
+                    except FileNotFoundError:
+                        instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                     
-                    if memories:
-                        instructions += "\n\nContext from previous conversations:\n"
-                        for mem in memories[:3]:
+                    # Add greeting guidance
+                    agent_name = get_setting("agent_name", "Betsy")
+                    instructions += f"\n\nYour name is {agent_name}."
+                    
+                    if is_callback and memories:
+                        # Existing user - look for their name
+                        user_name = None
+                        for mem in memories[:10]:
                             value = mem.get("value", {})
+                            if isinstance(value, dict) and "name" in value:
+                                user_name = value.get("name")
+                                break
+                        
+                        greeting_template = get_setting("existing_user_greeting", 
+                                                       f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
+                        if user_name:
+                            greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
+                            instructions += f"\n\nStart the call with: {greeting}"
+                        else:
+                            greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
+                            instructions += f"\n\nStart the call with: {greeting}"
+                    else:
+                        # New caller
+                        import datetime
+                        hour = datetime.datetime.now().hour
+                        if hour < 12:
+                            time_greeting = "Good morning"
+                        elif hour < 18:
+                            time_greeting = "Good afternoon"
+                        else:
+                            time_greeting = "Good evening"
+                        
+                        greeting_template = get_setting("new_caller_greeting", 
+                                                       f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
+                        greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
+                        instructions += f"\n\nStart the call with: {greeting}"
+                    
+                    # Inject memory context
+                    if memories:
+                        instructions += "\n\n=== RELEVANT_MEMORIES (use these to personalize conversation) ===\n"
+                        for mem in memories[:10]:
+                            value = mem.get("value", {})
+                            mem_type = mem.get("type", "memory")
+                            
                             if isinstance(value, dict):
-                                if "name" in value:
-                                    instructions += f"- {value.get('name')} ({value.get('relationship', 'contact')})\n"
+                                # Handle person memories
+                                if "name" in value and "relationship" in value:
+                                    instructions += f"Person: {value['name']} - {value.get('relationship', 'contact')}\n"
+                                # Handle conversation summaries
+                                elif "summary" in value:
+                                    instructions += f"Past conversation: {value['summary']}\n"
+                                # Handle user/assistant exchanges
+                                elif "user_message" in value and "assistant_response" in value:
+                                    instructions += f"User said: {value['user_message'][:100]}\n"
+                                    instructions += f"You replied: {value['assistant_response'][:100]}\n"
+                                # Handle facts/preferences
                                 elif "description" in value:
-                                    instructions += f"- {value.get('description')}\n"
+                                    instructions += f"{mem_type.title()}: {value['description']}\n"
+                        instructions += "=== END_MEMORIES ===\n"
                 
                 except Exception as e:
                     logger.error(f"Failed to load memory context: {e}")
