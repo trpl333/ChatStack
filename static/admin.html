@@ -1474,10 +1474,14 @@
         }
 
         async function saveNewMemory() {
+            console.log('🔍 saveNewMemory called');
+            
             const type = document.getElementById('new-memory-type').value;
             const key = document.getElementById('new-memory-key').value;
+            console.log('🔍 Type:', type, 'Key:', key, 'User:', selectedUserId);
             
             if (!key) {
+                console.error('❌ No key provided');
                 showNotification('Error', 'Please enter a key/identifier', true);
                 return;
             }
@@ -1486,51 +1490,66 @@
             
             // Check if using manual JSON mode
             const manualMode = document.getElementById('manual-json-toggle').checked;
+            console.log('🔍 Manual mode:', manualMode);
             
             if (manualMode) {
                 const valueText = document.getElementById('new-memory-value').value;
                 if (!valueText) {
+                    console.error('❌ No value text provided');
                     showNotification('Error', 'Please enter a value', true);
                     return;
                 }
                 try {
                     value = JSON.parse(valueText);
+                    console.log('✅ Parsed manual JSON:', value);
                 } catch (error) {
+                    console.error('❌ Invalid JSON:', error);
                     showNotification('Error', 'Invalid JSON format', true);
                     return;
                 }
             } else {
                 // Generate JSON from form fields
                 value = generateJSONFromFields();
+                console.log('🔍 Generated value from fields:', value);
+                console.log('🔍 Value keys count:', Object.keys(value).length);
                 
                 if (Object.keys(value).length === 0) {
+                    console.error('❌ No fields filled in');
                     showNotification('Error', 'Please fill in at least one field', true);
                     return;
                 }
             }
             
             try {
+                const payload = {
+                    user_id: selectedUserId,
+                    type: type,
+                    key: key,
+                    value: value
+                };
+                console.log('📤 Sending request:', payload);
+                
                 const response = await fetch('/phone/update-memory', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        user_id: selectedUserId,
-                        type: type,
-                        key: key,
-                        value: value
-                    })
+                    body: JSON.stringify(payload)
                 });
                 
+                console.log('📥 Response status:', response.status);
                 const data = await response.json();
+                console.log('📥 Response data:', data);
                 
                 if (data.success) {
+                    console.log('✅ Memory saved successfully');
                     showNotification('Success', 'Memory added successfully!');
                     document.querySelector('.modal').remove();
                     selectUser(selectedUserId); // Reload memories
                 } else {
+                    console.error('❌ Save failed:', data.error);
                     showNotification('Error', 'Failed to add: ' + data.error, true);
                 }
             } catch (error) {
+                console.error('❌ Network error:', error);
                 showNotification('Error', 'Network error: ' + error.message, true);
             }
         }
