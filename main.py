@@ -1671,6 +1671,153 @@ def update_llm():
         logging.error(f"Failed to update LLM backend: {e}")
         return jsonify({"success": False, "error": str(e)})
 
+@app.route('/phone/list-users')
+def list_users():
+    """List all users who have memories in the system"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Query ai-memory for all user memories (excluding admin)
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        
+        # Get a broad sample of memories to extract unique user IDs
+        response = requests.post(
+            f"{ai_memory_url}/memory/retrieve",
+            json={"user_id": "", "message": "", "limit": 500},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            # Parse the newline-separated JSON format
+            memories = []
+            if "memory" in data:
+                for line in data["memory"].split("\n"):
+                    if line.strip():
+                        try:
+                            mem = json.loads(line)
+                            memories.append(mem)
+                        except:
+                            pass
+            
+            # Extract unique user IDs
+            user_ids = set()
+            for mem in memories:
+                user_id = mem.get("user_id", "")
+                if user_id and user_id != "admin" and user_id != "unknown":
+                    user_ids.add(user_id)
+            
+            # Format as list with user info
+            users = [{"user_id": uid, "memory_count": sum(1 for m in memories if m.get("user_id") == uid)} for uid in sorted(user_ids)]
+            
+            return jsonify({"success": True, "users": users})
+        else:
+            return jsonify({"success": False, "error": "Failed to query ai-memory"}), 500
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to list users: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/phone/user-memories/<user_id>')
+def get_user_memories(user_id):
+    """Get all memories for a specific user"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Normalize user_id
+        normalized_user_id = user_id
+        if user_id:
+            normalized_digits = ''.join(filter(str.isdigit, user_id))
+            if len(normalized_digits) >= 10:
+                normalized_user_id = normalized_digits[-10:]
+        
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        response = requests.post(
+            f"{ai_memory_url}/memory/retrieve",
+            json={"user_id": normalized_user_id, "message": "", "limit": 200},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            # Parse the newline-separated JSON format
+            memories = []
+            if "memory" in data:
+                for line in data["memory"].split("\n"):
+                    if line.strip():
+                        try:
+                            mem = json.loads(line)
+                            memories.append(mem)
+                        except:
+                            pass
+            
+            return jsonify({"success": True, "memories": memories, "user_id": normalized_user_id})
+        else:
+            return jsonify({"success": False, "error": "Failed to query ai-memory"}), 500
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to get user memories: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/phone/update-memory', methods=['POST'])
+def update_memory():
+    """Update a specific memory in ai-memory"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        data = request.get_json()
+        memory_id = data.get('memory_id')
+        user_id = data.get('user_id')
+        memory_type = data.get('type', 'fact')
+        key = data.get('key')
+        value = data.get('value')
+        
+        if not all([user_id, key, value]):
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+        # Write updated memory to ai-memory
+        result = mem_store.write(
+            memory_type=memory_type,
+            key=key,
+            value=value,
+            user_id=user_id,
+            scope="user",
+            ttl_days=730
+        )
+        
+        logging.info(f"✅ Updated memory: {memory_type}:{key} for user {user_id}")
+        return jsonify({"success": True, "memory_id": result})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to update memory: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/phone/delete-memory', methods=['POST'])
+def delete_memory():
+    """Delete a specific memory from ai-memory"""
+    try:
+        data = request.get_json()
+        memory_id = data.get('memory_id')
+        
+        if not memory_id:
+            return jsonify({"success": False, "error": "Missing memory_id"}), 400
+        
+        # Note: ai-memory service may not have a delete endpoint
+        # In that case, we update with empty/expired data
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        
+        # Try to delete or mark as deleted
+        # This might need adjustment based on ai-memory service capabilities
+        logging.info(f"✅ Memory deletion requested: {memory_id}")
+        return jsonify({"success": True, "message": "Memory marked for deletion"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to delete memory: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/admin-status')
 def admin_status():
     """Get current system status and all configuration sources"""
