@@ -1428,6 +1428,9 @@
                 preferences: JSON.parse(document.getElementById('schema-preferences')?.value || '{}')
             };
             
+            // ✅ DEBUG: Log what we're about to save
+            console.log('💾 Saving schema:', JSON.stringify(schema, null, 2));
+            
             try {
                 // Save via Flask backend (fixes CORS)
                 const response = await fetch('/phone/save-schema', {

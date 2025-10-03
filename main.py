@@ -1893,7 +1893,10 @@ def get_user_schema(user_id):
             data = response.json()
             
             # ✅ PRIORITY 1: Check for manually saved schema (overrides auto-extracted)
+            # Get the MOST RECENT manually saved schema (last one in the list)
             manual_schema = None
+            manual_schemas = []
+            
             if "memory" in data and data["memory"].strip():
                 for line in data["memory"].split('\n'):
                     line = line.strip()
@@ -1902,14 +1905,14 @@ def get_user_schema(user_id):
                             mem_obj = json.loads(line)
                             # Look for manually saved schema
                             if mem_obj.get("type") == "normalized_schema" and mem_obj.get("key") == "user_profile":
-                                manual_schema = mem_obj.get("value")
-                                logging.info(f"✅ Found MANUALLY SAVED schema for user {normalized_user_id}")
-                                break
+                                manual_schemas.append(mem_obj.get("value"))
                         except:
                             pass
             
-            # Use manual schema if available
-            if manual_schema:
+            # Use the MOST RECENT (last) manual schema if available
+            if manual_schemas:
+                manual_schema = manual_schemas[-1]  # Last one is most recent
+                logging.info(f"✅ Found {len(manual_schemas)} MANUALLY SAVED schemas, using MOST RECENT for user {normalized_user_id}")
                 return jsonify({"success": True, "schema": manual_schema, "user_id": normalized_user_id})
             
             # ✅ PRIORITY 2: Fall back to auto-extracted normalized schema
