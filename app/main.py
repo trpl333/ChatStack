@@ -785,7 +785,7 @@ def pcm16_8k_to_pcmu8k(pcm16_8k: bytes) -> bytes:
 class OAIRealtime:
     """OpenAI Realtime API WebSocket client"""
     
-    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: str = None, user_id: str = None):
+    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None):
         self.ws = None
         self.system_instructions = system_instructions
         self.on_audio_delta = on_audio_delta
