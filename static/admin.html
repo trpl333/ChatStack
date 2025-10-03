@@ -1130,14 +1130,39 @@
         function displayUserMemoriesManagement(memories, userId) {
             const container = document.getElementById('memories-list');
             
+            // Count structured vs plain memories
+            let structuredCount = 0;
+            let plainCount = 0;
+            
             const html = memories.map((memory, index) => {
                 const memoryStr = JSON.stringify(memory).replace(/'/g, "&#39;").replace(/"/g, '&quot;');
+                const value = memory.value || memory.value_json || {};
+                const isDict = typeof value === 'object' && value !== null && !Array.isArray(value);
+                const isString = typeof value === 'string';
+                
+                if (isDict) structuredCount++;
+                else plainCount++;
+                
+                // Determine if this memory will be used by AI
+                const memType = memory.type || 'unknown';
+                const memKey = (memory.k || memory.key || '').toLowerCase();
+                const willBeUsed = isDict || 
+                    (isString && (
+                        ['person', 'preference', 'project', 'rule', 'moment'].includes(memType) ||
+                        memKey.includes('father') || memKey.includes('wife') || memKey.includes('family')
+                    ));
+                
                 return `
-                    <div class="memory-card p-3 mb-2">
+                    <div class="memory-card p-3 mb-2" style="border-left: 4px solid ${willBeUsed ? '#28a745' : '#6c757d'}">
                         <div class="d-flex justify-content-between align-items-start mb-2">
                             <div>
-                                <span class="badge bg-primary me-2">${memory.type || 'unknown'}</span>
-                                <span class="badge bg-secondary">${memory.k || memory.key || 'no-key'}</span>
+                                <span class="badge bg-primary me-2">${memType}</span>
+                                <span class="badge bg-secondary me-2">${memory.k || memory.key || 'no-key'}</span>
+                                ${isDict ? '<span class="badge bg-success" title="Structured data - will be used by AI">📋 DICT</span>' : 
+                                 isString ? '<span class="badge bg-warning text-dark" title="Plain text - may be skipped">📝 STRING</span>' : 
+                                 '<span class="badge bg-info">📊 OTHER</span>'}
+                                ${willBeUsed ? '<span class="badge bg-success ms-1" title="This memory will be loaded during calls">✅ ACTIVE</span>' : 
+                                 '<span class="badge bg-secondary ms-1" title="This memory may be skipped">⚠️ INACTIVE</span>'}
                             </div>
                             <div>
                                 <button class="btn btn-sm btn-warning me-1" onclick='editMemory(${memoryStr})'>✏️ Edit</button>
@@ -1145,13 +1170,27 @@
                             </div>
                         </div>
                         <div class="memory-content">
-                            <pre class="text-light small mb-0">${JSON.stringify(memory.value || memory.value_json || {}, null, 2)}</pre>
+                            <pre class="text-light small mb-0">${JSON.stringify(value, null, 2)}</pre>
                         </div>
+                        ${isString && !willBeUsed ? '<small class="text-warning">💡 Tip: Convert to structured JSON to ensure AI uses this memory</small>' : ''}
                     </div>
                 `;
             }).join('');
             
-            container.innerHTML = html;
+            // Add summary header
+            const summaryHtml = `
+                <div class="alert alert-info mb-3">
+                    <strong>Memory Summary:</strong> ${memories.length} total memories
+                    <br>
+                    ✅ <strong>${structuredCount} DICT</strong> (structured data - always used by AI)
+                    <br>
+                    📝 <strong>${plainCount} STRING</strong> (plain text - only used if type=person/preference/project/rule/moment or key contains family keywords)
+                    <br><br>
+                    <small>💡 <strong>Best Practice:</strong> Use structured JSON format (DICT) for important information like names, birthdays, preferences to ensure the AI can recall them.</small>
+                </div>
+            `;
+            
+            container.innerHTML = summaryHtml + html;
         }
 
         function editMemory(memory) {
