@@ -915,6 +915,9 @@ async def media_stream_endpoint(websocket: WebSocket):
     await websocket.accept()
     logger.info("🌐 Twilio Media Stream connected")
     
+    # Capture the event loop for use in threaded callbacks
+    event_loop = asyncio.get_event_loop()
+    
     stream_sid = None
     oai = None
     last_media_ts = time.time()
@@ -927,11 +930,15 @@ async def media_stream_endpoint(websocket: WebSocket):
         payload = base64.b64encode(mulaw).decode("ascii")
         
         if websocket.application_state == WebSocketState.CONNECTED:
-            asyncio.create_task(websocket.send_text(json.dumps({
-                "event": "media",
-                "streamSid": stream_sid,
-                "media": {"payload": payload}
-            })))
+            # Schedule coroutine in the FastAPI event loop from this thread
+            asyncio.run_coroutine_threadsafe(
+                websocket.send_text(json.dumps({
+                    "event": "media",
+                    "streamSid": stream_sid,
+                    "media": {"payload": payload}
+                })),
+                event_loop
+            )
             logger.info(f"✅ Audio sent to Twilio ({len(payload)} base64 chars)")
         else:
             logger.warning("⚠️ WebSocket not connected, skipping audio send")
