@@ -801,18 +801,17 @@ class OAIRealtime:
         session_update = {
             "type": "session.update",
             "session": {
-                "modalities": ["text"],  # ✅ Text-only mode for ElevenLabs TTS
+                "modalities": ["text", "audio"],  # ✅ RESTORED: Audio mode
                 "instructions": self.system_instructions,
                 "input_audio_format": "pcm16",
-                "input_audio_transcription": {
-                    "model": "whisper-1"  # Enable transcription for speech input
-                },
+                "output_audio_format": "pcm16",
                 "turn_detection": {"type": "server_vad"},
-                "temperature": 0.7
+                "temperature": 0.7,
+                "voice": "alloy"  # Using OpenAI voice for now
             }
         }
         ws.send(json.dumps(session_update))
-        logger.info("✅ OpenAI Realtime session configured (text-only mode for ElevenLabs)")
+        logger.info("✅ OpenAI Realtime session configured")
         self._connected.set()
     
     def _on_message(self, ws, msg):
@@ -840,13 +839,10 @@ class OAIRealtime:
                 self.on_text_delta(delta)
         
         elif event_type == "response.text.done":
-            # ✅ Full text response received - send to ElevenLabs
+            # Text response complete (not used in audio mode)
             text = ev.get("text", "")
             if text:
-                logger.info(f"📝 OpenAI text response complete: {text[:100]}...")
-                # Trigger ElevenLabs TTS
-                if hasattr(self, 'on_tts_needed') and self.on_tts_needed:
-                    self.on_tts_needed(text)
+                logger.info(f"📝 OpenAI text response: {text[:100]}...")
         
         elif event_type == "session.created":
             logger.info(f"✅ OpenAI session created: {ev.get('session', {}).get('id')}")
@@ -1168,17 +1164,16 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.error(f"Failed to load memory context: {e}")
                     instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                 
-                # Connect to OpenAI with thread tracking and ElevenLabs TTS
+                # Connect to OpenAI with thread tracking
                 oai = OAIRealtime(
                     instructions, 
                     on_oai_audio, 
                     on_oai_text, 
                     thread_id=thread_id, 
-                    user_id=user_id,
-                    on_tts_needed=on_tts_needed  # ✅ ElevenLabs TTS callback
+                    user_id=user_id
                 )
                 oai.connect()
-                logger.info(f"🔗 OpenAI client initialized with ElevenLabs TTS, thread_id={thread_id}, user_id={user_id}")
+                logger.info(f"🔗 OpenAI client initialized with thread_id={thread_id}, user_id={user_id}")
             
             elif event_type == "media":
                 # Audio from Twilio (mulaw 8kHz base64)
