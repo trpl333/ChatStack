@@ -785,11 +785,12 @@ def pcm16_8k_to_pcmu8k(pcm16_8k: bytes) -> bytes:
 class OAIRealtime:
     """OpenAI Realtime API WebSocket client"""
     
-    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None):
+    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None, on_tts_needed = None):
         self.ws = None
         self.system_instructions = system_instructions
         self.on_audio_delta = on_audio_delta
         self.on_text_delta = on_text_delta
+        self.on_tts_needed = on_tts_needed  # Callback for ElevenLabs TTS
         self.thread_id = thread_id
         self.user_id = user_id
         self._connected = threading.Event()
@@ -800,17 +801,18 @@ class OAIRealtime:
         session_update = {
             "type": "session.update",
             "session": {
-                "modalities": ["text", "audio"],
+                "modalities": ["text"],  # ✅ Text-only mode for ElevenLabs TTS
                 "instructions": self.system_instructions,
                 "input_audio_format": "pcm16",
-                "output_audio_format": "pcm16",
+                "input_audio_transcription": {
+                    "model": "whisper-1"  # Enable transcription for speech input
+                },
                 "turn_detection": {"type": "server_vad"},
-                "temperature": 0.7,
-                "voice": "alloy"
+                "temperature": 0.7
             }
         }
         ws.send(json.dumps(session_update))
-        logger.info("✅ OpenAI Realtime session configured")
+        logger.info("✅ OpenAI Realtime session configured (text-only mode for ElevenLabs)")
         self._connected.set()
     
     def _on_message(self, ws, msg):
@@ -836,6 +838,15 @@ class OAIRealtime:
             delta = ev.get("delta", "")
             if delta:
                 self.on_text_delta(delta)
+        
+        elif event_type == "response.text.done":
+            # ✅ Full text response received - send to ElevenLabs
+            text = ev.get("text", "")
+            if text:
+                logger.info(f"📝 OpenAI text response complete: {text[:100]}...")
+                # Trigger ElevenLabs TTS
+                if hasattr(self, 'on_tts_needed'):
+                    self.on_tts_needed(text)
         
         elif event_type == "session.created":
             logger.info(f"✅ OpenAI session created: {ev.get('session', {}).get('id')}")
@@ -1002,6 +1013,52 @@ async def media_stream_endpoint(websocket: WebSocket):
         """Handle text transcript from OpenAI"""
         logger.info(f"📝 OpenAI: {delta}")
     
+    def on_tts_needed(text):
+        """Generate ElevenLabs audio and stream to Twilio"""
+        try:
+            logger.info(f"🎙️ Generating ElevenLabs TTS for: {text[:100]}...")
+            
+            # Get voice_id from admin panel
+            voice_id = get_admin_setting("voice_id", "FGY2WhTYpPnrIDTdsKH5")
+            logger.info(f"🔊 Using ElevenLabs voice_id: {voice_id}")
+            
+            # Import ElevenLabs client
+            from elevenlabs.client import ElevenLabs
+            from elevenlabs import VoiceSettings
+            
+            client = ElevenLabs(api_key=get_secret("ELEVENLABS_API_KEY"))
+            
+            # Stream audio from ElevenLabs
+            audio_stream = client.text_to_speech.convert(
+                voice_id=voice_id,
+                text=text,
+                model_id="eleven_turbo_v2_5",  # Fast model for real-time
+                output_format="pcm_24000"  # 24kHz PCM16 to match OpenAI
+            )
+            
+            # Stream to Twilio
+            for chunk in audio_stream:
+                if chunk:
+                    # Chunk is already 24kHz PCM16 from ElevenLabs
+                    pcm8 = downsample_24k_to_8k(chunk)
+                    mulaw = pcm16_8k_to_pcmu8k(pcm8)
+                    payload = base64.b64encode(mulaw).decode("ascii")
+                    
+                    if websocket.application_state == WebSocketState.CONNECTED:
+                        asyncio.run_coroutine_threadsafe(
+                            websocket.send_text(json.dumps({
+                                "event": "media",
+                                "streamSid": stream_sid,
+                                "media": {"payload": payload}
+                            })),
+                            event_loop
+                        )
+            
+            logger.info("✅ ElevenLabs audio streaming complete")
+            
+        except Exception as e:
+            logger.error(f"❌ ElevenLabs TTS failed: {e}")
+    
     try:
         while True:
             msg = await websocket.receive_text()
@@ -1111,10 +1168,17 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.error(f"Failed to load memory context: {e}")
                     instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                 
-                # Connect to OpenAI with thread tracking
-                oai = OAIRealtime(instructions, on_oai_audio, on_oai_text, thread_id=thread_id, user_id=user_id)
+                # Connect to OpenAI with thread tracking and ElevenLabs TTS
+                oai = OAIRealtime(
+                    instructions, 
+                    on_oai_audio, 
+                    on_oai_text, 
+                    thread_id=thread_id, 
+                    user_id=user_id,
+                    on_tts_needed=on_tts_needed  # ✅ ElevenLabs TTS callback
+                )
                 oai.connect()
-                logger.info(f"🔗 OpenAI client initialized with thread_id={thread_id}, user_id={user_id}")
+                logger.info(f"🔗 OpenAI client initialized with ElevenLabs TTS, thread_id={thread_id}, user_id={user_id}")
             
             elif event_type == "media":
                 # Audio from Twilio (mulaw 8kHz base64)
