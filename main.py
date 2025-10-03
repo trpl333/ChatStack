@@ -1865,6 +1865,109 @@ def update_memory():
         logging.error(f"❌ Traceback: {traceback.format_exc()}")
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/phone/user-schema/<user_id>')
+def get_user_schema(user_id):
+    """Get normalized schema for a specific user"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Normalize user_id
+        normalized_user_id = user_id
+        if user_id:
+            normalized_digits = ''.join(filter(str.isdigit, user_id))
+            if len(normalized_digits) >= 10:
+                normalized_user_id = normalized_digits[-10:]
+        
+        logging.info(f"🔍 Getting schema for user: {normalized_user_id}")
+        
+        # Query ai-memory service
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        response = requests.post(
+            f"{ai_memory_url}/memory/retrieve",
+            json={"user_id": normalized_user_id, "message": "", "limit": 200},
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Check if normalized schema exists
+            normalized_schema = data.get("normalized")
+            if normalized_schema:
+                logging.info(f"✅ Found normalized schema for user {normalized_user_id}")
+                return jsonify({"success": True, "schema": normalized_schema, "user_id": normalized_user_id})
+            
+            # If no normalized schema, return empty template
+            empty_schema = {
+                "identity": {},
+                "contacts": {"spouse": {}, "father": {}, "mother": {}, "children": []},
+                "vehicles": [],
+                "policies": [],
+                "preferences": {},
+                "facts": [],
+                "commitments": []
+            }
+            
+            logging.info(f"⚠️ No normalized schema found, returning empty template for user {normalized_user_id}")
+            return jsonify({"success": True, "schema": empty_schema, "user_id": normalized_user_id})
+        else:
+            return jsonify({"success": False, "error": f"Query failed with status {response.status_code}"}), 500
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to get user schema: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/phone/save-schema', methods=['POST'])
+def save_user_schema():
+    """Save normalized schema for a specific user"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        data = request.get_json()
+        user_id = data.get('user_id')
+        schema = data.get('schema')
+        
+        if not user_id or not schema:
+            return jsonify({"success": False, "error": "Missing user_id or schema"}), 400
+        
+        # Normalize user_id
+        normalized_user_id = user_id
+        if user_id:
+            normalized_digits = ''.join(filter(str.isdigit, user_id))
+            if len(normalized_digits) >= 10:
+                normalized_user_id = normalized_digits[-10:]
+        
+        logging.info(f"💾 Saving schema for user: {normalized_user_id}")
+        
+        # Save to ai-memory as normalized_schema type
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        response = requests.post(
+            f"{ai_memory_url}/memory/store",
+            json={
+                "user_id": normalized_user_id,
+                "message": json.dumps({
+                    "type": "normalized_schema",
+                    "key": "user_profile",
+                    "value": schema,
+                    "timestamp": int(__import__('time').time() * 1000)
+                })
+            },
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            logging.info(f"✅ Schema saved successfully for user {normalized_user_id}")
+            return jsonify({"success": True, "user_id": normalized_user_id})
+        else:
+            logging.error(f"❌ Failed to save schema: HTTP {response.status_code}")
+            return jsonify({"success": False, "error": f"Save failed with status {response.status_code}"}), 500
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to save user schema: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/phone/delete-memory', methods=['POST'])
 def delete_memory():
     """Delete a specific memory from ai-memory"""

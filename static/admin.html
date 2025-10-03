@@ -1149,28 +1149,28 @@
             schemaEl.innerHTML = '<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div><p class="mt-2 small">Loading schema...</p></div>';
             
             try {
-                // Call ai-memory service to get normalized schema
-                const response = await fetch('http://209.38.143.71:8100/memory/retrieve', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({user_id: userId})
-                });
+                // Call Flask backend to get normalized schema (fixes CORS)
+                const response = await fetch(`/phone/user-schema/${userId}`);
                 const data = await response.json();
                 
-                // Get normalized schema (if available)
-                const schema = data.normalized || {
-                    identity: {},
-                    contacts: {spouse: {}, father: {}, mother: {}, children: []},
-                    vehicles: [],
-                    policies: [],
-                    preferences: {},
-                    facts: [],
-                    commitments: []
-                };
-                
-                displaySchemaEditor(schema, userId);
+                if (data.success && data.schema) {
+                    displaySchemaEditor(data.schema, userId);
+                } else {
+                    // Show empty template if no schema
+                    const emptySchema = {
+                        identity: {},
+                        contacts: {spouse: {}, father: {}, mother: {}, children: []},
+                        vehicles: [],
+                        policies: [],
+                        preferences: {},
+                        facts: [],
+                        commitments: []
+                    };
+                    displaySchemaEditor(emptySchema, userId);
+                }
             } catch (error) {
-                schemaEl.innerHTML = '<div class="text-danger small text-center py-4">Failed to load schema</div>';
+                console.error('Failed to load schema:', error);
+                schemaEl.innerHTML = '<div class="text-danger small text-center py-4">Failed to load schema: ' + error.message + '</div>';
             }
         }
         
@@ -1429,27 +1429,25 @@
             };
             
             try {
-                // Save to ai-memory service as normalized_schema type
-                const response = await fetch('http://209.38.143.71:8100/memory/store', {
+                // Save via Flask backend (fixes CORS)
+                const response = await fetch('/phone/save-schema', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         user_id: userId,
-                        message: JSON.stringify({
-                            type: 'normalized_schema',
-                            key: 'user_profile',
-                            value: schema,
-                            timestamp: Date.now()
-                        })
+                        schema: schema
                     })
                 });
                 
-                if (response.ok) {
+                const data = await response.json();
+                
+                if (data.success) {
                     showNotification('Success', 'Profile saved successfully!', false);
                 } else {
-                    showNotification('Error', 'Failed to save profile', true);
+                    showNotification('Error', 'Failed to save profile: ' + (data.error || 'Unknown error'), true);
                 }
             } catch (error) {
+                console.error('Save error:', error);
                 showNotification('Error', 'Failed to save: ' + error.message, true);
             }
         }
