@@ -17,8 +17,8 @@
   "port_description": "Internal port where FastAPI orchestrator runs before being proxied by Nginx.",
   "log_level": "INFO",
   "log_level_description": "Logging verbosity level for orchestrator processes.",
-  "elevenlabs_voice_id": "dnRitNTYKgyEUEizTqqH",
-  "elevenlabs_description": "Voice ID for ElevenLabs text-to-speech. Controlled alongside ELEVENLABS_API_KEY stored in env.",
+  "elevenlabs_voice_id": "admin:voice_id",
+  "elevenlabs_description": "Voice ID for ElevenLabs text-to-speech. Uses admin: pointer to fetch from ai-memory admin panel.",
   "twilio_phone_number": "+19497071290",
   "twilio_description": "Your Twilio dev line. Calls to this number are routed into the orchestrator at SERVER_URL.",
   "hot_reload_enabled": true,
@@ -27,10 +27,12 @@
   "config_reload_interval_description": "Interval (in seconds) for checking config.json updates if hot reload is enabled.",
   "environment": "production",
   "environment_description": "Specifies the current environment (e.g., development, staging, production).",
-  "version": "2.2",
+  "version": "2.3",
   "version_description": "Semantic version of this configuration file. Increment whenever config.json changes.",
-  "last_updated": "2025-10-01",
+  "last_updated": "2025-10-03",
   "last_updated_description": "Date this configuration file was last updated.",
-  "existing_user_greeting": "Hi {user_name}! Its Betsy again from Peterson Insurance.",
-  "new_caller_greeting": "Hi! This is Betsy from Peterson Insurance. How can I help you today?"
+  "existing_user_greeting": "admin:existing_user_greeting",
+  "new_caller_greeting": "admin:new_caller_greeting",
+  "agent_name": "admin:agent_name",
+  "admin_settings_description": "Settings prefixed with 'admin:' are fetched from ai-memory service admin panel in real-time"
 }

@@ -19,6 +19,16 @@ import threading
 from websocket import WebSocketApp
 
 from config_loader import get_secret, get_setting
+import sys
+import os
+# Import get_admin_setting from main.py
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from main import get_admin_setting
+except ImportError:
+    # Fallback if main.py not available
+    def get_admin_setting(setting_key, default=None):
+        return get_setting(setting_key, default)
 from app.models import ChatRequest, ChatResponse, MemoryObject
 from app.llm import chat as llm_chat, chat_realtime_stream, _get_llm_config, validate_llm_connection
 from app.http_memory import HTTPMemoryStore
@@ -974,8 +984,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                     except FileNotFoundError:
                         instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                     
-                    # Add greeting guidance
-                    agent_name = get_setting("agent_name", "Betsy")
+                    # Add greeting guidance - use get_admin_setting to query ai-memory directly
+                    agent_name = get_admin_setting("agent_name", "Betsy")
                     instructions += f"\n\nYour name is {agent_name}."
                     
                     if is_callback and memories:
@@ -987,8 +997,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 user_name = value.get("name")
                                 break
                         
-                        greeting_template = get_setting("existing_user_greeting", 
-                                                       f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
+                        greeting_template = get_admin_setting("existing_user_greeting", 
+                                                             f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
                         if user_name:
                             greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
                             instructions += f"\n\nStart the call with: {greeting}"
@@ -1006,8 +1016,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                         else:
                             time_greeting = "Good evening"
                         
-                        greeting_template = get_setting("new_caller_greeting", 
-                                                       f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
+                        greeting_template = get_admin_setting("new_caller_greeting", 
+                                                             f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\nStart the call with: {greeting}"
                     
