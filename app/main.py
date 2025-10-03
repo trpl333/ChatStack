@@ -845,7 +845,7 @@ class OAIRealtime:
             if text:
                 logger.info(f"📝 OpenAI text response complete: {text[:100]}...")
                 # Trigger ElevenLabs TTS
-                if hasattr(self, 'on_tts_needed'):
+                if hasattr(self, 'on_tts_needed') and self.on_tts_needed:
                     self.on_tts_needed(text)
         
         elif event_type == "session.created":
