@@ -57,17 +57,20 @@ THREAD_LOADED: Dict[str, bool] = {}
 def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
     """Load thread history from ai-memory database if not already loaded"""
     if THREAD_LOADED.get(thread_id):
+        logger.info(f"⏭️ Thread {thread_id} already loaded, skipping")
         return  # Already loaded
     
     try:
         # Search for stored thread history with exact key match
         history_key = f"thread_history:{thread_id}"
         
+        logger.info(f"🔍 Loading thread history: key={history_key}, user_id={user_id}")
+        
         # Strategy: Search broadly (type filter doesn't work in ai-memory service)
         # Then filter client-side for exact key match
         results = mem_store.search(history_key, user_id=user_id, k=200)
         
-        logger.info(f"🔍 Searching for key: {history_key}")
+        logger.info(f"🔍 Search returned {len(results)} results for key: {history_key}")
         
         # Filter for exact key match (case-insensitive for safety)
         matching_memory = None
@@ -94,14 +97,20 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
                     [(msg["role"], msg["content"]) for msg in messages],
                     maxlen=500
                 )
-                logger.info(f"🔄 Loaded {len(messages)} messages from database for thread {thread_id}")
+                logger.info(f"✅ Loaded {len(messages)} messages from database for thread {thread_id}")
+                # Log first and last message for verification
+                if messages:
+                    first_msg = messages[0]
+                    last_msg = messages[-1]
+                    logger.info(f"📝 First message: {first_msg['role']}: {first_msg['content'][:100]}...")
+                    logger.info(f"📝 Last message: {last_msg['role']}: {last_msg['content'][:100]}...")
                 THREAD_LOADED[thread_id] = True
                 return
         
-        logger.info(f"🧵 No stored history found for thread {thread_id} (searched {len(results)} memories, key not matched)")
+        logger.info(f"🧵 No stored history found for thread {thread_id} (searched {len(results)} results)")
         THREAD_LOADED[thread_id] = True
     except Exception as e:
-        logger.warning(f"Failed to load thread history: {e}")
+        logger.error(f"❌ Failed to load thread history for {thread_id}: {e}", exc_info=True)
         THREAD_LOADED[thread_id] = True  # Mark as attempted to avoid retry loops
 
 def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
@@ -109,6 +118,7 @@ def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
     try:
         history = THREAD_HISTORY.get(thread_id)
         if not history:
+            logger.warning(f"⚠️ No thread history to save for {thread_id}")
             return
         
         # Convert deque to list of dicts
@@ -116,6 +126,8 @@ def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
         
         # Store in ai-memory
         history_key = f"thread_history:{thread_id}"
+        logger.info(f"💾 Saving {len(messages)} messages to ai-memory with key={history_key}, user_id={user_id}")
+        
         mem_store.write(
             memory_type="thread_recap",
             key=history_key,
@@ -124,7 +136,7 @@ def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
             scope="user",
             ttl_days=7  # Keep for 7 days
         )
-        logger.info(f"💾 Saved {len(messages)} messages to database for thread {thread_id}")
+        logger.info(f"✅ Successfully saved {len(messages)} messages to database for thread {thread_id}")
         
         # ✅ Check if consolidation is needed (at 400/500 messages)
         if len(messages) >= 400:
@@ -133,7 +145,7 @@ def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
             except Exception as e:
                 logger.error(f"Memory consolidation failed: {e}")
     except Exception as e:
-        logger.warning(f"Failed to save thread history: {e}")
+        logger.error(f"❌ Failed to save thread history for {thread_id}: {e}", exc_info=True)
 
 def consolidate_thread_memories(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
     """
@@ -814,15 +826,18 @@ class OAIRealtime:
         logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice}")
         
         # Trigger immediate greeting - tell AI to start speaking first
+        # Get the appropriate greeting from session instructions
+        greeting_instruction = "Start the call by speaking first. Say your greeting exactly as specified in your GREETING GUIDANCE section. Speak in English."
+        
         response_create = {
             "type": "response.create",
             "response": {
                 "modalities": ["text", "audio"],
-                "instructions": "Answer the phone call with your greeting immediately."
+                "instructions": greeting_instruction
             }
         }
         ws.send(json.dumps(response_create))
-        logger.info("📞 Triggered AI to greet caller immediately")
+        logger.info(f"📞 Triggered AI greeting: {greeting_instruction}")
         
         self._connected.set()
     
