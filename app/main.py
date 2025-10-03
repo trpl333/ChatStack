@@ -814,6 +814,7 @@ class OAIRealtime:
             b64 = ev.get("delta", "")
             if b64:
                 pcm24 = base64.b64decode(b64)
+                logger.info(f"🔊 Received audio delta: {len(pcm24)} bytes")
                 self.on_audio_delta(pcm24)
         
         elif event_type == "response.text.delta":
@@ -911,6 +912,7 @@ async def media_stream_endpoint(websocket: WebSocket):
     
     def on_oai_audio(pcm24):
         """Handle audio from OpenAI - send to Twilio"""
+        logger.info(f"📤 Sending audio to Twilio: {len(pcm24)} bytes PCM24 -> mulaw")
         pcm8 = downsample_24k_to_8k(pcm24)
         mulaw = pcm16_8k_to_pcmu8k(pcm8)
         payload = base64.b64encode(mulaw).decode("ascii")
@@ -921,6 +923,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                 "streamSid": stream_sid,
                 "media": {"payload": payload}
             })))
+            logger.info(f"✅ Audio sent to Twilio ({len(payload)} base64 chars)")
+        else:
+            logger.warning("⚠️ WebSocket not connected, skipping audio send")
     
     def on_oai_text(delta):
         """Handle text transcript from OpenAI"""
