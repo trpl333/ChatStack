@@ -439,11 +439,35 @@ async def chat_completion(
                 except Exception as e:
                     logger.error(f"Carry-kit write failed: {e}")
 
+        # ✅ CRITICAL FIX: First, explicitly fetch the manually saved normalized schema
+        # Semantic search won't find it, so we need a direct lookup
+        manual_schema_memory = None
+        if user_id:
+            try:
+                # Get all memories for this user to find the manual schema
+                all_user_memories = mem_store.search("", user_id=user_id, k=50, include_shared=False)
+                
+                # Find the most recent manually saved schema
+                manual_schemas = [m for m in all_user_memories 
+                                 if m.get("type") == "normalized_schema" and m.get("key") == "user_profile"]
+                
+                if manual_schemas:
+                    manual_schema_memory = manual_schemas[-1]  # Most recent
+                    logger.info(f"✅ Found manually saved schema for user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to fetch manual schema: {e}")
+        
         # Long-term memory retrieve (user-specific + shared)
         search_k = 15 if any(w in (user_message.lower()) for w in
                              ["wife","husband","family","friend","name","who is","kelly","job","work","teacher"]) else 6
         retrieved_memories = mem_store.search(user_message, user_id=user_id, k=search_k)
-        logger.info(f"🔎 Retrieved {len(retrieved_memories)} relevant memories")
+        
+        # ✅ CRITICAL: Prepend manual schema so normalize_memories() sees it first
+        if manual_schema_memory:
+            retrieved_memories = [manual_schema_memory] + retrieved_memories
+            logger.info(f"✅ Injected manual schema into memory bundle")
+        
+        logger.info(f"🔎 Retrieved {len(retrieved_memories)} relevant memories (including manual schema if exists)")
         
         # 🔍 DEBUG: Log what memories were actually retrieved
         if retrieved_memories:
