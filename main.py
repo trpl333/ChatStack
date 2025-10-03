@@ -1821,22 +1821,32 @@ def get_user_memories_old(user_id):
 
 @app.route('/phone/update-memory', methods=['POST'])
 def update_memory():
-    """Update a specific memory in ai-memory"""
+    """Update/Add a specific memory in ai-memory"""
     try:
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
         
         data = request.get_json()
+        logging.info(f"🔍 DEBUG: Received memory update request: {data}")
+        
         memory_id = data.get('memory_id')
         user_id = data.get('user_id')
         memory_type = data.get('type', 'fact')
         key = data.get('key')
         value = data.get('value')
         
-        if not all([user_id, key, value]):
-            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        logging.info(f"🔍 DEBUG: Parsed - user_id={user_id}, type={memory_type}, key={key}, value={value}")
         
-        # Write updated memory to ai-memory
+        if not all([user_id, key, value]):
+            missing = []
+            if not user_id: missing.append("user_id")
+            if not key: missing.append("key")
+            if not value: missing.append("value")
+            logging.error(f"❌ Missing required fields: {missing}")
+            return jsonify({"success": False, "error": f"Missing required fields: {', '.join(missing)}"}), 400
+        
+        # Write updated/new memory to ai-memory
+        logging.info(f"📝 Writing memory to ai-memory service: {memory_type}:{key} for user {user_id}")
         result = mem_store.write(
             memory_type=memory_type,
             key=key,
@@ -1846,11 +1856,13 @@ def update_memory():
             ttl_days=730
         )
         
-        logging.info(f"✅ Updated memory: {memory_type}:{key} for user {user_id}")
+        logging.info(f"✅ Memory saved: {memory_type}:{key} for user {user_id}, result={result}")
         return jsonify({"success": True, "memory_id": result})
         
     except Exception as e:
         logging.error(f"❌ Failed to update memory: {e}")
+        import traceback
+        logging.error(f"❌ Traceback: {traceback.format_exc()}")
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/phone/delete-memory', methods=['POST'])
