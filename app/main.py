@@ -781,6 +781,7 @@ class OAIRealtime:
         self.on_audio_delta = on_audio_delta
         self.on_text_delta = on_text_delta
         self._connected = threading.Event()
+        self.audio_buffer_size = 0  # Track buffered audio bytes (24kHz PCM16)
     
     def _on_open(self, ws):
         """Configure session when WebSocket opens"""
@@ -828,9 +829,11 @@ class OAIRealtime:
         
         elif event_type == "input_audio_buffer.speech_stopped":
             logger.info("🎤 User stopped speaking")
+            self.audio_buffer_size = 0  # Reset buffer after speech
         
         elif event_type == "response.done":
             logger.info("✅ OpenAI response complete")
+            self.audio_buffer_size = 0  # Reset buffer after response
         
         elif event_type == "error":
             error_msg = ev.get("error", {}).get("message", "Unknown error")
@@ -874,13 +877,22 @@ class OAIRealtime:
             "audio": base64.b64encode(chunk).decode("ascii")
         }
         self.ws.send(json.dumps(ev))
+        self.audio_buffer_size += len(chunk)
     
     def commit_and_respond(self):
-        """Commit audio buffer and request response"""
+        """Commit audio buffer and request response (only if >= 100ms buffered)"""
         if not self.ws:
             return
-        self.ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
-        self.ws.send(json.dumps({"type": "response.create"}))
+        
+        # 100ms at 24kHz PCM16 = 24000 samples/sec * 0.1 sec * 2 bytes = 4800 bytes
+        MIN_BUFFER_SIZE = 4800
+        
+        if self.audio_buffer_size >= MIN_BUFFER_SIZE:
+            self.ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+            self.ws.send(json.dumps({"type": "response.create"}))
+            self.audio_buffer_size = 0  # Reset after commit
+        else:
+            logger.debug(f"⏸️ Skipping commit - buffer too small ({self.audio_buffer_size} < {MIN_BUFFER_SIZE} bytes)")
     
     def close(self):
         """Close the WebSocket connection"""
