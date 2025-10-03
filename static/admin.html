@@ -243,7 +243,7 @@
                 <div class="admin-section">
                     <h3 class="section-header">🤖 OpenAI Realtime API Settings</h3>
                     <div class="row">
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="card bg-secondary">
                                 <div class="card-body">
                                     <h6>Current Model</h6>
@@ -251,7 +251,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-6">
+                        <div class="col-md-4">
                             <div class="card bg-secondary">
                                 <div class="card-body">
                                     <h6>API Endpoint</h6>
@@ -259,10 +259,54 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-4">
+                            <div class="card bg-secondary">
+                                <div class="card-body">
+                                    <h6>Current Voice</h6>
+                                    <p class="current-setting" id="currentOpenAIVoice">alloy</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div class="alert alert-success mt-3">
                         <strong>✅ OpenAI Realtime API Integration Active</strong><br>
                         Your phone system is now using OpenAI's latest Realtime API for lightning-fast 2-2.5 second response times.
+                    </div>
+                    <div class="mt-3">
+                        <h5>🎤 OpenAI Voice Selection</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Select Voice for AI Calls</label>
+                                <select class="form-select" id="openaiVoiceSelect">
+                                    <optgroup label="Original Voices">
+                                        <option value="alloy">Alloy - Neutral & Balanced</option>
+                                        <option value="echo">Echo - Resonant & Deep</option>
+                                        <option value="shimmer">Shimmer - Bright & Energetic</option>
+                                    </optgroup>
+                                    <optgroup label="Enhanced Voices (More Expressive)">
+                                        <option value="ash">Ash - Clear & Precise</option>
+                                        <option value="ballad">Ballad - Melodic & Smooth</option>
+                                        <option value="coral">Coral - Warm & Friendly</option>
+                                        <option value="sage">Sage - Calm & Thoughtful</option>
+                                        <option value="verse">Verse - Versatile & Expressive</option>
+                                    </optgroup>
+                                    <optgroup label="Premium Voices (Most Natural)">
+                                        <option value="cedar">Cedar - Premium Natural Speech</option>
+                                        <option value="marin">Marin - Premium Natural Speech</option>
+                                    </optgroup>
+                                </select>
+                                <small class="text-muted">Changes take effect immediately on the next call</small>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <strong>Recommended for Customer Service:</strong><br>
+                                    • <strong>Coral</strong> - Warm & friendly tone<br>
+                                    • <strong>Sage</strong> - Calm & professional<br>
+                                    • <strong>Ballad</strong> - Smooth & pleasant
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-success mt-2" onclick="updateOpenAIVoice()">💾 Update Voice</button>
                     </div>
                 </div>
 
@@ -767,6 +811,47 @@
             });
         }
 
+        function updateOpenAIVoice() {
+            const voice = document.getElementById('openaiVoiceSelect').value;
+            
+            if (!voice || voice.trim() === '') {
+                showNotification('Error', 'Please select a voice', true);
+                return;
+            }
+            
+            fetch('/phone/update-openai-voice', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ openai_voice: voice })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    document.getElementById('currentOpenAIVoice').textContent = voice;
+                    showNotification('Success', 'OpenAI voice updated to: ' + voice + ' (takes effect on next call)');
+                } else {
+                    showNotification('Error', 'Failed to update voice: ' + data.error, true);
+                }
+            })
+            .catch(error => {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            });
+        }
+
+        function loadOpenAIVoice() {
+            fetch('/phone/get-openai-voice')
+            .then(response => response.json())
+            .then(data => {
+                if (data.openai_voice) {
+                    document.getElementById('openaiVoiceSelect').value = data.openai_voice;
+                    document.getElementById('currentOpenAIVoice').textContent = data.openai_voice;
+                }
+            })
+            .catch(error => {
+                console.error('Failed to load OpenAI voice:', error);
+            });
+        }
+
         function refreshStatus() {
             // Simulate loading memory count
             setTimeout(() => {
@@ -933,6 +1018,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadSharedKnowledge();
             loadAgentName();
+            loadOpenAIVoice();
             refreshStatus();
             
             // Add sample JSON to textarea

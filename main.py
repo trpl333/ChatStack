@@ -1535,6 +1535,59 @@ def get_agent_name():
         logging.error(f"❌ Failed to get agent name: {e}")
         return jsonify({"agent_name": "Amanda"})  # Return default on error
 
+@app.route('/phone/update-openai-voice', methods=['POST'])
+def update_openai_voice():
+    """Save OpenAI voice to AI-Memory service"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        import time
+        mem_store = HTTPMemoryStore()
+        
+        data = request.get_json()
+        openai_voice = data.get('openai_voice', '').strip()
+        
+        if not openai_voice:
+            return jsonify({"success": False, "error": "Voice cannot be empty"}), 400
+        
+        # Validate voice option
+        valid_voices = ['alloy', 'echo', 'shimmer', 'ash', 'ballad', 'coral', 'sage', 'verse', 'cedar', 'marin']
+        if openai_voice not in valid_voices:
+            return jsonify({"success": False, "error": f"Invalid voice. Must be one of: {', '.join(valid_voices)}"}), 400
+        
+        # Save to AI-Memory service as admin setting with timestamp
+        mem_store.write(
+            memory_type="admin_setting",
+            key="openai_voice",
+            value={
+                "setting_key": "openai_voice",
+                "value": openai_voice,
+                "setting_value": openai_voice,
+                "timestamp": time.time(),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            },
+            user_id="admin",
+            scope="shared",
+            ttl_days=365,
+            source="admin_panel"
+        )
+        logging.info(f"✅ Saved OpenAI voice to ai-memory: {openai_voice}")
+        
+        return jsonify({"success": True, "message": f"OpenAI voice updated to {openai_voice}"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to save OpenAI voice to ai-memory: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/phone/get-openai-voice', methods=['GET'])
+def get_openai_voice():
+    """Get OpenAI voice from AI-Memory service"""
+    try:
+        openai_voice = get_admin_setting("openai_voice", "alloy")  # Default to alloy
+        return jsonify({"openai_voice": openai_voice})
+    except Exception as e:
+        logging.error(f"❌ Failed to get OpenAI voice: {e}")
+        return jsonify({"openai_voice": "alloy"})  # Return default on error
+
 @app.route('/update-routing', methods=['POST'])
 def update_routing():
     """Update call routing settings"""
