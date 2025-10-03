@@ -902,9 +902,8 @@ def handle_incoming_call_realtime():
     # Create TwiML response with Media Streams
     response = VoiceResponse()
     
-    # Add initial greeting message
-    greeting = get_personalized_greeting(from_number)
-    response.say(greeting, voice='Polly.Joanna')
+    # ❌ REMOVED: Don't send greeting here - Realtime API will handle it
+    # This was causing double greetings with wrong voice
     
     # Connect to WebSocket for bidirectional audio streaming
     connect = Connect()

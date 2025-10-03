@@ -785,11 +785,13 @@ def pcm16_8k_to_pcmu8k(pcm16_8k: bytes) -> bytes:
 class OAIRealtime:
     """OpenAI Realtime API WebSocket client"""
     
-    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta):
+    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: str = None, user_id: str = None):
         self.ws = None
         self.system_instructions = system_instructions
         self.on_audio_delta = on_audio_delta
         self.on_text_delta = on_text_delta
+        self.thread_id = thread_id
+        self.user_id = user_id
         self._connected = threading.Event()
         self.audio_buffer_size = 0  # Track buffered audio bytes (24kHz PCM16)
     
@@ -845,9 +847,52 @@ class OAIRealtime:
             logger.info("🎤 User stopped speaking")
             self.audio_buffer_size = 0  # Reset buffer after speech
         
+        elif event_type == "conversation.item.created":
+            # Capture user or assistant messages
+            item = ev.get("item", {})
+            role = item.get("role")
+            if role in ("user", "assistant"):
+                content_list = item.get("content", [])
+                for content in content_list:
+                    if content.get("type") == "input_text":
+                        text = content.get("text", "")
+                        logger.info(f"💬 User said: {text}")
+                        # Store in thread history
+                        if hasattr(self, 'thread_id') and self.thread_id:
+                            THREAD_HISTORY[self.thread_id].append(("user", text))
+                    elif content.get("type") == "text":
+                        text = content.get("text", "")
+                        logger.info(f"🤖 Assistant said: {text}")
+                        if hasattr(self, 'thread_id') and self.thread_id:
+                            THREAD_HISTORY[self.thread_id].append(("assistant", text))
+        
+        elif event_type == "response.audio_transcript.done":
+            # Capture assistant's spoken response transcript
+            transcript = ev.get("transcript", "")
+            if transcript:
+                logger.info(f"🗣️ Assistant transcript: {transcript}")
+                if hasattr(self, 'thread_id') and self.thread_id:
+                    THREAD_HISTORY[self.thread_id].append(("assistant", transcript))
+        
+        elif event_type == "conversation.item.input_audio_transcription.completed":
+            # Capture user's spoken input transcript
+            transcript = ev.get("transcript", "")
+            if transcript:
+                logger.info(f"🎤 User transcript: {transcript}")
+                if hasattr(self, 'thread_id') and self.thread_id:
+                    THREAD_HISTORY[self.thread_id].append(("user", transcript))
+        
         elif event_type == "response.done":
             logger.info("✅ OpenAI response complete")
             self.audio_buffer_size = 0  # Reset buffer after response
+            
+            # Save thread history to database after each response
+            if hasattr(self, 'thread_id') and self.thread_id and hasattr(self, 'user_id') and self.user_id:
+                try:
+                    mem_store = HTTPMemoryStore()
+                    save_thread_history(self.thread_id, mem_store, self.user_id)
+                except Exception as e:
+                    logger.warning(f"Failed to save thread history: {e}")
         
         elif event_type == "error":
             error_msg = ev.get("error", {}).get("message", "Unknown error")
@@ -969,11 +1014,20 @@ async def media_stream_endpoint(websocket: WebSocket):
                 user_id = custom_params.get("user_id")
                 is_callback = custom_params.get("is_callback") == "True"
                 
-                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Callback: {is_callback}")
+                # ✅ Create stable thread_id for conversation continuity
+                thread_id = f"user_{user_id}" if user_id else None
+                
+                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Thread: {thread_id}, Callback: {is_callback}")
                 
                 # Build system instructions with memory context
                 try:
                     mem_store = HTTPMemoryStore()
+                    
+                    # ✅ CRITICAL: Load thread history from database for conversation continuity
+                    if thread_id and user_id:
+                        load_thread_history(thread_id, mem_store, user_id)
+                        logger.info(f"🔄 Loaded thread history for {thread_id}: {len(THREAD_HISTORY.get(thread_id, []))} messages")
+                    
                     memories = mem_store.search("", user_id=user_id, k=20) if user_id else []
                     
                     # Load base system prompt
@@ -984,10 +1038,19 @@ async def media_stream_endpoint(websocket: WebSocket):
                     except FileNotFoundError:
                         instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                     
-                    # Add greeting guidance - use get_admin_setting to query ai-memory directly
+                    # Add identity and greeting context - use get_admin_setting to query ai-memory directly
                     agent_name = get_admin_setting("agent_name", "Betsy")
-                    instructions += f"\n\nYour name is {agent_name}."
+                    instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency."
                     
+                    # Add conversation history context
+                    if thread_id and THREAD_HISTORY.get(thread_id):
+                        history = list(THREAD_HISTORY[thread_id])
+                        if history:
+                            instructions += f"\n\n=== CONVERSATION HISTORY ===\nThis is a continuing conversation. Previous messages:\n"
+                            for role, content in history[-10:]:  # Last 5 turns
+                                instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
+                    
+                    # Add caller context
                     if is_callback and memories:
                         # Existing user - look for their name
                         user_name = None
@@ -1001,10 +1064,10 @@ async def media_stream_endpoint(websocket: WebSocket):
                                                              f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
                         if user_name:
                             greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
-                            instructions += f"\n\nStart the call with: {greeting}"
+                            instructions += f"\n\n=== GREETING GUIDANCE ===\nThis is a returning caller named {user_name}. Use this greeting style: '{greeting}'"
                         else:
                             greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
-                            instructions += f"\n\nStart the call with: {greeting}"
+                            instructions += f"\n\n=== GREETING GUIDANCE ===\nThis is a returning caller. Use this greeting style: '{greeting}'"
                     else:
                         # New caller
                         import datetime
@@ -1019,7 +1082,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         greeting_template = get_admin_setting("new_caller_greeting", 
                                                              f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
-                        instructions += f"\n\nStart the call with: {greeting}"
+                        instructions += f"\n\n=== GREETING GUIDANCE ===\nThis is a new caller. Use this greeting: '{greeting}'"
                     
                     # Inject memory context
                     if memories:
@@ -1048,9 +1111,10 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.error(f"Failed to load memory context: {e}")
                     instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                 
-                # Connect to OpenAI
-                oai = OAIRealtime(instructions, on_oai_audio, on_oai_text)
+                # Connect to OpenAI with thread tracking
+                oai = OAIRealtime(instructions, on_oai_audio, on_oai_text, thread_id=thread_id, user_id=user_id)
                 oai.connect()
+                logger.info(f"🔗 OpenAI client initialized with thread_id={thread_id}, user_id={user_id}")
             
             elif event_type == "media":
                 # Audio from Twilio (mulaw 8kHz base64)
