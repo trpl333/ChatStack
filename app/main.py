@@ -1208,25 +1208,58 @@ async def media_stream_endpoint(websocket: WebSocket):
                     # Inject memory context
                     if memories:
                         instructions += "\n\n=== RELEVANT_MEMORIES (use these to personalize conversation) ===\n"
-                        for mem in memories[:10]:
+                        memory_count = 0
+                        for mem in memories[:50]:  # Increase from 10 to 50 to find structured data
                             value = mem.get("value", {})
                             mem_type = mem.get("type", "memory")
+                            mem_key = mem.get("key") or mem.get("k", "")
                             
                             if isinstance(value, dict):
                                 # Handle person memories
-                                if "name" in value and "relationship" in value:
-                                    instructions += f"Person: {value['name']} - {value.get('relationship', 'contact')}\n"
+                                if "name" in value:
+                                    rel = value.get('relationship', '')
+                                    bday = value.get('birthday', '')
+                                    phone = value.get('phone', '')
+                                    info = f"Person: {value['name']}"
+                                    if rel: info += f" ({rel})"
+                                    if bday: info += f" - Birthday: {bday}"
+                                    if phone: info += f" - Phone: {phone}"
+                                    instructions += info + "\n"
+                                    memory_count += 1
                                 # Handle conversation summaries
                                 elif "summary" in value:
                                     instructions += f"Past conversation: {value['summary']}\n"
+                                    memory_count += 1
                                 # Handle user/assistant exchanges
                                 elif "user_message" in value and "assistant_response" in value:
                                     instructions += f"User said: {value['user_message'][:100]}\n"
                                     instructions += f"You replied: {value['assistant_response'][:100]}\n"
-                                # Handle facts/preferences
+                                    memory_count += 1
+                                # Handle facts/preferences with description
                                 elif "description" in value:
                                     instructions += f"{mem_type.title()}: {value['description']}\n"
-                        instructions += "=== END_MEMORIES ===\n"
+                                    memory_count += 1
+                                # Handle preference with item
+                                elif "item" in value:
+                                    pref = value.get('preference', 'likes')
+                                    instructions += f"Preference: {pref} {value['item']}\n"
+                                    memory_count += 1
+                                # Generic dict - show all fields
+                                else:
+                                    instructions += f"{mem_type.title()} ({mem_key}): {value}\n"
+                                    memory_count += 1
+                            elif isinstance(value, str) and len(value) > 5:
+                                # Handle string values (legacy format)
+                                # Skip conversation history strings, focus on facts
+                                if mem_type in ("person", "preference", "project", "rule", "moment") or "father" in mem_key.lower() or "wife" in mem_key.lower() or "family" in mem_key.lower():
+                                    instructions += f"{mem_type.title()} ({mem_key}): {value[:200]}\n"
+                                    memory_count += 1
+                            
+                            if memory_count >= 20:  # Limit to 20 useful memories
+                                break
+                        
+                        instructions += f"=== END_MEMORIES (loaded {memory_count} relevant facts) ===\n"
+                        logger.info(f"📝 Injected {memory_count} memories into OpenAI instructions")
                 
                 except Exception as e:
                     logger.error(f"Failed to load memory context: {e}")
