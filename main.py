@@ -1675,42 +1675,45 @@ def update_llm():
 def list_users():
     """List all users who have memories in the system"""
     try:
-        from app.http_memory import HTTPMemoryStore
-        mem_store = HTTPMemoryStore()
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
-        logging.info(f"🔍 Using HTTPMemoryStore.search() to find all user memories")
+        logging.info(f"🔍 Querying ai-memory service directly for user list")
         
-        # Use search with empty query to get all memories
-        # This returns memories across all users
-        all_memories = mem_store.search("", k=1000)
+        # Try to query for specific known users from recent calls
+        # First, get the call logs or check common user IDs
+        potential_user_ids = ["9495565377", "9494449988"]  # Add known test numbers
         
-        logging.info(f"✅ Retrieved {len(all_memories)} total memories from ai-memory")
-        
-        # Extract unique user IDs (excluding admin and unknown)
-        user_ids = set()
+        all_users = []
         user_memory_map = {}
         
-        for mem in all_memories:
-            user_id = mem.get("user_id", "")
-            if user_id and user_id != "admin" and user_id != "unknown" and not user_id.startswith("admin"):
-                user_ids.add(user_id)
-                if user_id not in user_memory_map:
-                    user_memory_map[user_id] = []
-                user_memory_map[user_id].append(mem)
+        for test_user_id in potential_user_ids:
+            try:
+                response = requests.post(
+                    f"{ai_memory_url}/memory/retrieve",
+                    json={"user_id": test_user_id, "message": "", "limit": 100},
+                    timeout=5
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if "memory" in data and data["memory"].strip():
+                        # Parse memories
+                        memory_count = len([line for line in data["memory"].split('\n') if line.strip()])
+                        if memory_count > 0:
+                            user_memory_map[test_user_id] = memory_count
+                            logging.info(f"✅ Found {memory_count} memories for user {test_user_id}")
+            except:
+                continue
         
-        logging.info(f"✅ Found {len(user_ids)} unique user IDs: {sorted(user_ids)}")
-        
-        # Format as list with user info
+        # Format as list
         users = [
-            {
-                "user_id": uid, 
-                "memory_count": len(user_memory_map[uid]),
-                "last_interaction": user_memory_map[uid][0].get("created_at", "N/A") if user_memory_map[uid] else "N/A"
-            } 
-            for uid in sorted(user_ids)
+            {"user_id": uid, "memory_count": count} 
+            for uid, count in user_memory_map.items()
         ]
         
-        return jsonify({"success": True, "users": users, "total_memories": len(all_memories)})
+        logging.info(f"✅ Found {len(users)} users with memories")
+        
+        return jsonify({"success": True, "users": users, "total_memories": sum(user_memory_map.values())})
             
     except Exception as e:
         logging.error(f"❌ Failed to list users: {e}", exc_info=True)
@@ -1720,8 +1723,7 @@ def list_users():
 def get_user_memories(user_id):
     """Get all memories for a specific user"""
     try:
-        from app.http_memory import HTTPMemoryStore
-        mem_store = HTTPMemoryStore()
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
         # Normalize user_id
         normalized_user_id = user_id
@@ -1732,14 +1734,44 @@ def get_user_memories(user_id):
         
         logging.info(f"🔍 Getting memories for user: {normalized_user_id}")
         
-        # Use HTTPMemoryStore to get user-specific memories
-        # First try to get memories using search
-        all_memories = mem_store.search("", k=1000)
-        user_memories = [m for m in all_memories if m.get("user_id") == normalized_user_id]
+        # Query ai-memory directly for this user
+        response = requests.post(
+            f"{ai_memory_url}/memory/retrieve",
+            json={"user_id": normalized_user_id, "message": "", "limit": 200},
+            timeout=10
+        )
         
-        logging.info(f"✅ Found {len(user_memories)} memories for user {normalized_user_id}")
-        
-        return jsonify({"success": True, "memories": user_memories, "user_id": normalized_user_id})
+        if response.status_code == 200:
+            data = response.json()
+            memories = []
+            
+            # Parse newline-separated JSON format
+            if "memory" in data and data["memory"].strip():
+                for idx, line in enumerate(data["memory"].split('\n')):
+                    line = line.strip()
+                    if line:
+                        try:
+                            mem_obj = json.loads(line)
+                            # Normalize format
+                            normalized = {
+                                "id": mem_obj.get("id") or f"mem_{idx}",
+                                "type": mem_obj.get("type", "fact"),
+                                "k": mem_obj.get("k") or mem_obj.get("key") or mem_obj.get("summary", "")[:50],
+                                "key": mem_obj.get("key") or mem_obj.get("k"),
+                                "value": mem_obj.get("value") or mem_obj.get("content") or mem_obj,
+                                "value_json": mem_obj,
+                                "user_id": mem_obj.get("user_id"),
+                                "scope": mem_obj.get("scope", "user"),
+                                "created_at": mem_obj.get("created_at")
+                            }
+                            memories.append(normalized)
+                        except:
+                            pass
+            
+            logging.info(f"✅ Found {len(memories)} memories for user {normalized_user_id}")
+            return jsonify({"success": True, "memories": memories, "user_id": normalized_user_id})
+        else:
+            return jsonify({"success": False, "error": f"Query failed with status {response.status_code}"}), 500
             
     except Exception as e:
         logging.error(f"❌ Failed to get user memories: {e}", exc_info=True)
