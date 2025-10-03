@@ -810,6 +810,9 @@ class OAIRealtime:
         
         event_type = ev.get("type")
         
+        # Log ALL events for debugging
+        logger.info(f"🔔 OpenAI event: {event_type}")
+        
         if event_type == "response.audio.delta":
             b64 = ev.get("delta", "")
             if b64:
@@ -843,8 +846,14 @@ class OAIRealtime:
     def _on_error(self, ws, err):
         logger.error(f"OpenAI WebSocket error: {err}")
     
-    def _on_close(self, ws, code, reason):
-        logger.info(f"OpenAI WebSocket closed: {code} {reason}")
+    def _on_close(self, ws, *args):
+        """Handle WebSocket close (compatible with any websocket-client version)"""
+        if len(args) >= 2:
+            logger.info(f"OpenAI WebSocket closed: code={args[0]}, reason={args[1]}")
+        elif len(args) == 1:
+            logger.info(f"OpenAI WebSocket closed: {args[0]}")
+        else:
+            logger.info("OpenAI WebSocket closed")
     
     def connect(self):
         """Establish WebSocket connection to OpenAI Realtime API"""
