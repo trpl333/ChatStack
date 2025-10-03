@@ -226,7 +226,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             session_config = {
                 "type": "session.update", 
                 "session": {
-                    "modalities": ["text"],
+                    "modalities": ["audio", "text"],
                     "instructions": system_context,
                     "temperature": temperature
                 }
