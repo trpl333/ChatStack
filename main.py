@@ -1892,13 +1892,33 @@ def get_user_schema(user_id):
         if response.status_code == 200:
             data = response.json()
             
-            # Check if normalized schema exists
+            # ✅ PRIORITY 1: Check for manually saved schema (overrides auto-extracted)
+            manual_schema = None
+            if "memory" in data and data["memory"].strip():
+                for line in data["memory"].split('\n'):
+                    line = line.strip()
+                    if line:
+                        try:
+                            mem_obj = json.loads(line)
+                            # Look for manually saved schema
+                            if mem_obj.get("type") == "normalized_schema" and mem_obj.get("key") == "user_profile":
+                                manual_schema = mem_obj.get("value")
+                                logging.info(f"✅ Found MANUALLY SAVED schema for user {normalized_user_id}")
+                                break
+                        except:
+                            pass
+            
+            # Use manual schema if available
+            if manual_schema:
+                return jsonify({"success": True, "schema": manual_schema, "user_id": normalized_user_id})
+            
+            # ✅ PRIORITY 2: Fall back to auto-extracted normalized schema
             normalized_schema = data.get("normalized")
             if normalized_schema:
-                logging.info(f"✅ Found normalized schema for user {normalized_user_id}")
+                logging.info(f"✅ Found auto-extracted normalized schema for user {normalized_user_id}")
                 return jsonify({"success": True, "schema": normalized_schema, "user_id": normalized_user_id})
             
-            # If no normalized schema, return empty template
+            # ✅ PRIORITY 3: Return empty template if no schema exists
             empty_schema = {
                 "identity": {},
                 "contacts": {"spouse": {}, "father": {}, "mother": {}, "children": []},
@@ -1909,7 +1929,7 @@ def get_user_schema(user_id):
                 "commitments": []
             }
             
-            logging.info(f"⚠️ No normalized schema found, returning empty template for user {normalized_user_id}")
+            logging.info(f"⚠️ No schema found, returning empty template for user {normalized_user_id}")
             return jsonify({"success": True, "schema": empty_schema, "user_id": normalized_user_id})
         else:
             return jsonify({"success": False, "error": f"Query failed with status {response.status_code}"}), 500
