@@ -293,11 +293,23 @@ def extract_carry_kit_items(message_content: str) -> List[Dict[str, Any]]:
             date_str = match.group(1)
             # Try to identify whose birthday
             person_name = "user"
-            if re.search(r"(?:her|his|their) birthday", content_lower):
-                # Look for a name mentioned earlier in the message
-                name_match = re.search(r"(\w+)(?:'s)? birthday", message_content, re.IGNORECASE)
-                if name_match:
-                    person_name = name_match.group(1)
+            
+            # Check for "my wife Kelly's birthday" or "my wife's birthday"
+            # Priority: specific name > relationship > generic
+            name_with_relation = re.search(r"my (wife|husband|partner|son|daughter|mom|mother|dad|father) (\w+)(?:'s)? birthday", content_lower)
+            if name_with_relation:
+                # Found "my wife Kelly's birthday" - use the name
+                person_name = name_with_relation.group(2).capitalize()
+            else:
+                # Check for possessive patterns: "my wife's birthday", "her birthday", "his birthday"
+                possessive_match = re.search(r"my (wife|husband|partner|son|daughter|mom|mother|dad|father)(?:'s)? birthday", content_lower)
+                if possessive_match:
+                    person_name = possessive_match.group(1)
+                elif re.search(r"(?:her|his|their) birthday", content_lower):
+                    # Look for a name mentioned earlier in the message
+                    name_match = re.search(r"(\w+)(?:'s)? birthday", message_content, re.IGNORECASE)
+                    if name_match:
+                        person_name = name_match.group(1)
             
             items.append({
                 "type": "fact",
