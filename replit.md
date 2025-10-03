@@ -15,7 +15,7 @@ This project is an AI-powered phone system for Peterson Family Insurance, utiliz
 
 - **Sept 25, 2025**: ✅ **MICROSERVICES MIGRATION COMPLETE** - Successfully migrated all admin settings from config.json to ai-memory service, implementing true microservices architecture with centralized configuration management
 - **Sept 13, 2025**: ✅ **MEMORY SYSTEM OVERHAUL** - Migrated from direct PostgreSQL to HTTP-based AI-Memory service, eliminating "degraded mode" issues
-- **Current**: ✅ **LLM MIGRATION COMPLETE** - Fully migrated from RunPod to OpenAI Realtime API (gpt-4o-realtime-preview-2024-10-01)
+- **Current**: ✅ **LLM MIGRATION COMPLETE** - Fully migrated from RunPod to OpenAI Realtime API (gpt-realtime, GA Aug 2025)
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
@@ -50,7 +50,7 @@ The system now operates as a true microservices architecture with complete separ
 - DEEPGRAM_API, HUGGINHFACE_TOKEN
 
 ### Core Components:
-- **LLM Integration**: ✅ **FULLY MIGRATED TO OPENAI** - Uses OpenAI Realtime API (gpt-4o-realtime-preview-2024-10-01) for AI responses with 2-2.5 second response times. Completely replaced previous RunPod integration.
+- **LLM Integration**: ✅ **FULLY MIGRATED TO OPENAI** - Uses OpenAI Realtime API (gpt-realtime, GA Aug 2025) for AI responses with 2-2.5 second response times. Completely replaced previous RunPod integration.
 
 - **Memory System**: ✅ **PERSISTENT HYBRID ARCHITECTURE WITH CONSOLIDATION (Oct 1, 2025)** - Three-tier memory system for unlimited conversation memory:
   

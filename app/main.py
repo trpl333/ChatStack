@@ -858,7 +858,7 @@ class OAIRealtime:
     def connect(self):
         """Establish WebSocket connection to OpenAI Realtime API"""
         openai_key = get_secret("OPENAI_API_KEY")
-        model = get_setting("realtime_model", "gpt-4o-realtime-preview-2024-10-01")
+        model = get_setting("realtime_model", "gpt-realtime")
         realtime_url = f"wss://api.openai.com/v1/realtime?model={model}"
         
         headers = [
