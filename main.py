@@ -732,12 +732,13 @@ def get_ai_response(user_id, message, call_sid=None):
         messages = []
         
         # ✅ For callbacks on first message, inject fresh start prompt
-        if is_callback and not first_message_handled:
-            messages.append({"role": "system", "content": "This is a new call. After greeting, ask 'How can I help you today?' instead of continuing previous conversation topics."})
-            # Guard against missing call_sid
-            if call_sid and call_sid in call_sessions:
-                call_sessions[call_sid]['first_message_handled'] = True
-            logging.info("🔄 Injected fresh start prompt for callback")
+        # DISABLED: Conflicts with persistent thread history from database
+        # Thread history already provides conversation context after Docker restart
+        # if is_callback and not first_message_handled:
+        #     messages.append({"role": "system", "content": "This is a new call. After greeting, ask 'How can I help you today?' instead of continuing previous conversation topics."})
+        #     if call_sid and call_sid in call_sessions:
+        #         call_sessions[call_sid]['first_message_handled'] = True
+        #     logging.info("🔄 Injected fresh start prompt for callback")
         
         # Only send the current user message
         messages.append({"role": "user", "content": message})
