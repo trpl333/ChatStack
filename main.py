@@ -403,28 +403,27 @@ def admin():
     user_id = request.args.get('user_id')
     query = request.args.get('query')
     
-    # Search knowledge if query provided
+    # Search shared knowledge if query provided
     if query:
         try:
-            # ✅ Use correct AI-Memory service endpoint for searching
             ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
-            data = {
-                "user_id": "admin",
-                "message": query,
-                "limit": 50,
-                "types": []  # Search all types
-            }
-            resp = requests.post(f"{ai_memory_url}/memory/retrieve", json=data, timeout=10)
+            # ✅ Updated to new v1 endpoint
+            resp = requests.get(
+                f"{ai_memory_url}/v1/memories/shared",
+                params={"query": query, "limit": 50},
+                timeout=10
+            )
             if resp.status_code == 200:
                 result = resp.json()
                 knowledge_results = result.get("memories", [])
+            else:
+                flash(f"⚠️ Shared knowledge search failed: {resp.text}")
         except Exception as e:
             flash(f"⚠️ Could not search knowledge base: {e}")
     
     # Get user memories if user_id provided  
     if user_id:
         try:
-            # ✅ Use correct AI-Memory service endpoint for user memories
             ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
             
             # Normalize user_id just like in process_speech
@@ -434,24 +433,26 @@ def admin():
                 if len(normalized_digits) >= 10:
                     normalized_user_id = normalized_digits[-10:]
             
-            data = {
-                "user_id": normalized_user_id,
-                "message": "",  # Empty for general retrieval
-                "limit": 50,
-                "types": []
-            }
-            resp = requests.post(f"{ai_memory_url}/memory/retrieve", json=data, timeout=10)
+            # ✅ Updated to use new v1 endpoint
+            resp = requests.get(
+                f"{ai_memory_url}/v1/memories/user/{normalized_user_id}",
+                params={"limit": 50},
+                timeout=10
+            )
             if resp.status_code == 200:
                 result = resp.json()
                 user_memories = result.get("memories", [])
+            else:
+                flash(f"⚠️ Could not retrieve user memories: {resp.text}")
         except Exception as e:
             flash(f"⚠️ Could not retrieve user memories: {e}")
     
-    return render_template_string(ADMIN_TEMPLATE, 
-                                knowledge_results=knowledge_results, 
-                                user_memories=user_memories,
-                                user_id=user_id)
-
+    return render_template_string(
+        ADMIN_TEMPLATE, 
+        knowledge_results=knowledge_results, 
+        user_memories=user_memories,
+        user_id=user_id
+    )
 @app.route('/add-knowledge', methods=['POST'])
 def add_knowledge():
     """Add new knowledge to shared knowledge base"""
