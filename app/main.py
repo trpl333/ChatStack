@@ -1183,9 +1183,20 @@ async def media_stream_endpoint(websocket: WebSocket):
                     except FileNotFoundError:
                         instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                     
-                    # Add identity and greeting context - use get_admin_setting to query ai-memory directly
+                    # Add identity, personality, and greeting context - use get_admin_setting to query ai-memory directly
                     agent_name = get_admin_setting("agent_name", "Betsy")
-                    instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency."
+                    instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency, part of Farmers Insurance."
+                    
+                    # ✅ ADD PERSONALITY INSTRUCTIONS
+                    instructions += f"""
+
+=== YOUR PERSONALITY & VOICE ===
+Sound smooth, happy, and confident—friendly but not over-excited.
+Be lightly playful and casual; show subtle warmth, even a bit flirty when appropriate.
+Switch to professional seriousness if the caller's tone or topic demands it.
+Keep responses short and natural. Allow brief pauses so callers can jump in.
+Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance when relevant.
+"""
                     
                     # Add conversation history context
                     if thread_id and THREAD_HISTORY.get(thread_id):
@@ -1209,10 +1220,10 @@ async def media_stream_endpoint(websocket: WebSocket):
                                                              f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
                         if user_name:
                             greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
-                            instructions += f"\n\n=== GREETING GUIDANCE ===\nThis is a returning caller named {user_name}. Use this greeting style: '{greeting}'"
+                            instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller named {user_name}. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
                         else:
                             greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
-                            instructions += f"\n\n=== GREETING GUIDANCE ===\nThis is a returning caller. Use this greeting style: '{greeting}'"
+                            instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller. START the call by speaking first. Say this greeting: '{greeting}' Then continue naturally."
                     else:
                         # New caller
                         import datetime
@@ -1227,7 +1238,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         greeting_template = get_admin_setting("new_caller_greeting", 
                                                              f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
-                        instructions += f"\n\n=== GREETING GUIDANCE ===\nThis is a new caller. Use this greeting: '{greeting}'"
+                        instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
                     
                     # Inject normalized memory context (organized dict instead of raw entries)
                     if memories:
