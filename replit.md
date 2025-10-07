@@ -20,6 +20,11 @@ This project is an AI-powered phone system for Peterson Family Insurance, utiliz
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+**File Naming Convention:**
+- Add project identifier suffix to configuration files to avoid conflicts
+- Examples: `docker-compose-cs.yml` (ChatStack), `docker-compose-ai.yml` (AI-Memory)
+- Prevents accidental overwrites when managing multiple services
+
 ## System Architecture
 **✅ MICROSERVICES ARCHITECTURE (Completed Sept 25, 2025)**
 
