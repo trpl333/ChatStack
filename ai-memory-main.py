@@ -149,7 +149,7 @@ async def memory_store(request: Request):
     ))
     return {"message": "Memory stored in PostgreSQL successfully"}
 
-@app.post("/v1/memories/retrieve")
+@app.post("/memory/retrieve")
 async def memory_retrieve(request: Request):
     """
     ✅ COMPREHENSIVE: Returns normalized memory schema instead of raw text.
@@ -261,7 +261,7 @@ async def chat_completions(req: Request):
     past_context = ""
     try:
         r = requests.post(
-            "http://127.0.0.1:8100/v1/memories/retrieve",
+            "http://127.0.0.1:8100/memory/retrieve",
             json={"session_id": session_id, "limit": 10}
         ).json()
         past_context = r.get("memory", "")
