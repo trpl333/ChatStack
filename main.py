@@ -1690,7 +1690,7 @@ def list_users():
         for test_user_id in potential_user_ids:
             try:
                 response = requests.post(
-                    f"{ai_memory_url}/memory/retrieve",
+                    f"{ai_memory_url}/v1/memories/retrieve",
                     json={"user_id": test_user_id, "message": "", "limit": 100},
                     timeout=5
                 )
@@ -1737,7 +1737,7 @@ def get_user_memories(user_id):
         
         # Query ai-memory directly for this user
         response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
+            f"{ai_memory_url}/v1/memories/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 200},
             timeout=10
         )
@@ -1794,7 +1794,7 @@ def get_user_memories_old(user_id):
         
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
+            f"{ai_memory_url}/v1/memories/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 200},
             timeout=10
         )
@@ -1885,7 +1885,7 @@ def get_user_schema(user_id):
         # Query ai-memory service
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
+            f"{ai_memory_url}/v1/memories/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 200},
             timeout=10
         )
@@ -1961,7 +1961,7 @@ def process_all_memories(user_id):
         # Get ALL memories for this user (high limit)
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
+            f"{ai_memory_url}/v1/memories/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 2000},
             timeout=30
         )

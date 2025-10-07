@@ -258,11 +258,11 @@ class HTTPMemoryStore:
                 payload["scope"] = "user"
             
             # 🔍 DEBUG: Log what we're sending
-            logger.info(f"🔍 Querying AI-Memory: POST {self.ai_memory_url}/memory/retrieve")
+            logger.info(f"🔍 Querying AI-Memory: POST {self.ai_memory_url}/v1/memories/retrieve")
             logger.info(f"🔍 Payload: {json.dumps(payload, indent=2)}")
             
             response = self.session.post(
-                f"{self.ai_memory_url}/memory/retrieve",
+                f"{self.ai_memory_url}/v1/memories/retrieve",
                 json=payload,
                 headers={"Content-Type": "application/json"},
                 timeout=10
