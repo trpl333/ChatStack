@@ -1,0 +1,1 @@
+The AI agent, acting as an automated phone system for Joe Canna Design, offers to transfer the caller to Deck for electrical assistance or take a message for Joe.
