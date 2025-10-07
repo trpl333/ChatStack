@@ -1203,6 +1203,10 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                     if memories:
                         normalized = mem_store.normalize_memories(memories)
                         logger.info(f"📝 Normalized {len(memories)} memories into structured format")
+                        # DEBUG: Log what we got from normalization
+                        caller_name_debug = normalized.get("identity", {}).get("caller_name")
+                        logger.info(f"🔍 DEBUG: normalized identity = {normalized.get('identity', {})}")
+                        logger.info(f"🔍 DEBUG: extracted caller_name = {caller_name_debug}")
                     
                     # Add conversation history context
                     if thread_id and THREAD_HISTORY.get(thread_id):
@@ -1213,15 +1217,30 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                                 instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
                     
                     # Add caller context - extract from normalized structure
-                    if is_callback and normalized:
+                    if is_callback:
                         # ✅ Extract caller name from normalized identity structure
-                        user_name = normalized.get("identity", {}).get("caller_name")
-                        spouse_name = normalized.get("contacts", {}).get("spouse", {}).get("name")
+                        user_name = normalized.get("identity", {}).get("caller_name") if normalized else None
+                        spouse_name = normalized.get("contacts", {}).get("spouse", {}).get("name") if normalized else None
                         
-                        logger.info(f"👤 Caller identity: user_name={user_name}, spouse={spouse_name}")
+                        # ✅ FALLBACK: If normalization didn't find name, check raw memories
+                        if not user_name and memories:
+                            logger.warning("⚠️ Normalization didn't find caller_name, checking raw memories...")
+                            for mem in memories[:20]:  # Check first 20 memories
+                                value = mem.get("value", {})
+                                mem_key = mem.get("key", "")
+                                
+                                # Check for registration or identity type memories
+                                if isinstance(value, dict):
+                                    if value.get("name") and ("phone" in mem_key.lower() or "registration" in mem.get("type", "").lower()):
+                                        user_name = value.get("name")
+                                        logger.info(f"✅ Found caller name in raw memory: {user_name}")
+                                        break
+                        
+                        logger.info(f"👤 Caller identity: user_name={user_name}, spouse={spouse_name}, is_callback={is_callback}")
                         
                         greeting_template = get_admin_setting("existing_user_greeting", 
                                                              f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
+                        logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
                         
                         # Build caller identity context
                         identity_context = ""
