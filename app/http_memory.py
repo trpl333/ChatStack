@@ -688,7 +688,7 @@ class HTTPMemoryStore:
                 "limit": limit,
                 "scope": "shared,global"
             }
-            response = self.session.post(f"{self.ai_memory_url}/memory/retrieve", json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+            response = self.session.post(f"{self.ai_memory_url}/memory/v1/memories/retrieve", json=payload, headers={"Content-Type": "application/json"}, timeout=10)
             
             if response.status_code == 200:
                 return response.json().get("memories", [])
