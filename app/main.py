@@ -1198,6 +1198,12 @@ Keep responses short and natural. Allow brief pauses so callers can jump in.
 Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance when relevant.
 """
                     
+                    # ✅ NORMALIZE MEMORIES FIRST (before greeting) to extract caller identity
+                    normalized = {}
+                    if memories:
+                        normalized = mem_store.normalize_memories(memories)
+                        logger.info(f"📝 Normalized {len(memories)} memories into structured format")
+                    
                     # Add conversation history context
                     if thread_id and THREAD_HISTORY.get(thread_id):
                         history = list(THREAD_HISTORY[thread_id])
@@ -1206,21 +1212,28 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                             for role, content in history[-10:]:  # Last 5 turns
                                 instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
                     
-                    # Add caller context
-                    if is_callback and memories:
-                        # Existing user - look for their name
-                        user_name = None
-                        for mem in memories[:10]:
-                            value = mem.get("value", {})
-                            if isinstance(value, dict) and "name" in value:
-                                user_name = value.get("name")
-                                break
+                    # Add caller context - extract from normalized structure
+                    if is_callback and normalized:
+                        # ✅ Extract caller name from normalized identity structure
+                        user_name = normalized.get("identity", {}).get("caller_name")
+                        spouse_name = normalized.get("contacts", {}).get("spouse", {}).get("name")
+                        
+                        logger.info(f"👤 Caller identity: user_name={user_name}, spouse={spouse_name}")
                         
                         greeting_template = get_admin_setting("existing_user_greeting", 
                                                              f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
+                        
+                        # Build caller identity context
+                        identity_context = ""
                         if user_name:
                             greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
-                            instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller named {user_name}. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
+                            identity_context = f"This is a returning caller named {user_name}."
+                            
+                            # Add family context if available
+                            if spouse_name:
+                                identity_context += f" Their spouse is {spouse_name}."
+                            
+                            instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\n{identity_context} START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
                         else:
                             greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
                             instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller. START the call by speaking first. Say this greeting: '{greeting}' Then continue naturally."
@@ -1241,49 +1254,43 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
                     
                     # Inject normalized memory context (organized dict instead of raw entries)
-                    if memories:
-                        # ✅ COMPREHENSIVE: Normalize 800+ scattered memories into fill-in-the-blanks template
-                        normalized = mem_store.normalize_memories(memories)
+                    if normalized:
+                        # Format as structured memory for AI
+                        instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
+                        instructions += "Below is everything you know about this caller, organized by category:\n\n"
+                        instructions += json.dumps(normalized, indent=2)
+                        instructions += "\n\nIMPORTANT: Use this structured data naturally in conversation. "
+                        instructions += "If you see a spouse name, use it. If you see a birthday, remember it. "
+                        instructions += "Empty fields (null values) mean you haven't learned that info yet.\n"
+                        instructions += "=== END_MEMORY ===\n"
                         
-                        if normalized:
-                            # Format as structured memory for AI
-                            instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
-                            instructions += "Below is everything you know about this caller, organized by category:\n\n"
-                            instructions += json.dumps(normalized, indent=2)
-                            instructions += "\n\nIMPORTANT: Use this structured data naturally in conversation. "
-                            instructions += "If you see a spouse name, use it. If you see a birthday, remember it. "
-                            instructions += "Empty fields (null values) mean you haven't learned that info yet.\n"
-                            instructions += "=== END_MEMORY ===\n"
+                        # Count actual populated data
+                        filled_contacts = sum(1 for rel in ["spouse", "father", "mother"] 
+                                            if normalized.get("contacts", {}).get(rel, {}).get("name"))
+                        filled_contacts += len(normalized.get("contacts", {}).get("children", []))
+                        
+                        stats = {
+                            "contacts": filled_contacts,
+                            "vehicles": len(normalized.get("vehicles", [])),
+                            "policies": len(normalized.get("policies", [])),
+                            "facts": len(normalized.get("facts", [])),
+                            "commitments": len(normalized.get("commitments", []))
+                        }
+                        
+                        logger.info(f"📝 Injected comprehensive memory template from {len(memories)} raw entries:")
+                        logger.info(f"   └─ Contacts: {stats['contacts']}, Vehicles: {stats['vehicles']}, Policies: {stats['policies']}, Facts: {stats['facts']}")
+                        
+                        # 🔍 DEBUG: Show what contacts were extracted
+                        if stats['contacts'] > 0:
+                            logger.info(f"   👥 Contacts found:")
+                            for rel in ["spouse", "father", "mother"]:
+                                contact = normalized.get("contacts", {}).get(rel, {})
+                                if contact.get("name"):
+                                    logger.info(f"      • {rel.title()}: {contact['name']}" + 
+                                              (f" (birthday: {contact['birthday']})" if contact.get("birthday") else ""))
                             
-                            # Count actual populated data
-                            filled_contacts = sum(1 for rel in ["spouse", "father", "mother"] 
-                                                if normalized.get("contacts", {}).get(rel, {}).get("name"))
-                            filled_contacts += len(normalized.get("contacts", {}).get("children", []))
-                            
-                            stats = {
-                                "contacts": filled_contacts,
-                                "vehicles": len(normalized.get("vehicles", [])),
-                                "policies": len(normalized.get("policies", [])),
-                                "facts": len(normalized.get("facts", [])),
-                                "commitments": len(normalized.get("commitments", []))
-                            }
-                            
-                            logger.info(f"📝 Injected comprehensive memory template from {len(memories)} raw entries:")
-                            logger.info(f"   └─ Contacts: {stats['contacts']}, Vehicles: {stats['vehicles']}, Policies: {stats['policies']}, Facts: {stats['facts']}")
-                            
-                            # 🔍 DEBUG: Show what contacts were extracted
-                            if stats['contacts'] > 0:
-                                logger.info(f"   👥 Contacts found:")
-                                for rel in ["spouse", "father", "mother"]:
-                                    contact = normalized.get("contacts", {}).get(rel, {})
-                                    if contact.get("name"):
-                                        logger.info(f"      • {rel.title()}: {contact['name']}" + 
-                                                  (f" (birthday: {contact['birthday']})" if contact.get("birthday") else ""))
-                                
-                                for child in normalized.get("contacts", {}).get("children", []):
-                                    logger.info(f"      • {child.get('relationship', 'child').title()}: {child.get('name', 'unknown')}")
-                        else:
-                            logger.warning(f"⚠️ normalize_memories returned empty dict from {len(memories)} raw memories")
+                            for child in normalized.get("contacts", {}).get("children", []):
+                                logger.info(f"      • {child.get('relationship', 'child').title()}: {child.get('name', 'unknown')}")
                 
                 except Exception as e:
                     logger.error(f"Failed to load memory context: {e}")
