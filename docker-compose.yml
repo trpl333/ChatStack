@@ -1,19 +1,14 @@
 version: "3.8"
 
 services:
-  # ────────────────────────────────
-  #  ChatStack Web Admin (Port 5000)
-  # ────────────────────────────────
-  web:
+  ai-memory-orchestrator-worker:
     build: .
-    command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --timeout 120 main:app
+    command: uvicorn main:app --host 0.0.0.0 --port 8100
     env_file:
       - .env
     restart: unless-stopped
-    volumes:
-      - /opt/ChatStack/static:/app/static:rw
     ports:
-      - "5000:5000"
+      - "8100:8100"
     logging:
       driver: "json-file"
       options:
@@ -21,28 +16,5 @@ services:
         max-file: "3"
     networks: [appnet]
 
-  # ────────────────────────────────
-  #  Orchestrator / ChatStack Core (Port 8001)
-  # ────────────────────────────────
-  orchestrator-worker:
-    build: .
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8001
-    env_file:
-      - .env
-    restart: unless-stopped
-    volumes:
-      - /opt/ChatStack/static:/app/static:rw
-    ports:
-      - "8001:8001"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks: [appnet]
-
-# ────────────────────────────────
-# Shared internal Docker network
-# ────────────────────────────────
 networks:
   appnet:
