@@ -1,64 +1,64 @@
-version: '3.8'
+version: "3.8"
 
 services:
+  # ────────────────────────────────
+  #  ChatStack Web Admin (Port 5000)
+  # ────────────────────────────────
   web:
     build: .
     command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --timeout 120 main:app
     env_file:
       - .env
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - PGHOST=${PGHOST}
-      - PGPORT=${PGPORT}
-      - PGDATABASE=${PGDATABASE}
-      - PGUSER=${PGUSER}
-      - PGPASSWORD=${PGPASSWORD}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
-      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - LLM_BASE_URL=${LLM_BASE_URL}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - FLASK_ENV=production
     restart: unless-stopped
     volumes:
       - /opt/ChatStack/static:/app/static:rw
+    ports:
+      - "5000:5000"
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    network_mode: "host"
+    networks: [appnet]
 
+  # ────────────────────────────────
+  #  Orchestrator / ChatStack Core (Port 8001)
+  # ────────────────────────────────
   orchestrator-worker:
     build: .
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001
     env_file:
       - .env
-    environment:
-      - DATABASE_URL=${DATABASE_URL}
-      - PGHOST=${PGHOST}
-      - PGPORT=${PGPORT}
-      - PGDATABASE=${PGDATABASE}
-      - PGUSER=${PGUSER}
-      - PGPASSWORD=${PGPASSWORD}
-      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
-      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
-      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
-      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
-      - ELEVENLABS_VOICE_ID=${ELEVENLABS_VOICE_ID}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - LLM_BASE_URL=${LLM_BASE_URL}
-      - SESSION_SECRET=${SESSION_SECRET}
-      - FLASK_ENV=production
     restart: unless-stopped
     volumes:
       - /opt/ChatStack/static:/app/static:rw
+    ports:
+      - "8001:8001"
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    network_mode: "host"
+    networks: [appnet]
+
+  # ────────────────────────────────
+  #  AI-Memory Service (Port 8100)
+  # ────────────────────────────────
+  ai-memory-orchestrator-worker:
+    image: ai-memory-orchestrator-worker
+    restart: always
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8100
+    ports:
+      - "8100:8100"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks: [appnet]
+
+# ────────────────────────────────
+# Shared internal Docker network
+# ────────────────────────────────
+networks:
+  appnet:
