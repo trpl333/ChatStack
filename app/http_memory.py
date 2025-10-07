@@ -138,7 +138,13 @@ class HTTPMemoryStore:
             response = self.session.get(f"{self.ai_memory_url}/health", timeout=10)
             if response.status_code == 200:
                 health_data = response.json()
-                if health_data.get("status") == "ok" and health_data.get("db") is True:
+                if (
+                    health_data.get("status") in ("ok", "healthy")
+                    and (
+                        health_data.get("db") is True
+                        or health_data.get("memory_store") == "connected"
+                    )
+            ):
                     self.available = True
                     logger.info("✅ Connected to AI-Memory service")
                 else:
