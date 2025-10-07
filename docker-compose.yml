@@ -41,22 +41,6 @@ services:
         max-file: "3"
     networks: [appnet]
 
-  # ────────────────────────────────
-  #  AI-Memory Service (Port 8100)
-  # ────────────────────────────────
-  ai-memory-orchestrator-worker:
-    image: ai-memory-orchestrator-worker
-    restart: always
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8100
-    ports:
-      - "8100:8100"
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    networks: [appnet]
-
 # ────────────────────────────────
 # Shared internal Docker network
 # ────────────────────────────────
