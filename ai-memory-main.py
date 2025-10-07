@@ -18,12 +18,9 @@ from memory_schema import normalize_memories, MEMORY_TEMPLATE
 # Environment / Config
 # -------------------------------------------------------------------------------------
 DATABASE_URL   = os.getenv("DATABASE_URL", "")
-LLM_MODE       = os.getenv("LLM_MODE", "pod")                   # "pod" or "serverless"
-RUNPOD_URL     = os.getenv("LLM_BASE_URL", "")                 # pod: .../v1/chat/completions ; serverless: .../runsync
-LLM_MODEL      = os.getenv("LLM_MODEL", "")                    # e.g. neuro-llama3-8b
-POD_API_KEY    = os.getenv("POD_API_KEY", "")                  # your pod key (VLLM_API_KEY)
-POD_HEADER     = os.getenv("POD_HEADER", "authorization").lower()  # "authorization" or "x-api-key"
-RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY", "")               # only used if LLM_MODE=serverless
+LLM_BASE_URL   = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
+LLM_MODEL      = os.getenv("LLM_MODEL", "gpt-4o-mini")
+LLM_API_KEY    = os.getenv("OPENAI_API_KEY", "")
 LLM_TIMEOUT    = int(os.getenv("LLM_TIMEOUT", "180"))
 
 # -------------------------------------------------------------------------------------
@@ -185,7 +182,7 @@ async def memory_read(session_id: str = Query(..., alias="session_id")):
     return {"rows": [dict(r) for r in rows]}
 
 # ------------------------------------------------------------
-# LLM endpoint (calls your RunPod pod, OpenAI-style)
+# LLM endpoint (calls OpenAI API)
 # ------------------------------------------------------------
 @app.post("/llm/respond")
 async def llm_respond(body: LLMRequest):
@@ -199,37 +196,19 @@ async def llm_respond(body: LLMRequest):
             {"role": "user", "content": full_prompt}
         ]
 
-        timeout_s = LLM_TIMEOUT
-
-        if LLM_MODE.lower() == "pod":
-            # OpenAI-compatible /v1/chat/completions
-            payload = {
-                "model": LLM_MODEL,
-                "messages": messages,
-                "temperature": 0.7,
-                "max_tokens": 80,
-                "stream": False,
-            }
-            headers: Dict[str, str] = {}
-            if POD_API_KEY:
-                if POD_HEADER in ("authorization", "bearer"):
-                    headers["Authorization"] = f"Bearer {POD_API_KEY}"
-                else:
-                    headers[POD_HEADER] = POD_API_KEY
-            r = requests.post(RUNPOD_URL, json=payload, headers=headers, timeout=timeout_s)
-        else:
-            # Serverless fallback (kept for completeness)
-            payload = {
-                "input": {
-                    "model": LLM_MODEL or "tiiuae/Falcon-H1-7B",
-                    "messages": messages,
-                    "temperature": 0.7,
-                    "max_tokens": 80,
-                    "stream": False,
-                }
-            }
-            headers = {"Authorization": f"Bearer {RUNPOD_API_KEY}"} if RUNPOD_API_KEY else {}
-            r = requests.post(RUNPOD_URL, json=payload, headers=headers, timeout=timeout_s)
+        # Call OpenAI API
+        payload = {
+            "model": LLM_MODEL,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 80,
+            "stream": False,
+        }
+        headers: Dict[str, str] = {}
+        if LLM_API_KEY:
+            headers["Authorization"] = f"Bearer {LLM_API_KEY}"
+        
+        r = requests.post(f"{LLM_BASE_URL}/chat/completions", json=payload, headers=headers, timeout=LLM_TIMEOUT)
 
         if r.status_code != 200:
             raise HTTPException(status_code=502, detail=f"LLM call failed: {r.text}")
@@ -297,24 +276,21 @@ async def chat_completions(req: Request):
             {"role": "system", "content": f"Known context:\n{past_context}"}
         )
 
-    # 3. Call Falcon LLM (via RunPod URL from .env)
+    # 3. Call OpenAI LLM
     payload = {
-        "model": body.get("model", LLM_MODEL or "tiiuae/Falcon-H1-7B-Instruct"),
+        "model": body.get("model", LLM_MODEL or "gpt-4o-mini"),
         "messages": messages,
         "temperature": 0.7,
         "stream": False,
     }
 
     headers: Dict[str, str] = {}
-    if POD_API_KEY:
-        if POD_HEADER in ("authorization", "bearer"):
-            headers["Authorization"] = f"Bearer {POD_API_KEY}"
-        else:
-            headers[POD_HEADER] = POD_API_KEY
+    if LLM_API_KEY:
+        headers["Authorization"] = f"Bearer {LLM_API_KEY}"
 
     try:
         resp = requests.post(
-            RUNPOD_URL,
+            f"{LLM_BASE_URL}/chat/completions",
             json=payload,
             headers=headers,
             timeout=LLM_TIMEOUT

@@ -51,8 +51,8 @@ try:
         print("🔧 Cleared old LLM_BASE_URL environment variable")
     
     llm_config = get_llm_config()
-    # Force use OpenAI endpoint, not old RunPod
-    if "neurosphere" in llm_config["base_url"]:
+    # Ensure using OpenAI endpoint
+    if "neurosphere" in llm_config["base_url"] or "runpod" in llm_config["base_url"]:
         os.environ["LLM_BASE_URL"] = "https://api.openai.com/v1"
         print(f"🔧 Corrected LLM_BASE_URL to: https://api.openai.com/v1")
     else:
@@ -80,7 +80,7 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
 def _get_backend_url():
     """Get LLM backend URL dynamically"""
     config = _get_config()
-    return config["llm_base_url"] or "https://5njnf4k2bc5t20-8000.proxy.runpod.net"
+    return config["llm_base_url"] or "https://api.openai.com/v1"
 
 def _get_orchestrator_url():
     """Get local FastAPI orchestrator URL for memory and chat"""
