@@ -19,7 +19,7 @@ from memory_schema import normalize_memories, MEMORY_TEMPLATE
 # -------------------------------------------------------------------------------------
 DATABASE_URL   = os.getenv("DATABASE_URL", "")
 LLM_BASE_URL   = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
-LLM_MODEL      = os.getenv("LLM_MODEL", "gpt-4o-mini")
+LLM_MODEL      = os.getenv("LLM_MODEL", "gpt-4o-realtime-preview-2024-10-01")
 LLM_API_KEY    = os.getenv("OPENAI_API_KEY", "")
 LLM_TIMEOUT    = int(os.getenv("LLM_TIMEOUT", "180"))
 
