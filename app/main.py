@@ -304,20 +304,36 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
         import json
         transcript_lower = transcript.lower()
         
-        # Check for transfer intent keywords
-        transfer_triggers = ["transfer", "talk to", "speak with", "speak to", "connect me", "get me"]
-        has_transfer_intent = any(trigger in transcript_lower for trigger in transfer_triggers)
-        
-        if not has_transfer_intent:
-            return False
-            
         # Load transfer rules from admin settings
         rules_json = get_admin_setting("transfer_rules", "[]")
         rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
         
+        # Check for explicit transfer intent keywords (talk to, speak with, etc.)
+        # OR check all rules for potential matches (for intent-based like "file a claim")
+        transfer_triggers = ["transfer", "talk to", "speak with", "speak to", "connect me", "get me"]
+        has_explicit_transfer = any(trigger in transcript_lower for trigger in transfer_triggers)
+        
+        # If no explicit transfer trigger, do quick scan for potential rule matches
+        if not has_explicit_transfer:
+            potential_match = False
+            for rule in rules:
+                keyword = rule.get("keyword", "").lower()
+                if not keyword:
+                    continue
+                # Check if any word from the keyword appears in transcript
+                keyword_words = [w for w in keyword.split() if w not in ['a', 'an', 'the', 'to', 'for']]
+                if any(kw in transcript_lower for kw in keyword_words):
+                    potential_match = True
+                    break
+            
+            if not potential_match:
+                return False
+        
         logger.info(f"🔍 Transfer intent detected, checking {len(rules)} transfer rules")
         
-        # Check each rule for keyword match (with fuzzy matching for names)
+        # Check each rule for keyword match (with fuzzy matching for names and phrases)
+        transcript_words = transcript_lower.split()
+        
         for rule in rules:
             keyword = rule.get("keyword", "").lower()
             number = rule.get("number", "")
@@ -325,25 +341,47 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
             if not keyword or not number:
                 continue
             
-            # Exact match (substring)
+            # 1. Exact substring match
             if keyword in transcript_lower:
                 logger.info(f"✅ Transfer rule matched (exact): '{keyword}' -> {number}")
                 execute_twilio_transfer(call_sid, number, keyword)
                 return True
             
-            # Fuzzy match for name variations (e.g., Melissa vs Milissa)
-            # Extract words from transcript
-            words = transcript_lower.split()
-            for word in words:
-                # Simple edit distance check for single-word keywords
-                if len(keyword) > 3 and len(word) > 3:
-                    # Check if words are similar (allow 1-2 character differences)
-                    distance = levenshtein_distance(keyword, word)
-                    max_distance = 1 if len(keyword) <= 6 else 2
-                    if distance <= max_distance:
-                        logger.info(f"✅ Transfer rule matched (fuzzy): '{keyword}' ~ '{word}' -> {number}")
-                        execute_twilio_transfer(call_sid, number, keyword)
-                        return True
+            # 2. Multi-word phrase matching (e.g., "filing a claim" matches "file a claim")
+            keyword_words = keyword.split()
+            if len(keyword_words) > 1:
+                # Check if all important words from keyword appear in transcript (with variations)
+                important_words = [w for w in keyword_words if w not in ['a', 'an', 'the', 'to', 'for']]
+                matches = 0
+                for kw in important_words:
+                    for tw in transcript_words:
+                        # Check for exact match or verb forms (filing->file, making->make)
+                        if tw == kw or tw == kw.rstrip('ing') or kw == tw.rstrip('ing'):
+                            matches += 1
+                            break
+                        # Check fuzzy match for misspellings
+                        if len(kw) > 3 and len(tw) > 3:
+                            distance = levenshtein_distance(kw, tw)
+                            if distance <= 1:
+                                matches += 1
+                                break
+                
+                # If most/all important words matched, trigger transfer
+                if matches >= len(important_words):
+                    logger.info(f"✅ Transfer rule matched (phrase): '{keyword}' -> {number}")
+                    execute_twilio_transfer(call_sid, number, keyword)
+                    return True
+            
+            # 3. Single-word fuzzy matching (for names like Melissa/Milissa)
+            elif len(keyword_words) == 1:
+                for word in transcript_words:
+                    if len(keyword) > 3 and len(word) > 3:
+                        distance = levenshtein_distance(keyword, word)
+                        max_distance = 1 if len(keyword) <= 6 else 2
+                        if distance <= max_distance:
+                            logger.info(f"✅ Transfer rule matched (fuzzy): '{keyword}' ~ '{word}' -> {number}")
+                            execute_twilio_transfer(call_sid, number, keyword)
+                            return True
         
         logger.info(f"⚠️ Transfer intent detected but no matching rule found. Transcript: '{transcript}'")
         return False
