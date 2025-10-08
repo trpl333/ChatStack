@@ -349,20 +349,40 @@ class HTTPMemoryStore:
         if manual_schemas:
             # Use most recent (last) manual schema
             manual_schema = manual_schemas[-1]
-            logger.info(f"✅ Using MANUALLY SAVED schema (found {len(manual_schemas)} versions, using latest)")
             
-            # Merge with template to ensure all fields exist
-            result = copy.deepcopy(MEMORY_TEMPLATE)
+            # ✅ Check if manual schema is actually populated (not all None/empty)
+            def is_schema_populated(schema):
+                """Check if schema has any non-null/non-empty values"""
+                if not schema or not isinstance(schema, dict):
+                    return False
+                for key, value in schema.items():
+                    if isinstance(value, dict):
+                        for sub_key, sub_val in value.items():
+                            if sub_val not in [None, "", [], {}]:
+                                return True
+                    elif isinstance(value, list) and len(value) > 0:
+                        return True
+                    elif value not in [None, "", [], {}]:
+                        return True
+                return False
             
-            # Deep merge manual schema into template
-            for key, value in manual_schema.items():
-                if key in result:
-                    if isinstance(value, dict) and isinstance(result[key], dict):
-                        result[key].update(value)
-                    else:
-                        result[key] = value
-            
-            return result
+            if is_schema_populated(manual_schema):
+                logger.info(f"✅ Using MANUALLY SAVED schema (found {len(manual_schemas)} versions, using latest)")
+                
+                # Merge with template to ensure all fields exist
+                result = copy.deepcopy(MEMORY_TEMPLATE)
+                
+                # Deep merge manual schema into template
+                for key, value in manual_schema.items():
+                    if key in result:
+                        if isinstance(value, dict) and isinstance(result[key], dict):
+                            result[key].update(value)
+                        else:
+                            result[key] = value
+                
+                return result
+            else:
+                logger.warning(f"⚠️ Found {len(manual_schemas)} manual schemas but all empty - falling back to auto-extraction")
         
         # ✅ PRIORITY 2: Auto-extract from raw memories if no manual schema exists
         logger.info(f"🔄 No manual schema found, auto-normalizing {len(raw_memories)} raw memories...")
