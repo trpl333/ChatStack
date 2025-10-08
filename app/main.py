@@ -352,30 +352,42 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
                 execute_twilio_transfer(call_sid, number, keyword)
                 return True
             
-            # 2. Multi-word phrase matching (e.g., "filing a claim" matches "file a claim")
+            # 2. Multi-word phrase matching (e.g., "filing a claim" matches "claims department")
             keyword_words = keyword.split()
             if len(keyword_words) > 1:
-                # Check if all important words from keyword appear in transcript (with variations)
+                # Check if important words from keyword appear in transcript (with variations)
                 important_words = [w for w in keyword_words if w not in ['a', 'an', 'the', 'to', 'for']]
                 matches = 0
+                matched_words = []
                 for kw in important_words:
                     for tw in transcript_words:
                         # Check for exact match or verb forms (filing->file, making->make)
                         if tw == kw or tw == kw.rstrip('ing') or kw == tw.rstrip('ing'):
                             matches += 1
+                            matched_words.append(f"{kw}~{tw}")
+                            break
+                        # Check plural/singular: claim->claims, claims->claim
+                        if (tw == kw + 's' or tw + 's' == kw or 
+                            tw == kw.rstrip('s') or kw == tw.rstrip('s')):
+                            matches += 1
+                            matched_words.append(f"{kw}~{tw}")
                             break
                         # Check fuzzy match for misspellings
                         if len(kw) > 3 and len(tw) > 3:
                             distance = levenshtein_distance(kw, tw)
                             if distance <= 1:
                                 matches += 1
+                                matched_words.append(f"{kw}~{tw}")
                                 break
                 
-                # If most/all important words matched, trigger transfer
-                if matches >= len(important_words):
-                    logger.info(f"✅ Transfer rule matched (phrase): '{keyword}' -> {number}")
+                # Flexible matching: require at least 1 important word (for 2-word phrases) or 50% for longer phrases
+                min_matches = 1 if len(important_words) <= 2 else (len(important_words) + 1) // 2
+                if matches >= min_matches:
+                    logger.info(f"✅ Transfer rule matched (phrase): '{keyword}' ({matches}/{len(important_words)} words: {matched_words}) -> {number}")
                     execute_twilio_transfer(call_sid, number, keyword)
                     return True
+                elif matches > 0:
+                    logger.info(f"  ⚠️ Partial phrase match: '{keyword}' ({matches}/{len(important_words)} words: {matched_words}, need {min_matches})")
             
             # 3. Single-word fuzzy matching (for names like Melissa/Milissa)
             elif len(keyword_words) == 1:
@@ -1500,17 +1512,24 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                     if transfer_rules:
                         instructions += "\n\n=== CALL TRANSFER CAPABILITIES ===\n"
                         instructions += "You CAN transfer calls! When a caller needs to speak with someone or a department, you can help.\n\n"
-                        instructions += "Available transfers:\n"
+                        instructions += "Available transfers (use these EXACT keywords/phrases):\n"
                         
                         for rule in transfer_rules:
                             keyword = rule.get("keyword", "")
                             description = rule.get("description", keyword)
                             if keyword and description:
-                                instructions += f"• When they ask for '{description}' → mention '{keyword}' in your response\n"
+                                # Show both keyword and description for clarity
+                                instructions += f"• {description}: Use phrase '{keyword}' in your response to trigger transfer\n"
                         
-                        instructions += "\nIMPORTANT: When you naturally mention these keywords in your response, the system automatically handles the transfer. "
-                        instructions += "Don't say you can't transfer - you CAN! Just acknowledge their request and mention the keyword.\n"
-                        instructions += "Example: 'Sure, let me connect you with Billing' (triggers transfer automatically)\n"
+                        instructions += "\nHOW TRANSFERS WORK:\n"
+                        instructions += "1. When caller requests a transfer, acknowledge their request warmly\n"
+                        instructions += "2. Use the EXACT keyword/phrase from above naturally in your response\n"
+                        instructions += "3. The system automatically handles the transfer when it detects the keyword\n"
+                        instructions += "4. Phrases work with variations: 'filing a claim' matches 'claims', 'file a claim', etc.\n\n"
+                        instructions += "EXAMPLES:\n"
+                        instructions += "• Caller: 'I need to file a claim' → You: 'I can help with filing a claim, let me transfer you'\n"
+                        instructions += "• Caller: 'Connect me to billing' → You: 'Sure, I'll help with billing'\n"
+                        instructions += "• Caller: 'Can I talk to Melissa?' → You: 'Of course, let me connect you to Milissa'\n"
                         logger.info(f"✅ Injected {len(transfer_rules)} transfer rules into system prompt")
                     else:
                         logger.warning(f"⚠️ No transfer rules to inject (got empty list or None)")
