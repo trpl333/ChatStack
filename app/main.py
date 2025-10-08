@@ -331,6 +331,7 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
         
         logger.info(f"🔍 Transfer intent detected, checking {len(rules)} transfer rules")
         logger.info(f"📝 Transcript to check: '{transcript}'")
+        logger.info(f"📋 All rules loaded: {json.dumps(rules, indent=2)}")
         
         # Check each rule for keyword match (with fuzzy matching for names and phrases)
         transcript_words = transcript_lower.split()
