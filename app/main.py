@@ -429,6 +429,7 @@ def execute_twilio_transfer(call_sid: str, number: str, keyword: str):
     """Execute call transfer by redirecting to transfer endpoint"""
     try:
         from twilio.rest import Client
+        from urllib.parse import quote
         
         account_sid = get_secret("TWILIO_ACCOUNT_SID")
         auth_token = get_secret("TWILIO_AUTH_TOKEN")
@@ -437,8 +438,10 @@ def execute_twilio_transfer(call_sid: str, number: str, keyword: str):
         # Get server URL from config
         server_url = get_setting("server_url", "https://voice.theinsurancedoctors.com")
         
-        # Redirect the call to transfer endpoint with target number
-        transfer_url = f"{server_url}/phone/transfer?number={number}&keyword={keyword}"
+        # URL-encode parameters to handle spaces and special characters
+        encoded_number = quote(number)
+        encoded_keyword = quote(keyword)
+        transfer_url = f"{server_url}/phone/transfer?number={encoded_number}&keyword={encoded_keyword}"
         
         logger.info(f"📞 Redirecting call {call_sid} to transfer URL: {transfer_url}")
         
