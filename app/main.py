@@ -308,8 +308,8 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
         rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
         
         # Check for explicit transfer intent keywords (talk to, speak with, etc.)
-        # OR check all rules for potential matches (for intent-based like "file a claim")
-        transfer_triggers = ["transfer", "talk to", "speak with", "speak to", "connect me", "get me"]
+        # Required for PERSON names to avoid triggering on self-introductions ("I'm John")
+        transfer_triggers = ["transfer", "talk to", "speak with", "speak to", "connect me", "get me", "need to talk", "want to speak"]
         has_explicit_transfer = any(trigger in transcript_lower for trigger in transfer_triggers)
         
         # If no explicit transfer trigger, do quick scan for potential rule matches
@@ -344,6 +344,19 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
             
             if not keyword or not number:
                 logger.info(f"⏭️ Skipping rule #{i+1} - missing keyword or number")
+                continue
+            
+            # ✅ Detect if this is a PERSON name (requires explicit transfer intent to avoid self-intro triggers)
+            # Person names are: single words, capitalized in description, or common first names
+            is_person_name = (
+                len(keyword.split()) == 1 and  # Single word
+                (description[0].isupper() if description else False) or  # Capitalized description
+                keyword in ["john", "milissa", "melissa", "colin", "kelly", "jack", "mike", "sarah", "david"]  # Common names
+            )
+            
+            # For person names, REQUIRE explicit transfer intent
+            if is_person_name and not has_explicit_transfer:
+                logger.info(f"  ⏭️ Skipping person name '{keyword}' - requires explicit transfer intent (talk to, speak with, etc.)")
                 continue
             
             # 1. Exact substring match
