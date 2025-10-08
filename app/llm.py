@@ -353,6 +353,14 @@ def validate_llm_connection() -> bool:
         True if connection is valid, False otherwise
     """
     try:
+        config = _get_llm_config()
+        model = config.get("model", "")
+        
+        # Skip HTTP validation for realtime models (they use WebSocket)
+        if "realtime" in model.lower():
+            logger.info(f"✅ Skipping HTTP validation for realtime model: {model}")
+            return True
+        
         test_messages = [{"role": "user", "content": "Hello"}]
         
         # Try regular chat completions for validation (more reliable)
