@@ -1566,7 +1566,7 @@ def get_openai_voice():
         logging.error(f"❌ Failed to get OpenAI voice: {e}")
         return jsonify({"openai_voice": "alloy"})  # Return default on error
 
-@app.route('/admin/save-transfer-rules', methods=['POST'])
+@app.route('/phone/admin/save-transfer-rules', methods=['POST'])
 def save_transfer_rules():
     """Save call transfer routing rules to AI-Memory service"""
     try:
@@ -1602,7 +1602,7 @@ def save_transfer_rules():
         logging.error(f"❌ Failed to save transfer rules: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
 
-@app.route('/admin/get-transfer-rules', methods=['GET'])
+@app.route('/phone/admin/get-transfer-rules', methods=['GET'])
 def get_transfer_rules():
     """Get call transfer routing rules from AI-Memory service"""
     try:

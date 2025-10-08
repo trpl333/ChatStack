@@ -804,7 +804,7 @@
             })).filter(rule => rule.keyword && rule.number);
 
             try {
-                const response = await fetch('/admin/save-transfer-rules', {
+                const response = await fetch('/phone/admin/save-transfer-rules', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ rules: rules })
@@ -822,7 +822,7 @@
 
         async function loadTransferRules() {
             try {
-                const response = await fetch('/admin/get-transfer-rules');
+                const response = await fetch('/phone/admin/get-transfer-rules');
                 const data = await response.json();
                 if (data.rules && data.rules.length > 0) {
                     data.rules.forEach(rule => {
