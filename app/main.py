@@ -1491,6 +1491,30 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                     logger.error(f"Failed to load memory context: {e}")
                     instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                 
+                # ✅ INJECT CURRENT TRANSFER RULES DYNAMICALLY
+                try:
+                    import json
+                    rules_json = get_admin_setting("transfer_rules", "[]")
+                    transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
+                    
+                    if transfer_rules:
+                        instructions += "\n\n=== CALL TRANSFER CAPABILITIES ===\n"
+                        instructions += "You CAN transfer calls! When a caller needs to speak with someone or a department, you can help.\n\n"
+                        instructions += "Available transfers:\n"
+                        
+                        for rule in transfer_rules:
+                            keyword = rule.get("keyword", "")
+                            description = rule.get("description", keyword)
+                            if keyword and description:
+                                instructions += f"• When they ask for '{description}' → mention '{keyword}' in your response\n"
+                        
+                        instructions += "\nIMPORTANT: When you naturally mention these keywords in your response, the system automatically handles the transfer. "
+                        instructions += "Don't say you can't transfer - you CAN! Just acknowledge their request and mention the keyword.\n"
+                        instructions += "Example: 'Sure, let me connect you with Billing' (triggers transfer automatically)\n"
+                        logger.info(f"✅ Injected {len(transfer_rules)} transfer rules into system prompt")
+                except Exception as e:
+                    logger.error(f"Failed to inject transfer rules: {e}")
+                
                 # Get voice from admin panel (alloy, echo, shimmer)
                 openai_voice = get_admin_setting("openai_voice", "alloy")
                 logger.info(f"🎤 Using OpenAI voice from admin panel: {openai_voice}")
