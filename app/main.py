@@ -1495,7 +1495,9 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                 try:
                     import json
                     rules_json = get_admin_setting("transfer_rules", "[]")
+                    logger.info(f"🔧 Raw transfer_rules from admin: {rules_json}")
                     transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
+                    logger.info(f"🔧 Parsed transfer_rules: {len(transfer_rules)} rules")
                     
                     if transfer_rules:
                         instructions += "\n\n=== CALL TRANSFER CAPABILITIES ===\n"
@@ -1512,8 +1514,12 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                         instructions += "Don't say you can't transfer - you CAN! Just acknowledge their request and mention the keyword.\n"
                         instructions += "Example: 'Sure, let me connect you with Billing' (triggers transfer automatically)\n"
                         logger.info(f"✅ Injected {len(transfer_rules)} transfer rules into system prompt")
+                    else:
+                        logger.warning(f"⚠️ No transfer rules to inject (got empty list or None)")
                 except Exception as e:
-                    logger.error(f"Failed to inject transfer rules: {e}")
+                    logger.error(f"❌ Failed to inject transfer rules: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                 
                 # Get voice from admin panel (alloy, echo, shimmer)
                 openai_voice = get_admin_setting("openai_voice", "alloy")
