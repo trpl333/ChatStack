@@ -5,7 +5,9 @@ services:
   #  ChatStack Web Admin (Port 5000)
   # ────────────────────────────────
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --timeout 120 --reuse-port --reload main:app
     env_file:
       - .env
@@ -25,7 +27,9 @@ services:
   #  Orchestrator / ChatStack Core (Port 8001)
   # ────────────────────────────────
   orchestrator-worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001
     env_file:
       - .env
