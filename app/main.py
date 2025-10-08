@@ -1493,7 +1493,6 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                 
                 # ✅ INJECT CURRENT TRANSFER RULES DYNAMICALLY
                 try:
-                    import json
                     rules_json = get_admin_setting("transfer_rules", "[]")
                     logger.info(f"🔧 Raw transfer_rules from admin: {rules_json}")
                     transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
