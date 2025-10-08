@@ -330,15 +330,20 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
                 return False
         
         logger.info(f"🔍 Transfer intent detected, checking {len(rules)} transfer rules")
+        logger.info(f"📝 Transcript to check: '{transcript}'")
         
         # Check each rule for keyword match (with fuzzy matching for names and phrases)
         transcript_words = transcript_lower.split()
         
-        for rule in rules:
+        for i, rule in enumerate(rules):
             keyword = rule.get("keyword", "").lower()
             number = rule.get("number", "")
+            description = rule.get("description", "")
+            
+            logger.info(f"🔍 Checking rule #{i+1}: keyword='{keyword}', number={number}, desc='{description}'")
             
             if not keyword or not number:
+                logger.info(f"⏭️ Skipping rule #{i+1} - missing keyword or number")
                 continue
             
             # 1. Exact substring match
@@ -379,11 +384,15 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
                         distance = levenshtein_distance(keyword, word)
                         max_distance = 1 if len(keyword) <= 6 else 2
                         if distance <= max_distance:
-                            logger.info(f"✅ Transfer rule matched (fuzzy): '{keyword}' ~ '{word}' -> {number}")
+                            logger.info(f"✅ Transfer rule matched (fuzzy): '{keyword}' ~ '{word}' (distance={distance}) -> {number}")
                             execute_twilio_transfer(call_sid, number, keyword)
                             return True
+                        else:
+                            logger.info(f"  ❌ Fuzzy match failed: '{keyword}' vs '{word}' (distance={distance} > {max_distance})")
         
-        logger.info(f"⚠️ Transfer intent detected but no matching rule found. Transcript: '{transcript}'")
+        logger.info(f"⚠️ Transfer intent detected but NO matching rule found.")
+        logger.info(f"   Transcript: '{transcript}'")
+        logger.info(f"   Checked {len(rules)} rules with no matches")
         return False
         
     except Exception as e:
