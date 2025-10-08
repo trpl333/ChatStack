@@ -275,6 +275,70 @@ Return ONLY valid JSON in this format:
     except Exception as e:
         logger.error(f"Memory consolidation error: {e}")
 
+# ✅ Call Transfer Detection
+def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
+    """
+    Check if transcript contains transfer intent and execute if rules match.
+    Returns True if transfer was executed, False otherwise.
+    """
+    try:
+        import json
+        transcript_lower = transcript.lower()
+        
+        # Check for transfer intent keywords
+        transfer_triggers = ["transfer", "talk to", "speak with", "speak to", "connect me", "get me"]
+        has_transfer_intent = any(trigger in transcript_lower for trigger in transfer_triggers)
+        
+        if not has_transfer_intent:
+            return False
+            
+        # Load transfer rules from admin settings
+        rules_json = get_admin_setting("transfer_rules", "[]")
+        rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
+        
+        logger.info(f"🔍 Transfer intent detected, checking {len(rules)} transfer rules")
+        
+        # Check each rule for keyword match
+        for rule in rules:
+            keyword = rule.get("keyword", "").lower()
+            number = rule.get("number", "")
+            
+            if keyword and number and keyword in transcript_lower:
+                logger.info(f"✅ Transfer rule matched: '{keyword}' -> {number}")
+                
+                # Execute transfer via Twilio
+                execute_twilio_transfer(call_sid, number, keyword)
+                return True
+        
+        logger.info("⚠️ Transfer intent detected but no matching rule found")
+        return False
+        
+    except Exception as e:
+        logger.error(f"❌ Transfer check failed: {e}")
+        return False
+
+def execute_twilio_transfer(call_sid: str, number: str, keyword: str):
+    """Execute call transfer using Twilio API"""
+    try:
+        from twilio.rest import Client
+        from twilio.twiml.voice_response import VoiceResponse, Dial
+        
+        account_sid = get_secret("TWILIO_ACCOUNT_SID")
+        auth_token = get_secret("TWILIO_AUTH_TOKEN")
+        client = Client(account_sid, auth_token)
+        
+        # Create TwiML to dial the number
+        response = VoiceResponse()
+        response.say(f"Transferring you to {keyword}. Please hold.")
+        response.dial(number)
+        
+        # Update the call with new TwiML
+        client.calls(call_sid).update(twiml=str(response))
+        logger.info(f"📞 Successfully transferred call {call_sid} to {number}")
+        
+    except Exception as e:
+        logger.error(f"❌ Failed to execute transfer: {e}")
+
 # Feature flags
 ENABLE_RECAP = True           # write/read tiny durable recap to AI-Memory
 DISCOURAGE_GUESSING = True    # add a system rail when no memories are retrieved
@@ -821,7 +885,7 @@ def pcm16_8k_to_pcmu8k(pcm16_8k: bytes) -> bytes:
 class OAIRealtime:
     """OpenAI Realtime API WebSocket client"""
     
-    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None, voice: str = "alloy"):
+    def __init__(self, system_instructions: str, on_audio_delta, on_text_delta, thread_id: Optional[str] = None, user_id: Optional[str] = None, call_sid: Optional[str] = None, voice: str = "alloy"):
         self.ws = None
         self.system_instructions = system_instructions
         self.on_audio_delta = on_audio_delta
@@ -829,6 +893,7 @@ class OAIRealtime:
         self.voice = voice  # OpenAI voice (alloy, echo, shimmer)
         self.thread_id = thread_id
         self.user_id = user_id
+        self.call_sid = call_sid  # For transfer functionality
         self._connected = threading.Event()
         self.audio_buffer_size = 0  # Track buffered audio bytes (24kHz PCM16)
     
@@ -931,6 +996,10 @@ class OAIRealtime:
                 logger.info(f"🗣️ Assistant transcript: {transcript}")
                 if hasattr(self, 'thread_id') and self.thread_id:
                     THREAD_HISTORY[self.thread_id].append(("assistant", transcript))
+                
+                # ✅ Check for transfer intent and execute if rule matches
+                if hasattr(self, 'call_sid') and self.call_sid:
+                    check_and_execute_transfer(transcript, self.call_sid)
         
         elif event_type == "conversation.item.input_audio_transcription.completed":
             # Capture user's spoken input transcript
@@ -1063,6 +1132,7 @@ async def media_stream_endpoint(websocket: WebSocket):
     event_loop = asyncio.get_event_loop()
     
     stream_sid = None
+    call_sid = None  # Track call_sid for transfer functionality
     oai = None
     last_media_ts = time.time()
     
@@ -1147,12 +1217,13 @@ async def media_stream_endpoint(websocket: WebSocket):
                 stream_sid = ev["start"]["streamSid"]
                 custom_params = ev["start"].get("customParameters", {})
                 user_id = custom_params.get("user_id")
+                call_sid = custom_params.get("call_sid")  # Extract call_sid for transfer functionality
                 is_callback = custom_params.get("is_callback") == "True"
                 
                 # ✅ Create stable thread_id for conversation continuity
                 thread_id = f"user_{user_id}" if user_id else None
                 
-                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Thread: {thread_id}, Callback: {is_callback}")
+                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Call: {call_sid}, Thread: {thread_id}, Callback: {is_callback}")
                 
                 # Build system instructions with memory context
                 try:
@@ -1326,6 +1397,7 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                     on_oai_text, 
                     thread_id=thread_id, 
                     user_id=user_id,
+                    call_sid=call_sid,  # Pass call_sid for transfer functionality
                     voice=openai_voice
                 )
                 oai.connect()

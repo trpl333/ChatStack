@@ -1566,6 +1566,66 @@ def get_openai_voice():
         logging.error(f"❌ Failed to get OpenAI voice: {e}")
         return jsonify({"openai_voice": "alloy"})  # Return default on error
 
+@app.route('/admin/save-transfer-rules', methods=['POST'])
+def save_transfer_rules():
+    """Save call transfer routing rules to AI-Memory service"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        import json
+        import time
+        mem_store = HTTPMemoryStore()
+        
+        data = request.get_json()
+        rules = data.get('rules', [])
+        
+        # Save as JSON array to ai-memory
+        mem_store.write(
+            memory_type="admin_setting",
+            key="transfer_rules",
+            value={
+                "setting_key": "transfer_rules",
+                "value": json.dumps(rules),
+                "rules": rules,  # Store both for easy access
+                "timestamp": time.time(),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            },
+            user_id="admin",
+            scope="shared",
+            ttl_days=365,
+            source="admin_panel"
+        )
+        logging.info(f"✅ Saved {len(rules)} transfer rules to ai-memory")
+        
+        return jsonify({"success": True, "message": f"Saved {len(rules)} transfer rules"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to save transfer rules: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/admin/get-transfer-rules', methods=['GET'])
+def get_transfer_rules():
+    """Get call transfer routing rules from AI-Memory service"""
+    try:
+        import json
+        
+        # Try to get from admin settings
+        rules_json = get_admin_setting("transfer_rules", "[]")
+        
+        # Parse if it's a string
+        if isinstance(rules_json, str):
+            rules = json.loads(rules_json) if rules_json else []
+        elif isinstance(rules_json, list):
+            rules = rules_json
+        else:
+            rules = []
+            
+        logging.info(f"📖 Retrieved {len(rules)} transfer rules from ai-memory")
+        return jsonify({"rules": rules})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to get transfer rules: {e}")
+        return jsonify({"rules": []})  # Return empty array on error
+
 @app.route('/update-routing', methods=['POST'])
 def update_routing():
     """Update call routing settings"""

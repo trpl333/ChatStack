@@ -145,49 +145,31 @@
                     </div>
                 </div>
 
-                <!-- Call Routing -->
+                <!-- Call Transfer Routing Rules -->
                 <div class="admin-section">
-                    <h3 class="section-header">📞 Call Routing & Actions</h3>
-                    <div class="row">
-                        <div class="col-md-12">
-                            <h5>Quick Actions</h5>
-                            <div class="setting-group">
-                                <div class="mb-3">
-                                    <label class="form-label">Billing Department</label>
-                                    <input type="tel" class="form-control" id="billingNumber" value="1-888-327-6377" placeholder="1-888-XXX-XXXX">
-                                    <small class="text-muted">When users mention "pay bill" or "billing", transfer here</small>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Claims Department</label>
-                                    <input type="tel" class="form-control" id="claimsNumber" value="1-800-435-7764" placeholder="1-800-XXX-XXXX">
-                                    <small class="text-muted">When users mention "claim" or "accident", transfer here</small>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">General Support</label>
-                                    <input type="tel" class="form-control" id="supportNumber" value="1-888-327-6377" placeholder="1-888-XXX-XXXX">
-                                    <small class="text-muted">For complex issues Samantha can't handle</small>
-                                </div>
-                            </div>
-                        </div>
+                    <h3 class="section-header">📞 Call Transfer Routing Rules</h3>
+                    <div class="alert alert-info">
+                        <strong>How it works:</strong> When a caller asks to speak with someone or mentions specific keywords, the system automatically transfers to the configured number. Add rules for staff members, departments, or specific scenarios.
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover" id="transferRulesTable">
+                            <thead>
+                                <tr>
+                                    <th>Name / Keyword</th>
+                                    <th>Phone Number</th>
+                                    <th>Description</th>
+                                    <th style="width: 100px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transferRulesBody">
+                                <!-- Rules loaded dynamically -->
+                            </tbody>
+                        </table>
                     </div>
                     <div class="mt-3">
-                        <h5>Trigger Keywords</h5>
-                        <div class="row">
-                            <div class="col-md-4">
-                                <label class="form-label">Billing Keywords</label>
-                                <textarea class="form-control" rows="3" id="billingKeywords">pay bill, billing, payment, invoice, account balance, autopay</textarea>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Claims Keywords</label>
-                                <textarea class="form-control" rows="3" id="claimsKeywords">claim, accident, damage, injury, file claim, incident</textarea>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label">Transfer Keywords</label>
-                                <textarea class="form-control" rows="3" id="transferKeywords">speak to human, transfer me, representative, agent, manager</textarea>
-                            </div>
-                        </div>
+                        <button class="btn btn-outline-primary" onclick="addTransferRule()">➕ Add Transfer Rule</button>
+                        <button class="btn btn-success" onclick="saveTransferRules()">💾 Save Transfer Rules</button>
                     </div>
-                    <button class="btn btn-success mt-2" onclick="updateRouting()">💾 Update Call Routing</button>
                 </div>
             </div>
 
@@ -800,32 +782,60 @@
             });
         }
 
-        function updateRouting() {
-            const settings = {
-                billing_number: document.getElementById('billingNumber').value,
-                claims_number: document.getElementById('claimsNumber').value,
-                support_number: document.getElementById('supportNumber').value,
-                billing_keywords: document.getElementById('billingKeywords').value,
-                claims_keywords: document.getElementById('claimsKeywords').value,
-                transfer_keywords: document.getElementById('transferKeywords').value
-            };
-            
-            fetch('/update-routing', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(settings)
-            })
-            .then(response => response.json())
-            .then(data => {
+        // Transfer Rules Management
+        function addTransferRule(keyword = '', number = '', description = '') {
+            const tbody = document.getElementById('transferRulesBody');
+            const row = tbody.insertRow();
+            row.innerHTML = `
+                <td><input type="text" class="form-control" value="${keyword}" placeholder="e.g., Milissa, John, billing"></td>
+                <td><input type="tel" class="form-control" value="${number}" placeholder="+19493345808"></td>
+                <td><input type="text" class="form-control" value="${description}" placeholder="Optional description"></td>
+                <td><button class="btn btn-sm btn-danger" onclick="this.closest('tr').remove()">🗑️</button></td>
+            `;
+        }
+
+        async function saveTransferRules() {
+            const tbody = document.getElementById('transferRulesBody');
+            const rows = Array.from(tbody.rows);
+            const rules = rows.map(row => ({
+                keyword: row.cells[0].querySelector('input').value.trim().toLowerCase(),
+                number: row.cells[1].querySelector('input').value.trim(),
+                description: row.cells[2].querySelector('input').value.trim()
+            })).filter(rule => rule.keyword && rule.number);
+
+            try {
+                const response = await fetch('/admin/save-transfer-rules', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rules: rules })
+                });
+                const data = await response.json();
                 if (data.success) {
-                    showNotification('Success', 'Call routing settings updated successfully!');
+                    showNotification('Success', `Saved ${rules.length} transfer rules!`);
                 } else {
-                    showNotification('Error', 'Failed to update routing: ' + data.error, true);
+                    showNotification('Error', 'Failed to save: ' + data.error, true);
                 }
-            })
-            .catch(error => {
+            } catch (error) {
                 showNotification('Error', 'Network error: ' + error.message, true);
-            });
+            }
+        }
+
+        async function loadTransferRules() {
+            try {
+                const response = await fetch('/admin/get-transfer-rules');
+                const data = await response.json();
+                if (data.rules && data.rules.length > 0) {
+                    data.rules.forEach(rule => {
+                        addTransferRule(rule.keyword, rule.number, rule.description || '');
+                    });
+                } else {
+                    // Add empty row if no rules exist
+                    addTransferRule();
+                }
+            } catch (error) {
+                console.error('Failed to load transfer rules:', error);
+                addTransferRule(); // Add empty row on error
+            }
         }
 
         function updateAgentName() {
@@ -1966,6 +1976,7 @@
             loadSharedKnowledge();
             loadAgentName();
             loadOpenAIVoice();
+            loadTransferRules(); // Load transfer routing rules
             refreshStatus();
             loadAllUsers(); // Load user list on page load
             
