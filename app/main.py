@@ -276,6 +276,25 @@ Return ONLY valid JSON in this format:
         logger.error(f"Memory consolidation error: {e}")
 
 # ✅ Call Transfer Detection
+def levenshtein_distance(s1: str, s2: str) -> int:
+    """Calculate the Levenshtein distance between two strings"""
+    if len(s1) < len(s2):
+        return levenshtein_distance(s2, s1)
+    if len(s2) == 0:
+        return len(s1)
+    
+    previous_row = range(len(s2) + 1)
+    for i, c1 in enumerate(s1):
+        current_row = [i + 1]
+        for j, c2 in enumerate(s2):
+            insertions = previous_row[j + 1] + 1
+            deletions = current_row[j] + 1
+            substitutions = previous_row[j] + (c1 != c2)
+            current_row.append(min(insertions, deletions, substitutions))
+        previous_row = current_row
+    
+    return previous_row[-1]
+
 def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
     """
     Check if transcript contains transfer intent and execute if rules match.
@@ -298,19 +317,35 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
         
         logger.info(f"🔍 Transfer intent detected, checking {len(rules)} transfer rules")
         
-        # Check each rule for keyword match
+        # Check each rule for keyword match (with fuzzy matching for names)
         for rule in rules:
             keyword = rule.get("keyword", "").lower()
             number = rule.get("number", "")
             
-            if keyword and number and keyword in transcript_lower:
-                logger.info(f"✅ Transfer rule matched: '{keyword}' -> {number}")
-                
-                # Execute transfer via Twilio
+            if not keyword or not number:
+                continue
+            
+            # Exact match (substring)
+            if keyword in transcript_lower:
+                logger.info(f"✅ Transfer rule matched (exact): '{keyword}' -> {number}")
                 execute_twilio_transfer(call_sid, number, keyword)
                 return True
+            
+            # Fuzzy match for name variations (e.g., Melissa vs Milissa)
+            # Extract words from transcript
+            words = transcript_lower.split()
+            for word in words:
+                # Simple edit distance check for single-word keywords
+                if len(keyword) > 3 and len(word) > 3:
+                    # Check if words are similar (allow 1-2 character differences)
+                    distance = levenshtein_distance(keyword, word)
+                    max_distance = 1 if len(keyword) <= 6 else 2
+                    if distance <= max_distance:
+                        logger.info(f"✅ Transfer rule matched (fuzzy): '{keyword}' ~ '{word}' -> {number}")
+                        execute_twilio_transfer(call_sid, number, keyword)
+                        return True
         
-        logger.info("⚠️ Transfer intent detected but no matching rule found")
+        logger.info(f"⚠️ Transfer intent detected but no matching rule found. Transcript: '{transcript}'")
         return False
         
     except Exception as e:
