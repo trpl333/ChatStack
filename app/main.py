@@ -301,7 +301,6 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
     Returns True if transfer was executed, False otherwise.
     """
     try:
-        import json
         transcript_lower = transcript.lower()
         
         # Load transfer rules from admin settings
