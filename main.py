@@ -129,76 +129,52 @@ ai_instructions = AI_INSTRUCTIONS
 
 # Dynamic greeting templates - load from config on each request
 def get_admin_setting(setting_key, default=None):
-    """Get admin setting from AI-Memory service with improved key matching"""
+    """Get admin setting from AI-Memory service by parsing concatenated JSON"""
     try:
-        from app.http_memory import HTTPMemoryStore
-        mem_store = HTTPMemoryStore()
+        import requests
+        import json as json_module
         
-        # ✅ Fix: Search for admin setting with better matching
-        results = mem_store.search(
-            query_text=setting_key,  # Search for exact key name
-            user_id="admin", 
-            k=20,  # Get more results to find all matches
-            memory_types=["admin_setting"],
-            include_shared=True
+        # ✅ Use retrieve endpoint to get all admin settings
+        response = requests.post(
+            "http://172.17.0.1:8100/memory/retrieve",
+            json={"user_id": "admin", "key": f"admin:{setting_key}"},
+            headers={"Content-Type": "application/json"},
+            timeout=2
         )
         
-        # ✅ Collect all exact matches with timestamps
-        matches = []
-        for result in results:
-            stored_key = result.get("k") or result.get("key") or result.get("setting_key", "")
-            value_obj = result.get("value", {})
+        if response.status_code == 200:
+            data = response.json()
+            memory_text = data.get("memory", "")
             
-            if stored_key == setting_key and isinstance(value_obj, dict):
-                # Extract value and timestamp (check multiple locations)
-                value = value_obj.get("value") or value_obj.get("setting_value") or value_obj.get(setting_key) or str(value_obj)
-                # Try multiple timestamp fields, prefer the one in value_obj
-                timestamp = (
-                    value_obj.get("timestamp") or 
-                    value_obj.get("created_at") or 
-                    value_obj.get("updated_at") or
-                    result.get("timestamp") or 
-                    result.get("created_at") or 
-                    0  # Old entries without timestamps get 0 (oldest)
-                )
-                # Convert string timestamps to float if needed
-                if isinstance(timestamp, str):
-                    try:
-                        import time
-                        from datetime import datetime
-                        timestamp = datetime.strptime(timestamp, "%Y-%m-%d %H:%M:%S").timestamp()
-                    except:
-                        timestamp = 0
-                matches.append({"value": value, "timestamp": float(timestamp)})
+            # Parse concatenated JSON lines to find setting
+            matches = []
+            for line in memory_text.split('\n'):
+                line = line.strip()
+                if not line or line == "test":
+                    continue
+                try:
+                    setting_obj = json_module.loads(line)
+                    if setting_obj.get("setting_key") == setting_key:
+                        value = setting_obj.get("value") or setting_obj.get("setting_value")
+                        timestamp = setting_obj.get("timestamp", 0)
+                        matches.append({"value": value, "timestamp": float(timestamp)})
+                except:
+                    continue
+            
+            # Return most recent match
+            if matches:
+                matches.sort(key=lambda x: x["timestamp"], reverse=True)
+                latest_value = matches[0]["value"]
+                logging.info(f"📖 Retrieved admin setting {setting_key}: {latest_value}")
+                return latest_value
         
-        # ✅ Sort by timestamp (most recent first) and return latest
-        if matches:
-            matches.sort(key=lambda x: x["timestamp"], reverse=True)
-            latest_value = matches[0]["value"]
-            logging.info(f"📖 Retrieved LATEST admin setting {setting_key} from ai-memory (found {len(matches)} versions, timestamps: {[m['timestamp'] for m in matches[:3]]}): {latest_value}")
-            return latest_value
-        
-        # If no exact match, try partial match in message content
-        for result in results:
-            if setting_key.lower() in result.get("message", "").lower():
-                value_json = result.get("value_json", {})
-                if isinstance(value_json, dict) and "value" in value_json:
-                    return value_json["value"]
-        
-        # Fallback to config.json if not in ai-memory yet
+        # Fallback to config.json
         config_value = get_setting(setting_key, default)
-        logging.info(f"📖 Using config.json fallback for {setting_key}")
+        logging.info(f"📖 Using config.json fallback for {setting_key}: {config_value}")
         return config_value
         
     except Exception as e:
         logging.error(f"Error getting admin setting {setting_key}: {e}")
-        # Final fallback - use agent_name from settings
-        if setting_key == "existing_user_greeting":
-            agent_name = get_admin_setting("agent_name", "Amanda") if setting_key != "agent_name" else "Amanda"
-            return f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?"
-        elif setting_key == "new_caller_greeting":
-            agent_name = get_admin_setting("agent_name", "Amanda") if setting_key != "agent_name" else "Amanda"
-            return f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?"
         return default
 
 def get_existing_user_greeting():
