@@ -346,11 +346,16 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
                 logger.info(f"⏭️ Skipping rule #{i+1} - missing keyword or number")
                 continue
             
-            # 1. Exact substring match
+            # 1. Exact substring match (ONLY MATCHING MODE FOR NOW)
             if keyword in transcript_lower:
-                logger.info(f"✅ Transfer rule matched (exact): '{keyword}' -> {number}")
+                logger.info(f"✅ Transfer rule matched (exact): '{keyword}' in '{transcript_lower}' -> {number}")
                 execute_twilio_transfer(call_sid, number, keyword)
                 return True
+            else:
+                logger.info(f"  ⏭️ No exact match: '{keyword}' not in transcript")
+            
+            # FUZZY MATCHING TEMPORARILY DISABLED FOR DEBUGGING
+            continue
             
             # 2. Multi-word phrase matching (e.g., "filing a claim" matches "file a claim")
             keyword_words = keyword.split()
@@ -380,15 +385,18 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
             # 3. Single-word fuzzy matching (for names like Melissa/Milissa)
             elif len(keyword_words) == 1:
                 for word in transcript_words:
+                    # Only fuzzy match words of similar length (±2 characters)
+                    if abs(len(keyword) - len(word)) > 2:
+                        continue
+                        
                     if len(keyword) > 3 and len(word) > 3:
                         distance = levenshtein_distance(keyword, word)
-                        max_distance = 1 if len(keyword) <= 6 else 2
+                        # Strict fuzzy matching: only 1 character difference for names
+                        max_distance = 1
                         if distance <= max_distance:
                             logger.info(f"✅ Transfer rule matched (fuzzy): '{keyword}' ~ '{word}' (distance={distance}) -> {number}")
                             execute_twilio_transfer(call_sid, number, keyword)
                             return True
-                        else:
-                            logger.info(f"  ❌ Fuzzy match failed: '{keyword}' vs '{word}' (distance={distance} > {max_distance})")
         
         logger.info(f"⚠️ Transfer intent detected but NO matching rule found.")
         logger.info(f"   Transcript: '{transcript}'")
