@@ -845,6 +845,31 @@ def handle_incoming_call():
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 
+@app.route('/phone/transfer', methods=['POST', 'GET'])
+def handle_transfer():
+    """Handle call transfer - return TwiML to dial the target number"""
+    from twilio.twiml.voice_response import VoiceResponse
+    
+    # Get transfer parameters
+    number = request.args.get('number') or request.form.get('number')
+    keyword = request.args.get('keyword') or request.form.get('keyword', 'the requested party')
+    
+    logging.info(f"📞 Transfer endpoint called: number={number}, keyword={keyword}")
+    
+    # Create TwiML response
+    response = VoiceResponse()
+    response.say(f"Transferring you to {keyword}. Please hold.", voice='Polly.Joanna')
+    
+    # Dial the target number
+    response.dial(number, timeout=30, callerId=request.form.get('From'))
+    
+    # If dial fails or completes
+    response.say("The call could not be completed. Goodbye.")
+    response.hangup()
+    
+    logging.info(f"✅ Transfer TwiML generated for {number}")
+    return str(response), 200, {'Content-Type': 'text/xml'}
+
 @app.route('/phone/incoming-realtime', methods=['POST'])
 def handle_incoming_call_realtime():
     """Handle incoming phone calls using OpenAI Realtime API with Twilio Media Streams"""

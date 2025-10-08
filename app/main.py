@@ -408,26 +408,34 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
         return False
 
 def execute_twilio_transfer(call_sid: str, number: str, keyword: str):
-    """Execute call transfer using Twilio API"""
+    """Execute call transfer by redirecting to transfer endpoint"""
     try:
         from twilio.rest import Client
-        from twilio.twiml.voice_response import VoiceResponse, Dial
         
         account_sid = get_secret("TWILIO_ACCOUNT_SID")
         auth_token = get_secret("TWILIO_AUTH_TOKEN")
         client = Client(account_sid, auth_token)
         
-        # Create TwiML to dial the number
-        response = VoiceResponse()
-        response.say(f"Transferring you to {keyword}. Please hold.")
-        response.dial(number)
+        # Get server URL from config
+        server_url = get_setting("server_url", "https://voice.theinsurancedoctors.com")
         
-        # Update the call with new TwiML
-        client.calls(call_sid).update(twiml=str(response))
-        logger.info(f"📞 Successfully transferred call {call_sid} to {number}")
+        # Redirect the call to transfer endpoint with target number
+        transfer_url = f"{server_url}/phone/transfer?number={number}&keyword={keyword}"
+        
+        logger.info(f"📞 Redirecting call {call_sid} to transfer URL: {transfer_url}")
+        
+        # Update call to redirect to transfer endpoint
+        client.calls(call_sid).update(
+            url=transfer_url,
+            method='POST'
+        )
+        
+        logger.info(f"✅ Successfully initiated transfer to {number}")
         
     except Exception as e:
         logger.error(f"❌ Failed to execute transfer: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
 
 # Feature flags
 ENABLE_RECAP = True           # write/read tiny durable recap to AI-Memory
