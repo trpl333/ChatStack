@@ -1428,15 +1428,40 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                         # ✅ FALLBACK: If normalization didn't find name, check raw memories
                         if not user_name and memories:
                             logger.warning("⚠️ Normalization didn't find caller_name, checking raw memories...")
-                            for mem in memories[:20]:  # Check first 20 memories
+                            import re
+                            for mem in memories[:50]:  # Check first 50 memories
                                 value = mem.get("value", {})
                                 mem_key = mem.get("key", "")
                                 
-                                # Check for registration or identity type memories
+                                # Method 1: Check for structured name field
                                 if isinstance(value, dict):
                                     if value.get("name") and ("phone" in mem_key.lower() or "registration" in mem.get("type", "").lower()):
                                         user_name = value.get("name")
-                                        logger.info(f"✅ Found caller name in raw memory: {user_name}")
+                                        logger.info(f"✅ Found caller name in structured memory: {user_name}")
+                                        break
+                                    
+                                    # Method 2: Extract from conversation summaries
+                                    summary = value.get("summary", "") or value.get("user_message", "")
+                                    if summary:
+                                        # Pattern: "I'm [Name]" or "This is [Name]" or "It's [Name]"
+                                        name_match = re.search(r"(?:I'm|I am|This is|It's)\s+([A-Z][a-z]+)", summary)
+                                        if name_match:
+                                            user_name = name_match.group(1)
+                                            logger.info(f"✅ Extracted caller name from conversation: {user_name}")
+                                            break
+                        
+                        # ✅ FALLBACK 2: Extract spouse name from memories if not in normalized data
+                        if not spouse_name and memories:
+                            import re
+                            for mem in memories[:50]:
+                                value = mem.get("value", {})
+                                if isinstance(value, dict):
+                                    summary = value.get("summary", "") or value.get("user_message", "")
+                                    # Pattern: "wife's name is [Name]" or "my wife [Name]" or just "[Name]."
+                                    spouse_match = re.search(r"(?:wife'?s? (?:name )?is |my wife )?([A-Z][a-z]+)(?:\.|,)", summary)
+                                    if spouse_match and "wife" in summary.lower():
+                                        spouse_name = spouse_match.group(1)
+                                        logger.info(f"✅ Extracted spouse name from conversation: {spouse_name}")
                                         break
                         
                         logger.info(f"👤 Caller identity: user_name={user_name}, spouse={spouse_name}, is_callback={is_callback}")
