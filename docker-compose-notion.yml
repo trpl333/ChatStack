@@ -20,6 +20,10 @@ services:
       - AI_MEMORY_URL=http://ai-memory-host:8100
       - NOTION_API_PORT=8200
       
+      # Notion API credentials
+      - NOTION_TOKEN=${NOTION_TOKEN}
+      - NOTION_PARENT_PAGE_ID=${NOTION_PARENT_PAGE_ID}
+      
       # Replit connector credentials (for OAuth token refresh)
       - REPLIT_CONNECTORS_HOSTNAME=${REPLIT_CONNECTORS_HOSTNAME}
       - REPL_IDENTITY=${REPL_IDENTITY}
