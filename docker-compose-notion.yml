@@ -25,7 +25,7 @@ services:
     extra_hosts:
       - "ai-memory-host:host-gateway"
     networks:
-      - appnet
+      - chatstack_appnet
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
@@ -35,5 +35,5 @@ services:
       start_period: 40s
 
 networks:
-  appnet:
+  chatstack_appnet:
     external: true
