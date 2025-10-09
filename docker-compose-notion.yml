@@ -11,6 +11,8 @@ services:
       dockerfile: Dockerfile.notion
     container_name: chatstack-notion-service-1
     command: node services/notion-api-server.js
+    env_file:
+      - .env
     ports:
       - "8200:8200"
     environment:
