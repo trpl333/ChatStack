@@ -23,6 +23,13 @@ const AI_MEMORY_URL = process.env.AI_MEMORY_URL || 'http://172.17.0.1:8100';
 let connectionSettings = null;
 
 async function getAccessToken() {
+  // Priority 1: Use direct NOTION_TOKEN if available (production mode)
+  if (process.env.NOTION_TOKEN) {
+    console.log('✅ Using direct NOTION_TOKEN for authentication');
+    return process.env.NOTION_TOKEN;
+  }
+  
+  // Priority 2: Use Replit OAuth connector (development mode)
   if (connectionSettings && connectionSettings.settings.expires_at && 
       new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
     return connectionSettings.settings.access_token;
@@ -36,7 +43,7 @@ async function getAccessToken() {
     : null;
 
   if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+    throw new Error('Neither NOTION_TOKEN nor Replit OAuth credentials found');
   }
 
   connectionSettings = await fetch(
@@ -53,7 +60,7 @@ async function getAccessToken() {
                      connectionSettings.settings?.oauth?.credentials?.access_token;
 
   if (!connectionSettings || !accessToken) {
-    throw new Error('Notion not connected');
+    throw new Error('Notion not connected via Replit OAuth');
   }
   return accessToken;
 }
