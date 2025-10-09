@@ -1129,9 +1129,7 @@ class OAIRealtime:
                 if hasattr(self, 'thread_id') and self.thread_id:
                     THREAD_HISTORY[self.thread_id].append(("assistant", transcript))
                 
-                # ✅ Check for transfer intent and execute if rule matches
-                if hasattr(self, 'call_sid') and self.call_sid:
-                    check_and_execute_transfer(transcript, self.call_sid)
+                # ❌ REMOVED: Don't check transfers on assistant responses - only check user input!
         
         elif event_type == "conversation.item.input_audio_transcription.completed":
             # Capture user's spoken input transcript
@@ -1140,6 +1138,10 @@ class OAIRealtime:
                 logger.info(f"🎤 User transcript: {transcript}")
                 if hasattr(self, 'thread_id') and self.thread_id:
                     THREAD_HISTORY[self.thread_id].append(("user", transcript))
+                
+                # ✅ Check for transfer intent ONLY on user input, not AI responses
+                if hasattr(self, 'call_sid') and self.call_sid:
+                    check_and_execute_transfer(transcript, self.call_sid)
         
         elif event_type == "response.done":
             logger.info("✅ OpenAI response complete")
