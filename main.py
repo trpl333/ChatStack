@@ -382,7 +382,7 @@ def admin():
     # Search shared knowledge if query provided
     if query:
         try:
-            ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+            ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
             # ✅ Updated to new v1 endpoint
             resp = requests.get(
                 f"{ai_memory_url}/v1/memories/shared",
@@ -400,7 +400,7 @@ def admin():
     # Get user memories if user_id provided  
     if user_id:
         try:
-            ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+            ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
             
             # Normalize user_id just like in process_speech
             normalized_user_id = user_id
@@ -449,7 +449,7 @@ def add_knowledge():
         }
         
         # Call AI-Memory service directly with correct endpoint
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         resp = requests.post(f"{ai_memory_url}/memory/store", json=data, timeout=10)
         
         if resp.status_code == 200:
@@ -1737,7 +1737,7 @@ def update_llm():
 def list_users():
     """List all users who have memories in the system"""
     try:
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         
         logging.info(f"🔍 Querying ai-memory service directly for user list")
         
@@ -1785,7 +1785,7 @@ def list_users():
 def get_user_memories(user_id):
     """Get all memories for a specific user"""
     try:
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         
         # Normalize user_id
         normalized_user_id = user_id
@@ -1853,7 +1853,7 @@ def get_user_memories_old(user_id):
             if len(normalized_digits) >= 10:
                 normalized_user_id = normalized_digits[-10:]
         
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         response = requests.post(
             f"{ai_memory_url}/memory/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 200},
@@ -1944,7 +1944,7 @@ def get_user_schema(user_id):
         logging.info(f"🔍 Getting schema for user: {normalized_user_id}")
         
         # Query ai-memory service
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         response = requests.post(
             f"{ai_memory_url}/memory/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 200},
@@ -2020,7 +2020,7 @@ def process_all_memories(user_id):
         logging.info(f"🔄 Processing ALL memories for user: {normalized_user_id}")
         
         # Get ALL memories for this user (high limit)
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         response = requests.post(
             f"{ai_memory_url}/memory/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 2000},
@@ -2119,7 +2119,7 @@ def save_user_schema():
         logging.info(f"💾 Saving schema for user: {normalized_user_id}")
         
         # Save to ai-memory as normalized_schema type
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         response = requests.post(
             f"{ai_memory_url}/memory/store",
             json={
@@ -2157,7 +2157,7 @@ def delete_memory():
         
         # Note: ai-memory service may not have a delete endpoint
         # In that case, we update with empty/expired data
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
         
         # Try to delete or mark as deleted
         # This might need adjustment based on ai-memory service capabilities
