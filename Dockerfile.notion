@@ -1,0 +1,23 @@
+# Dockerfile for Notion API Service
+
+FROM node:20-alpine
+
+# Install curl for healthcheck
+RUN apk add --no-cache curl
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy service files
+COPY services/ ./services/
+
+# Expose port
+EXPOSE 8200
+
+# Run service
+CMD ["node", "services/notion-api-server.js"]

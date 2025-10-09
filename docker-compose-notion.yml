@@ -1,0 +1,37 @@
+# Docker Compose Configuration for Notion Integration
+# Add this service to your existing docker-compose.yml
+
+version: '3.8'
+
+services:
+  # Notion API Service - Handles Notion database sync
+  notion-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.notion
+    container_name: chatstack-notion-service-1
+    command: node services/notion-api-server.js
+    ports:
+      - "8200:8200"
+    environment:
+      # AI-Memory service connection (Docker gateway)
+      - AI_MEMORY_URL=http://172.17.0.1:8100
+      - NOTION_API_PORT=8200
+      
+      # Replit connector credentials (for OAuth token refresh)
+      - REPLIT_CONNECTORS_HOSTNAME=${REPLIT_CONNECTORS_HOSTNAME}
+      - REPL_IDENTITY=${REPL_IDENTITY}
+      - WEB_REPL_RENEWAL=${WEB_REPL_RENEWAL}
+    networks:
+      - chatstack_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  chatstack_network:
+    external: true
