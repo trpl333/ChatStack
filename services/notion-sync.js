@@ -25,16 +25,21 @@ let connectionSettings = null;
 async function getAccessToken() {
   // Priority 1: Use direct NOTION_TOKEN if available (production mode)
   if (process.env.NOTION_TOKEN) {
+    const token = process.env.NOTION_TOKEN.trim();
     console.log('✅ Using direct NOTION_TOKEN for authentication');
-    return process.env.NOTION_TOKEN;
+    return token;
   }
   
   // Priority 2: Use Replit OAuth connector (development mode)
-  if (connectionSettings && connectionSettings.settings.expires_at && 
-      new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
+  // Check if cached token is still valid
+  if (connectionSettings?.settings?.expires_at) {
+    const expiryTime = new Date(connectionSettings.settings.expires_at).getTime();
+    if (expiryTime > Date.now()) {
+      return connectionSettings.settings.access_token;
+    }
   }
   
+  // Try to fetch new token from Replit connector
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 
@@ -43,30 +48,42 @@ async function getAccessToken() {
     : null;
 
   if (!xReplitToken) {
-    throw new Error('Neither NOTION_TOKEN nor Replit OAuth credentials found');
+    console.warn('⚠️ No NOTION_TOKEN or Replit OAuth credentials found');
+    return null;
   }
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=notion',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
+  try {
+    const response = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=notion',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X_REPLIT_TOKEN': xReplitToken
+        }
       }
+    );
+    
+    const data = await response.json();
+    connectionSettings = data.items?.[0];
+
+    const accessToken = connectionSettings?.settings?.access_token || 
+                       connectionSettings?.settings?.oauth?.credentials?.access_token;
+
+    if (accessToken) {
+      return accessToken;
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
-
-  const accessToken = connectionSettings?.settings?.access_token || 
-                     connectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!connectionSettings || !accessToken) {
-    throw new Error('Notion not connected via Replit OAuth');
+  } catch (error) {
+    console.error('Failed to fetch Replit OAuth token:', error);
   }
-  return accessToken;
+  
+  return null;
 }
 
 async function getNotionClient() {
   const accessToken = await getAccessToken();
+  if (!accessToken) {
+    throw new Error('❌ No Notion authentication token available. Set NOTION_TOKEN in environment.');
+  }
   return new Client({ auth: accessToken });
 }
 
