@@ -309,9 +309,9 @@ class NotionDatabaseManager {
     
     console.log('🔍 Checking for existing databases...');
     
-    // Search for existing databases
+    // Search for existing databases (Notion API uses 'page' for databases)
     const search = await notion.search({
-      filter: { property: 'object', value: 'database' }
+      filter: { property: 'object', value: 'page' }
     });
 
     // Map existing databases
