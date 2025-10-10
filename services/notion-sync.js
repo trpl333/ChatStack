@@ -367,27 +367,28 @@ class NotionDatabaseManager {
   }
 
   async getOrCreateParentPage() {
+    // Priority 1: Use NOTION_PARENT_PAGE_ID from environment
+    if (process.env.NOTION_PARENT_PAGE_ID) {
+      const pageId = process.env.NOTION_PARENT_PAGE_ID.trim();
+      console.log(`🏗  Using parent page from environment: ${pageId}`);
+      return pageId;
+    }
+    
     const notion = await getNotionClient();
     
-    // Search for the CRM page
+    // Priority 2: Search for existing CRM page
     const search = await notion.search({
       query: 'Peterson Insurance CRM',
       filter: { property: 'object', value: 'page' }
     });
 
     if (search.results.length > 0) {
+      console.log(`🏗  Found existing parent page: ${search.results[0].id}`);
       return search.results[0].id;
     }
 
-    // Create parent page
-    const page = await notion.pages.create({
-      parent: { type: 'workspace', workspace: true },
-      properties: {
-        title: [{ type: 'text', text: { content: 'Peterson Insurance CRM' } }]
-      }
-    });
-
-    return page.id;
+    // If no parent page found and no env variable, throw error
+    throw new Error('❌ No parent page found. Please set NOTION_PARENT_PAGE_ID in environment or create a page in Notion and share it with the integration.');
   }
 }
 
