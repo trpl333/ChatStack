@@ -373,62 +373,8 @@ def home():
 
 @app.route('/admin')
 def admin():
-    """Main admin interface"""
-    knowledge_results = []
-    user_memories = []
-    user_id = request.args.get('user_id')
-    query = request.args.get('query')
-    
-    # Search shared knowledge if query provided
-    if query:
-        try:
-            ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
-            # ✅ Updated to new v1 endpoint
-            resp = requests.get(
-                f"{ai_memory_url}/v1/memories/shared",
-                params={"query": query, "limit": 50},
-                timeout=10
-            )
-            if resp.status_code == 200:
-                result = resp.json()
-                knowledge_results = result.get("memories", [])
-            else:
-                flash(f"⚠️ Shared knowledge search failed: {resp.text}")
-        except Exception as e:
-            flash(f"⚠️ Could not search knowledge base: {e}")
-    
-    # Get user memories if user_id provided  
-    if user_id:
-        try:
-            ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
-            
-            # Normalize user_id just like in process_speech
-            normalized_user_id = user_id
-            if user_id:
-                normalized_digits = ''.join(filter(str.isdigit, user_id))
-                if len(normalized_digits) >= 10:
-                    normalized_user_id = normalized_digits[-10:]
-            
-            # ✅ Updated to use new v1 endpoint
-            resp = requests.get(
-                f"{ai_memory_url}/v1/memories/user/{normalized_user_id}",
-                params={"limit": 50},
-                timeout=10
-            )
-            if resp.status_code == 200:
-                result = resp.json()
-                user_memories = result.get("memories", [])
-            else:
-                flash(f"⚠️ Could not retrieve user memories: {resp.text}")
-        except Exception as e:
-            flash(f"⚠️ Could not retrieve user memories: {e}")
-    
-    return render_template_string(
-        ADMIN_TEMPLATE, 
-        knowledge_results=knowledge_results, 
-        user_memories=user_memories,
-        user_id=user_id
-    )
+    """Serve modern admin interface with all features (AI Settings, Voice Config, etc.)"""
+    return app.send_static_file('admin.html')
 @app.route('/add-knowledge', methods=['POST'])
 def add_knowledge():
     """Add new knowledge to shared knowledge base"""
