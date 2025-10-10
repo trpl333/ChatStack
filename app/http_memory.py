@@ -459,10 +459,19 @@ class HTTPMemoryStore:
             # -------------------
             # PREFERENCES
             # -------------------
-            if mem_type == "preference" or "preference" in mem_key:
+            # Extract preferences from multiple sources: preference type, preference key, or food/likes keywords
+            is_preference = (
+                mem_type == "preference" or 
+                "preference" in mem_key or
+                any(keyword in value_lower for keyword in ["likes", "favorite", "enjoys", "loves", "prefers", "sushi", "food", "hobby", "interest"])
+            )
+            
+            if is_preference:
                 if isinstance(value, dict):
-                    if value.get("item"):
-                        result["preferences"]["interests"].append(value["item"])
+                    # Check multiple field names: item, description, summary, value
+                    pref_text = value.get("item") or value.get("description") or value.get("summary") or value.get("value")
+                    if pref_text and isinstance(pref_text, str) and len(pref_text) > 5:
+                        result["preferences"]["interests"].append(pref_text[:150])
                 elif isinstance(value, str) and len(value) > 5:
                     result["preferences"]["notes"].append(value[:100])
             
