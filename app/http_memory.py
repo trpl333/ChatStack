@@ -339,9 +339,116 @@ class HTTPMemoryStore:
             logger.error(f"Failed to search memories: {e}")
             return []
 
-    def get_user_memories(self, user_id: str, limit: int = 10, include_shared: bool = True) -> List[Dict[str, Any]]:
-        """Get memories for a specific user."""
-        return self.search("", user_id=user_id, k=limit, include_shared=include_shared)
+    def get_user_memories(self, user_id: str, limit: int = 2000, include_shared: bool = True) -> List[Dict[str, Any]]:
+        """
+        Get ALL memories for a specific user using pagination.
+        Iteratively retrieves memories until all records are loaded.
+        
+        Args:
+            user_id: User ID to retrieve memories for
+            limit: Max memories per page (default 2000, can retrieve more via pagination)
+            include_shared: Whether to include shared/global memories
+            
+        Returns:
+            Complete list of all user memories, normalized to consistent structure
+        """
+        self._check_connection()
+        
+        all_memories = []
+        offset = 0
+        page_size = 500  # Retrieve in batches of 500
+        
+        try:
+            logger.info(f"🔍 Starting paginated retrieval for user {user_id} (include_shared={include_shared})")
+            
+            while offset < limit:
+                # Build payload for this page
+                payload = {
+                    "user_id": user_id,
+                    "message": "",  # Empty message returns all memories
+                    "limit": min(page_size, limit - offset),  # Don't exceed requested limit
+                    "offset": offset
+                }
+                
+                # Add scope flag if include_shared is False
+                if not include_shared:
+                    payload["scope"] = "user"
+                
+                logger.info(f"  📄 Fetching page offset={offset}, limit={payload['limit']}")
+                
+                response = self.session.post(
+                    f"{self.ai_memory_url}/memory/retrieve",
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=15
+                )
+                
+                if response.status_code != 200:
+                    logger.error(f"Memory retrieval failed at offset {offset}: {response.status_code}")
+                    break
+                
+                result = response.json()
+                page_memories = []
+                
+                # Normalize both response formats to consistent structure
+                if "memories" in result:
+                    # Format 1: JSON array - needs normalization
+                    for idx, mem in enumerate(result["memories"]):
+                        normalized = {
+                            "type": mem.get("type", "fact"),
+                            "key": mem.get("key") or mem.get("k") or f"memory_{offset+idx}",
+                            "value": mem.get("value") or mem,  # Use value field or full object
+                            "scope": mem.get("scope", "user"),
+                            "user_id": mem.get("user_id"),
+                            "id": mem.get("id") or mem.get("memory_id") or f"mem_{offset+idx}"
+                        }
+                        page_memories.append(normalized)
+                    
+                elif "memory" in result and isinstance(result["memory"], str):
+                    # Format 2: Newline-delimited JSON string
+                    memory_str = result["memory"].strip()
+                    if memory_str:
+                        for idx, line in enumerate(memory_str.split('\n')):
+                            line = line.strip()
+                            if line and line != "test":  # Skip test lines
+                                try:
+                                    mem_obj = json.loads(line)
+                                    
+                                    normalized = {
+                                        "type": mem_obj.get("type", "fact"),
+                                        "key": mem_obj.get("key") or mem_obj.get("k") or f"memory_{offset+idx}",
+                                        "value": mem_obj,  # Full object
+                                        "scope": mem_obj.get("scope", "user"),
+                                        "user_id": mem_obj.get("user_id"),
+                                        "id": mem_obj.get("id") or mem_obj.get("memory_id") or f"mem_{offset+idx}"
+                                    }
+                                    page_memories.append(normalized)
+                                except json.JSONDecodeError:
+                                    logger.warning(f"Could not parse memory line: {line[:100]}")
+                else:
+                    logger.warning(f"⚠️ Unexpected response format at offset {offset}")
+                
+                # Add this page's memories to the total
+                if not page_memories:
+                    logger.info(f"  ⏹️ No more memories found, stopping pagination")
+                    break
+                
+                all_memories.extend(page_memories)
+                logger.info(f"  ✅ Retrieved {len(page_memories)} memories (total so far: {len(all_memories)})")
+                
+                # If we got fewer memories than requested, we've reached the end
+                if len(page_memories) < payload["limit"]:
+                    logger.info(f"  ⏹️ Received partial page, all memories retrieved")
+                    break
+                
+                offset += len(page_memories)
+            
+            logger.info(f"✅ Paginated retrieval complete: {len(all_memories)} total memories for user {user_id}")
+            return all_memories
+                
+        except Exception as e:
+            logger.error(f"Failed to get user memories: {e}")
+            return all_memories  # Return what we got so far
     
     def normalize_memories(self, raw_memories: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
