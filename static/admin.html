@@ -84,9 +84,12 @@
             <!-- Phone System Panel -->
             <div class="tab-pane fade show active" id="phone-panel" role="tabpanel">
                 
-                <!-- Voice Settings -->
-                <div class="admin-section">
-                    <h3 class="section-header">🎤 Voice Settings</h3>
+                <!-- Voice Settings (Legacy - Not Used) -->
+                <div class="admin-section" style="display: none;">
+                    <h3 class="section-header">🎤 Voice Settings (Legacy ElevenLabs - Not Used)</h3>
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Note:</strong> This section is for ElevenLabs TTS (not currently used). Voice is now controlled in the <strong>AI Settings</strong> tab under "OpenAI Voice Selection".
+                    </div>
                     <div class="row">
                         <div class="col-md-6">
                             <label class="form-label">ElevenLabs Voice</label>
@@ -130,13 +133,13 @@
                     <div class="row">
                         <div class="col-md-6">
                             <label class="form-label">Existing User Greeting</label>
-                            <textarea class="form-control" rows="3" id="existingUserGreeting" placeholder="Greeting for recognized callers...">Hi, this is Samantha from Peterson Family Insurance Agency. Is this {user_name}?</textarea>
-                            <small class="text-muted">Use {user_name} placeholder for personalization. Shown when caller's name is found in memory.</small>
+                            <textarea class="form-control" rows="3" id="existingUserGreeting" placeholder="Greeting for recognized callers...">Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {user_name}?</textarea>
+                            <small class="text-muted">Use {agent_name} and {user_name} placeholders. Shown when caller's name is found in memory.</small>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">New Caller Greeting</label>
-                            <textarea class="form-control" rows="3" id="newCallerGreeting" placeholder="Greeting for new callers...">Good {time_greeting}! This is Samantha - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!</textarea>
-                            <small class="text-muted">Use {time_greeting} for "morning/afternoon/evening". Shown for unrecognized callers.</small>
+                            <textarea class="form-control" rows="3" id="newCallerGreeting" placeholder="Greeting for new callers...">Good {time_greeting}! This is {agent_name} - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!</textarea>
+                            <small class="text-muted">Use {agent_name} and {time_greeting} placeholders. Shown for unrecognized callers.</small>
                         </div>
                     </div>
                     <div class="mt-3">
@@ -519,7 +522,7 @@
                         <div class="card bg-secondary">
                             <div class="card-body">
                                 <h6>AI Response:</h6>
-                                <p id="testResponse">Click "Test AI Response" to see how Samantha responds</p>
+                                <p id="testResponse">Click "Test AI Response" to see how the AI agent responds</p>
                             </div>
                         </div>
                     </div>
