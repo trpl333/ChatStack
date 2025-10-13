@@ -1405,6 +1405,8 @@ class OAIRealtime:
                 "voice": self.voice  # Dynamic voice from admin panel
             }
         }
+        logger.info(f"🔊 VOICE DEBUG: Sending session.update with voice='{self.voice}'")
+        logger.info(f"🔊 VOICE DEBUG: Full session config: {json.dumps(session_update['session'], indent=2)}")
         ws.send(json.dumps(session_update))
         logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice}")
         
@@ -1456,6 +1458,12 @@ class OAIRealtime:
         
         elif event_type == "session.created":
             logger.info(f"✅ OpenAI session created: {ev.get('session', {}).get('id')}")
+        
+        elif event_type == "session.updated":
+            session_data = ev.get('session', {})
+            voice = session_data.get('voice', 'UNKNOWN')
+            logger.info(f"🔊 VOICE DEBUG: OpenAI confirmed session.updated with voice='{voice}'")
+            logger.info(f"🔊 VOICE DEBUG: Full session response: {json.dumps(session_data, indent=2)}")
         
         elif event_type == "input_audio_buffer.speech_started":
             logger.info("🎤 User started speaking")
