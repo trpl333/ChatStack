@@ -665,7 +665,15 @@ class HTTPMemoryStore:
         # Check for structured contact data (DICT format)
         if isinstance(value, dict) and ("name" in value or "relationship" in value):
             name = value.get("name", "").strip()
+            # ✅ FIX: Normalize relationship to lowercase AND handle variations (Mom/Mother/mama)
             relationship = value.get("relationship", "").strip().lower()
+            # Map common variations to standard terms
+            relationship_map = {
+                "mom": "mother", "mama": "mother", "ma": "mother",
+                "dad": "father", "papa": "father", "pa": "father",
+                "wife": "spouse", "husband": "spouse"
+            }
+            relationship = relationship_map.get(relationship, relationship)
             
             if name and relationship in ["spouse", "father", "mother", "son", "daughter"]:
                 # Update template if newer
