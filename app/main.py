@@ -26,9 +26,17 @@ def get_admin_setting(setting_key, default=None):
     """Get admin setting from AI-Memory service"""
     try:
         import requests
+        import socket
+        
+        # Smart IP selection: Use localhost if on production server, otherwise Docker bridge
+        hostname = socket.gethostname().lower()
+        if "chatbot-server" in hostname or "digitalocean" in hostname:
+            ai_memory_host = "127.0.0.1"  # Localhost on production
+        else:
+            ai_memory_host = "172.17.0.1"  # Docker bridge for development
         
         response = requests.post(
-            "http://209.38.143.71:8100/memory/retrieve",
+            f"http://{ai_memory_host}:8100/memory/retrieve",
             json={"user_id": "admin", "key": f"admin:{setting_key}"},
             headers={"Content-Type": "application/json"},
             timeout=5
