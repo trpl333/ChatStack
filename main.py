@@ -1379,6 +1379,54 @@ def update_personality():
     except Exception as e:
         logging.error(f"❌ Failed to update personality settings: {e}")
         return jsonify({"success": False, "error": str(e)})
+
+@app.route('/update-personality-sliders', methods=['POST'])
+def update_personality_sliders():
+    """Update personality dimension sliders in AI-Memory service"""
+    try:
+        data = request.get_json()
+        
+        from app.http_memory import HTTPMemoryStore
+        mem_store = HTTPMemoryStore()
+        
+        # Save slider values to AI-Memory
+        mem_store.write(
+            memory_type="admin_setting",
+            key="personality_sliders",
+            value={
+                "setting_key": "personality_sliders",
+                "setting_value": data,
+                "updated_by": "admin_panel"
+            },
+            user_id="admin",
+            scope="shared",
+            source="admin_panel"
+        )
+        
+        logging.info(f"✅ Personality sliders saved: {len(data)} dimensions")
+        return jsonify({"success": True})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to save personality sliders: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/get-personality-sliders', methods=['GET'])
+def get_personality_sliders():
+    """Get personality dimension sliders from AI-Memory service"""
+    try:
+        # Use get_admin_setting to retrieve from AI-Memory
+        sliders = get_admin_setting("personality_sliders", {})
+        
+        if sliders:
+            logging.info(f"✅ Retrieved personality sliders: {len(sliders)} dimensions")
+            return jsonify({"success": True, "sliders": sliders})
+        else:
+            # Return defaults if not found
+            return jsonify({"success": True, "sliders": {}})
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to get personality sliders: {e}")
+        return jsonify({"success": False, "error": str(e)})
         
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
