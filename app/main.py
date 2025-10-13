@@ -61,6 +61,7 @@ def generate_personality_instructions(sliders: Dict[str, int]) -> str:
     Higher values = more of that trait, lower values = less.
     Every non-50 value generates an instruction.
     """
+    logger.info(f"🎭 Generating personality instructions from {len(sliders)} sliders")
     instructions = "\n\n=== PERSONALITY FINE-TUNING ===\n"
     
     # Helper to get intensity
@@ -377,6 +378,12 @@ def generate_personality_instructions(sliders: Dict[str, int]) -> str:
             instructions += f"• Be somewhat open, less cautious\n"
     
     instructions += "=== END PERSONALITY FINE-TUNING ===\n"
+    
+    # Log what was generated
+    instruction_count = len([line for line in instructions.split('\n') if line.strip().startswith('•')])
+    logger.info(f"✅ Generated {instruction_count} personality instructions from sliders")
+    logger.info(f"📝 Sample instructions: {instructions[:300]}...")
+    
     return instructions
 
 def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
