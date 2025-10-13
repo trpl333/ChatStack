@@ -38,6 +38,7 @@ The `/opt/ChatStack/.env` file on the DigitalOcean server contains all productio
 
 **UI/UX Decisions:**
 -   **Admin Panel**: Web interface at `/admin.html` for dynamic control over greetings, voice settings, and AI personality.
+-   **30-Slider Personality Control**: Fine-grained AI behavior control across 30 dimensions (warmth, empathy, directness, humor, etc.) with 5 quick presets (Professional Agent, Friendly Helper, Assertive Closer, Empathetic Support, Balanced Default). Each slider (0-100) generates natural language instructions injected into system prompts.
 -   **Voice-First Design**: Seamless voice interaction using ElevenLabs TTS.
 -   **Real-time Updates**: Admin changes apply immediately.
 
