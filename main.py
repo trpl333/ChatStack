@@ -1545,6 +1545,9 @@ def update_openai_voice():
         data = request.get_json()
         openai_voice = data.get('openai_voice', '').strip()
         
+        logging.info(f"🔊 VOICE UPDATE: Received request with voice='{openai_voice}'")
+        logging.info(f"🔊 VOICE UPDATE: Full request data: {data}")
+        
         if not openai_voice:
             return jsonify({"success": False, "error": "Voice cannot be empty"}), 400
         
