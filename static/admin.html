@@ -224,6 +224,222 @@
                     <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Personality</button>
                 </div>
 
+                <!-- Personality Dimensions (30 Sliders) -->
+                <div class="admin-section">
+                    <h3 class="section-header">🎭 Personality Dimensions (Fine-Tuning)</h3>
+                    <div class="alert alert-info">
+                        <strong>Fine-tune AI personality:</strong> Adjust these sliders to control specific behavioral traits. Each dimension affects how the AI communicates and responds.
+                    </div>
+                    
+                    <!-- Preset Buttons -->
+                    <div class="mb-4">
+                        <h5>Quick Presets</h5>
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="loadPersonalityPreset('professional')">👔 Professional Agent</button>
+                        <button class="btn btn-sm btn-outline-success me-2" onclick="loadPersonalityPreset('friendly')">😊 Friendly Helper</button>
+                        <button class="btn btn-sm btn-outline-warning me-2" onclick="loadPersonalityPreset('assertive')">💪 Assertive Closer</button>
+                        <button class="btn btn-sm btn-outline-info me-2" onclick="loadPersonalityPreset('empathetic')">❤️ Empathetic Support</button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="loadPersonalityPreset('balanced')">⚖️ Balanced Default</button>
+                    </div>
+
+                    <!-- Core Personality -->
+                    <div class="mb-4">
+                        <h5 class="text-primary">Core Personality</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Warmth/Friendliness: <span id="warmth-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-warmth" oninput="updateSliderValue('warmth')">
+                                <small class="text-muted">How congenial and human the AI feels</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Formality/Politeness: <span id="formality-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-formality" oninput="updateSliderValue('formality')">
+                                <small class="text-muted">How formal vs casual language is</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Humor/Wit: <span id="humor-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-humor" oninput="updateSliderValue('humor')">
+                                <small class="text-muted">How much joking and playful tone</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Directness/Brevity: <span id="directness-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-directness" oninput="updateSliderValue('directness')">
+                                <small class="text-muted">How direct and concise vs verbose</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Emotional Intelligence -->
+                    <div class="mb-4">
+                        <h5 class="text-success">Emotional Intelligence</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Empathy/Emotional Sensitivity: <span id="empathy-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-empathy" oninput="updateSliderValue('empathy')">
+                                <small class="text-muted">Recognizing user feelings and emotional resonance</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Confidence/Certainty: <span id="confidence-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-confidence" oninput="updateSliderValue('confidence')">
+                                <small class="text-muted">How strongly it asserts answers vs hedging</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Curiosity/Probing: <span id="curiosity-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-curiosity" oninput="updateSliderValue('curiosity')">
+                                <small class="text-muted">How much it asks questions vs giving statements</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Patience/Repetition Tolerance: <span id="patience-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-patience" oninput="updateSliderValue('patience')">
+                                <small class="text-muted">How it handles repeated questions</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Communication Style -->
+                    <div class="mb-4">
+                        <h5 class="text-info">Communication Style</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Creativity/Imaginative: <span id="creativity-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-creativity" oninput="updateSliderValue('creativity')">
+                                <small class="text-muted">How free it is to generate unusual ideas</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Analytical/Logical: <span id="analytical-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-analytical" oninput="updateSliderValue('analytical')">
+                                <small class="text-muted">How reasoned and structured responses are</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Storytelling/Narrative: <span id="storytelling-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-storytelling" oninput="updateSliderValue('storytelling')">
+                                <small class="text-muted">How much it wraps ideas in stories</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Detail Orientation: <span id="detail-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-detail" oninput="updateSliderValue('detail')">
+                                <small class="text-muted">Fine-grained details vs staying macro</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interaction Patterns -->
+                    <div class="mb-4">
+                        <h5 class="text-warning">Interaction Patterns</h5>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Assertiveness/Persuasion: <span id="assertiveness-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-assertiveness" oninput="updateSliderValue('assertiveness')">
+                                <small class="text-muted">How boldly it pushes suggestions</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Humility/Self-Doubt: <span id="humility-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-humility" oninput="updateSliderValue('humility')">
+                                <small class="text-muted">How often it qualifies "I might be wrong"</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Optimism/Positivity: <span id="optimism-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-optimism" oninput="updateSliderValue('optimism')">
+                                <small class="text-muted">Tone toward future and encouragement</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Sarcasm/Irony: <span id="sarcasm-val" class="text-warning">50</span>/100</label>
+                                <input type="range" class="form-range" min="0" max="100" value="50" id="slider-sarcasm" oninput="updateSliderValue('sarcasm')">
+                                <small class="text-muted">Use of ironic or playful cynicism</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Advanced Traits (Collapsible) -->
+                    <div class="accordion" id="advancedTraitsAccordion">
+                        <div class="accordion-item bg-dark">
+                            <h2 class="accordion-header">
+                                <button class="accordion-button collapsed bg-secondary text-white" type="button" data-bs-toggle="collapse" data-bs-target="#advancedTraits">
+                                    <strong>🔧 Advanced Traits (14 more sliders)</strong>
+                                </button>
+                            </h2>
+                            <div id="advancedTraits" class="accordion-collapse collapse" data-bs-parent="#advancedTraitsAccordion">
+                                <div class="accordion-body">
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Formality Shift/Genre: <span id="formalityShift-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-formalityShift" oninput="updateSliderValue('formalityShift')">
+                                            <small class="text-muted">Ability to shift style (academic, poetic)</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Inclusive Language: <span id="inclusive-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-inclusive" oninput="updateSliderValue('inclusive')">
+                                            <small class="text-muted">Sensitivity to respectful phrasing</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Memory Emphasis: <span id="memory-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-memory" oninput="updateSliderValue('memory')">
+                                            <small class="text-muted">How strongly it brings up past memories</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Risk Taking/Speculation: <span id="risk-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-risk" oninput="updateSliderValue('risk')">
+                                            <small class="text-muted">Willingness to guess vs stay safe</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Self-Reference: <span id="selfReference-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-selfReference" oninput="updateSliderValue('selfReference')">
+                                            <small class="text-muted">Mentions itself, "I as your AI"</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Topic Focus: <span id="topicFocus-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-topicFocus" oninput="updateSliderValue('topicFocus')">
+                                            <small class="text-muted">Sticks to topic vs branches out</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Repetition Avoidance: <span id="repetition-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-repetition" oninput="updateSliderValue('repetition')">
+                                            <small class="text-muted">Careful not to repeat itself</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Polish/Fluency: <span id="polish-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-polish" oninput="updateSliderValue('polish')">
+                                            <small class="text-muted">How eloquent and refined wording is</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Emotional Intensity: <span id="intensity-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-intensity" oninput="updateSliderValue('intensity')">
+                                            <small class="text-muted">How "charged" emotional expression is</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Caution/Guardrails: <span id="caution-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-caution" oninput="updateSliderValue('caution')">
+                                            <small class="text-muted">How strongly it filters content</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Jargon/Technicality: <span id="jargon-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-jargon" oninput="updateSliderValue('jargon')">
+                                            <small class="text-muted">Domain terms vs simple language</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Humor Sensitivity: <span id="humorSensitivity-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-humorSensitivity" oninput="updateSliderValue('humorSensitivity')">
+                                            <small class="text-muted">Jokes on serious topics or avoid</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Self-Consistency: <span id="consistency-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-consistency" oninput="updateSliderValue('consistency')">
+                                            <small class="text-muted">Keeping consistent persona</small>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Meta-Awareness: <span id="metaAwareness-val" class="text-warning">50</span>/100</label>
+                                            <input type="range" class="form-range" min="0" max="100" value="50" id="slider-metaAwareness" oninput="updateSliderValue('metaAwareness')">
+                                            <small class="text-muted">Comments on conversation, "let me rethink"</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-success mt-3" onclick="savePersonalitySliders()">💾 Save Personality Dimensions</button>
+                    <button class="btn btn-outline-secondary mt-3" onclick="resetSliders()">↩️ Reset to Defaults</button>
+                </div>
+
                 <!-- OpenAI Settings -->
                 <div class="admin-section">
                     <h3 class="section-header">🤖 OpenAI Realtime API Settings</h3>
