@@ -1,0 +1,11 @@
+#!/bin/bash
+echo "=== Run these on DigitalOcean to debug personality loading ==="
+echo ""
+echo "# 1. Check if orchestrator loads personality sliders:"
+echo "docker logs chatstack-orchestrator-worker-1 2>&1 | grep -i 'personality\|slider' | tail -20"
+echo ""
+echo "# 2. Check what personality sliders are saved in AI-Memory:"
+echo "curl http://209.38.143.71:8100/admin/personality-sliders"
+echo ""
+echo "# 3. Make a test call and watch the logs:"
+echo "docker logs -f chatstack-orchestrator-worker-1 | grep -i 'personality\|instructions\|system_prompt'"
