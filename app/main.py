@@ -55,6 +55,330 @@ THREAD_HISTORY: Dict[str, Deque[Tuple[str, str]]] = defaultdict(lambda: deque(ma
 # Track which threads have been loaded from database
 THREAD_LOADED: Dict[str, bool] = {}
 
+def generate_personality_instructions(sliders: Dict[str, int]) -> str:
+    """
+    Convert personality slider values (0-100) into natural language instructions.
+    Higher values = more of that trait, lower values = less.
+    Every non-50 value generates an instruction.
+    """
+    instructions = "\n\n=== PERSONALITY FINE-TUNING ===\n"
+    
+    # Helper to get intensity
+    def get_intensity(value):
+        if value >= 80: return "very"
+        elif value >= 65: return "quite"
+        elif value > 50: return "moderately"
+        return ""
+    
+    # Core Personality
+    warmth = sliders.get('warmth', 50)
+    if warmth > 50:
+        intensity = get_intensity(warmth)
+        instructions += f"• Be {intensity} warm and friendly\n".replace("  ", " ")
+    elif warmth < 50:
+        if warmth < 30:
+            instructions += f"• Be neutral and professional, avoid warmth\n"
+        else:
+            instructions += f"• Be somewhat reserved, less warm than usual\n"
+    
+    formality = sliders.get('formality', 50)
+    if formality > 50:
+        intensity = get_intensity(formality)
+        instructions += f"• Use {intensity} formal and polite language\n".replace("  ", " ")
+    elif formality < 50:
+        if formality < 30:
+            instructions += f"• Be very casual and conversational\n"
+        else:
+            instructions += f"• Be somewhat casual and relaxed\n"
+    
+    humor = sliders.get('humor', 50)
+    if humor > 50:
+        intensity = get_intensity(humor)
+        instructions += f"• Include {intensity} playful humor and wit\n".replace("  ", " ")
+    elif humor < 50:
+        if humor < 30:
+            instructions += f"• Avoid humor entirely - stay serious\n"
+        else:
+            instructions += f"• Limit humor - keep mostly serious\n"
+    
+    directness = sliders.get('directness', 50)
+    if directness > 50:
+        intensity = get_intensity(directness)
+        instructions += f"• Be {intensity} direct and concise\n".replace("  ", " ")
+    elif directness < 50:
+        if directness < 30:
+            instructions += f"• Be elaborate and thorough in explanations\n"
+        else:
+            instructions += f"• Provide more context rather than being too brief\n"
+    
+    # Emotional Intelligence
+    empathy = sliders.get('empathy', 50)
+    if empathy > 50:
+        intensity = get_intensity(empathy)
+        instructions += f"• Show {intensity} strong empathy for caller emotions\n".replace("  ", " ")
+    elif empathy < 50:
+        if empathy < 30:
+            instructions += f"• Focus purely on facts, minimize emotional response\n"
+        else:
+            instructions += f"• Balance facts with some emotional awareness\n"
+    
+    confidence = sliders.get('confidence', 50)
+    if confidence > 50:
+        intensity = get_intensity(confidence)
+        instructions += f"• Speak with {intensity} strong confidence\n".replace("  ", " ")
+    elif confidence < 50:
+        if confidence < 30:
+            instructions += f"• Use hedging language frequently - express uncertainty\n"
+        else:
+            instructions += f"• Be somewhat tentative - acknowledge uncertainty occasionally\n"
+    
+    curiosity = sliders.get('curiosity', 50)
+    if curiosity > 50:
+        intensity = get_intensity(curiosity)
+        instructions += f"• Ask {intensity} probing questions\n".replace("  ", " ")
+    elif curiosity < 50:
+        if curiosity < 30:
+            instructions += f"• Provide information directly, avoid asking questions\n"
+        else:
+            instructions += f"• Mostly provide info, ask fewer questions\n"
+    
+    patience = sliders.get('patience', 50)
+    if patience > 50:
+        intensity = get_intensity(patience)
+        instructions += f"• Show {intensity} high patience with repetition\n".replace("  ", " ")
+    elif patience < 50:
+        if patience < 30:
+            instructions += f"• Move conversations forward quickly and efficiently\n"
+        else:
+            instructions += f"• Be somewhat efficient - don't over-explain\n"
+    
+    # Communication Style
+    creativity = sliders.get('creativity', 50)
+    if creativity > 50:
+        intensity = get_intensity(creativity)
+        instructions += f"• Be {intensity} creative and imaginative\n".replace("  ", " ")
+    elif creativity < 50:
+        if creativity < 30:
+            instructions += f"• Stick to conventional, straightforward responses\n"
+        else:
+            instructions += f"• Be somewhat conventional, limit creativity\n"
+    
+    analytical = sliders.get('analytical', 50)
+    if analytical > 50:
+        intensity = get_intensity(analytical)
+        instructions += f"• Use {intensity} logical, structured reasoning\n".replace("  ", " ")
+    elif analytical < 50:
+        if analytical < 30:
+            instructions += f"• Be intuitive and spontaneous, not analytical\n"
+        else:
+            instructions += f"• Balance intuition with some logic\n"
+    
+    storytelling = sliders.get('storytelling', 50)
+    if storytelling > 50:
+        intensity = get_intensity(storytelling)
+        instructions += f"• Use {intensity} strong narrative and storytelling\n".replace("  ", " ")
+    elif storytelling < 50:
+        if storytelling < 30:
+            instructions += f"• Present information directly without narrative\n"
+        else:
+            instructions += f"• Minimize storytelling, focus on facts\n"
+    
+    detail = sliders.get('detail', 50)
+    if detail > 50:
+        intensity = get_intensity(detail)
+        instructions += f"• Provide {intensity} detailed information\n".replace("  ", " ")
+    elif detail < 50:
+        if detail < 30:
+            instructions += f"• Stay very high-level, avoid details\n"
+        else:
+            instructions += f"• Keep somewhat high-level with key details only\n"
+    
+    # Interaction Patterns
+    assertiveness = sliders.get('assertiveness', 50)
+    if assertiveness > 50:
+        intensity = get_intensity(assertiveness)
+        instructions += f"• Be {intensity} assertive with suggestions\n".replace("  ", " ")
+    elif assertiveness < 50:
+        if assertiveness < 30:
+            instructions += f"• Be very gentle - let caller fully lead decisions\n"
+        else:
+            instructions += f"• Be somewhat gentle with suggestions\n"
+    
+    humility = sliders.get('humility', 50)
+    if humility > 50:
+        intensity = get_intensity(humility)
+        instructions += f"• Show {intensity} strong humility - qualify with 'I might be wrong'\n".replace("  ", " ")
+    elif humility < 50:
+        if humility < 30:
+            instructions += f"• Be very confident in statements, avoid self-doubt\n"
+        else:
+            instructions += f"• Be mostly confident, occasionally acknowledge limits\n"
+    
+    optimism = sliders.get('optimism', 50)
+    if optimism > 50:
+        intensity = get_intensity(optimism)
+        instructions += f"• Maintain {intensity} positive, optimistic tone\n".replace("  ", " ")
+    elif optimism < 50:
+        if optimism < 30:
+            instructions += f"• Be realistic, acknowledge challenges clearly\n"
+        else:
+            instructions += f"• Balance optimism with realistic caution\n"
+    
+    sarcasm = sliders.get('sarcasm', 50)
+    if sarcasm > 50:
+        intensity = get_intensity(sarcasm)
+        instructions += f"• Use {intensity} playful sarcasm and irony\n".replace("  ", " ")
+    elif sarcasm < 50:
+        if sarcasm < 30:
+            instructions += f"• Avoid all sarcasm and irony\n"
+        else:
+            instructions += f"• Minimize sarcasm, stay mostly straightforward\n"
+    
+    # Memory and Context
+    memory = sliders.get('memory', 50)
+    if memory > 50:
+        intensity = get_intensity(memory)
+        instructions += f"• {intensity.capitalize() if intensity else 'Actively'} reference past conversation details\n".replace("  ", " ")
+    elif memory < 50:
+        if memory < 30:
+            instructions += f"• Focus only on current conversation\n"
+        else:
+            instructions += f"• Reference history sparingly\n"
+    
+    # Advanced traits
+    formalityShift = sliders.get('formalityShift', 50)
+    if formalityShift > 50:
+        intensity = get_intensity(formalityShift)
+        instructions += f"• Be {intensity} adaptable in style - shift between formal/casual as needed\n".replace("  ", " ")
+    elif formalityShift < 50:
+        if formalityShift < 30:
+            instructions += f"• Maintain consistent style, don't shift formality\n"
+        else:
+            instructions += f"• Keep mostly consistent style with minimal shifts\n"
+    
+    inclusive = sliders.get('inclusive', 50)
+    if inclusive > 50:
+        intensity = get_intensity(inclusive)
+        instructions += f"• Be {intensity} careful with inclusive, respectful language\n".replace("  ", " ")
+    elif inclusive < 50:
+        if inclusive < 30:
+            instructions += f"• Use standard language without special inclusivity focus\n"
+        else:
+            instructions += f"• Use mostly standard language, less focus on inclusivity\n"
+    
+    risk = sliders.get('risk', 50)
+    if risk > 50:
+        intensity = get_intensity(risk)
+        instructions += f"• Be {intensity} willing to speculate and take risks in responses\n".replace("  ", " ")
+    elif risk < 50:
+        if risk < 30:
+            instructions += f"• Play it very safe - avoid speculation entirely\n"
+        else:
+            instructions += f"• Mostly stick to known facts, limit speculation\n"
+    
+    selfReference = sliders.get('selfReference', 50)
+    if selfReference > 50:
+        intensity = get_intensity(selfReference)
+        instructions += f"• {intensity.capitalize() if intensity else ''} Reference yourself as an AI assistant\n".replace("  ", " ")
+    elif selfReference < 50:
+        if selfReference < 30:
+            instructions += f"• Never mention being an AI - stay fully in character\n"
+        else:
+            instructions += f"• Minimize AI self-references\n"
+    
+    topicFocus = sliders.get('topicFocus', 50)
+    if topicFocus > 50:
+        intensity = get_intensity(topicFocus)
+        instructions += f"• Stay {intensity} focused on topic - avoid tangents\n".replace("  ", " ")
+    elif topicFocus < 50:
+        if topicFocus < 30:
+            instructions += f"• Feel free to branch out and explore tangents\n"
+        else:
+            instructions += f"• Allow some topic exploration when relevant\n"
+    
+    repetition = sliders.get('repetition', 50)
+    if repetition > 50:
+        intensity = get_intensity(repetition)
+        instructions += f"• Be {intensity} careful to avoid repeating yourself\n".replace("  ", " ")
+    elif repetition < 50:
+        if repetition < 30:
+            instructions += f"• Don't worry about repetition - reinforce key points\n"
+        else:
+            instructions += f"• Some repetition is fine for emphasis\n"
+    
+    intensity_val = sliders.get('intensity', 50)
+    if intensity_val > 50:
+        intensity = get_intensity(intensity_val)
+        instructions += f"• Express {intensity} strong emotional intensity\n".replace("  ", " ")
+    elif intensity_val < 50:
+        if intensity_val < 30:
+            instructions += f"• Keep very low emotional intensity - stay neutral\n"
+        else:
+            instructions += f"• Keep somewhat reserved emotional expression\n"
+    
+    humorSensitivity = sliders.get('humorSensitivity', 50)
+    if humorSensitivity > 50:
+        intensity = get_intensity(humorSensitivity)
+        instructions += f"• Be {intensity} sensitive about humor on serious topics\n".replace("  ", " ")
+    elif humorSensitivity < 50:
+        if humorSensitivity < 30:
+            instructions += f"• Feel free to use humor even on serious topics\n"
+        else:
+            instructions += f"• Use humor carefully but don't over-worry\n"
+    
+    consistency = sliders.get('consistency', 50)
+    if consistency > 50:
+        intensity = get_intensity(consistency)
+        instructions += f"• Maintain {intensity} consistent persona throughout\n".replace("  ", " ")
+    elif consistency < 50:
+        if consistency < 30:
+            instructions += f"• Allow persona to vary naturally with context\n"
+        else:
+            instructions += f"• Keep mostly consistent with some flexibility\n"
+    
+    metaAwareness = sliders.get('metaAwareness', 50)
+    if metaAwareness > 50:
+        intensity = get_intensity(metaAwareness)
+        instructions += f"• Be {intensity} aware and comment on conversation dynamics\n".replace("  ", " ")
+    elif metaAwareness < 50:
+        if metaAwareness < 30:
+            instructions += f"• Stay fully in conversation, never meta-comment\n"
+        else:
+            instructions += f"• Minimize meta-commentary on conversation\n"
+    
+    jargon = sliders.get('jargon', 50)
+    if jargon > 50:
+        intensity = get_intensity(jargon)
+        instructions += f"• Use {intensity} industry-specific terminology\n".replace("  ", " ")
+    elif jargon < 50:
+        if jargon < 30:
+            instructions += f"• Use very simple, everyday language only\n"
+        else:
+            instructions += f"• Prefer simple language, minimal jargon\n"
+    
+    polish = sliders.get('polish', 50)
+    if polish > 50:
+        intensity = get_intensity(polish)
+        instructions += f"• Use {intensity} eloquent, refined language\n".replace("  ", " ")
+    elif polish < 50:
+        if polish < 30:
+            instructions += f"• Use very simple, straightforward language\n"
+        else:
+            instructions += f"• Use clear, unpretentious language\n"
+    
+    caution = sliders.get('caution', 50)
+    if caution > 50:
+        intensity = get_intensity(caution)
+        instructions += f"• Exercise {intensity} high caution with content\n".replace("  ", " ")
+    elif caution < 50:
+        if caution < 30:
+            instructions += f"• Be very open and direct, minimal filtering\n"
+        else:
+            instructions += f"• Be somewhat open, less cautious\n"
+    
+    instructions += "=== END PERSONALITY FINE-TUNING ===\n"
+    return instructions
+
 def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
     """Load thread history from ai-memory database if not already loaded"""
     if THREAD_LOADED.get(thread_id):
@@ -1393,8 +1717,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                     agent_name = get_admin_setting("agent_name", "Betsy")
                     instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency, part of Farmers Insurance."
                     
-                    # ✅ ADD PERSONALITY INSTRUCTIONS
-                    instructions += f"""
+                    # ✅ ADD PERSONALITY INSTRUCTIONS (with dynamic sliders)
+                    base_personality = """
 
 === YOUR PERSONALITY & VOICE ===
 Sound smooth, happy, and confident—friendly but not over-excited.
@@ -1403,6 +1727,14 @@ Switch to professional seriousness if the caller's tone or topic demands it.
 Keep responses short and natural. Allow brief pauses so callers can jump in.
 Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance when relevant.
 """
+                    
+                    # Get personality sliders and generate dynamic instructions
+                    sliders = get_admin_setting("personality_sliders", {})
+                    if sliders:
+                        personality_instructions = generate_personality_instructions(sliders)
+                        instructions += base_personality + personality_instructions
+                    else:
+                        instructions += base_personality
                     
                     # ✅ NORMALIZE MEMORIES FIRST (before greeting) to extract caller identity
                     normalized = {}
