@@ -195,33 +195,25 @@
                 <!-- Personality Settings -->
                 <div class="admin-section">
                     <h3 class="section-header">🧠 AI Personality & Instructions</h3>
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Note:</strong> Base personality instructions are now controlled by the <strong>30 Personality Sliders</strong> below. This field is for additional custom instructions only.
+                    </div>
                     <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label">Personality Preset</label>
-                            <select class="form-select" id="personalityPreset" onchange="loadPersonality()">
-                                <option value="insurance">Peterson Family Insurance Agent (Current)</option>
-                                <option value="professional">Professional & Formal</option>
-                                <option value="friendly">Friendly & Casual</option>
-                                <option value="sales">Sales-Focused</option>
-                                <option value="support">Customer Support</option>
-                                <option value="custom">Custom Instructions</option>
-                            </select>
-                        </div>
                         <div class="col-md-6">
                             <label class="form-label">Response Length</label>
                             <select class="form-select" id="responseLength">
                                 <option value="25">Very Short (25 tokens)</option>
-                                <option value="50" selected>Short (50 tokens)</option>
+                                <option value="50" selected">Short (50 tokens)</option>
                                 <option value="100">Medium (100 tokens)</option>
                                 <option value="150">Long (150 tokens)</option>
                             </select>
                         </div>
                     </div>
                     <div class="mt-3">
-                        <label class="form-label">Custom Instructions</label>
-                        <textarea class="form-control" rows="4" id="customInstructions" placeholder="Enter custom personality instructions...">You are Samantha from Peterson Family Insurance Agency. Be helpful and professional. Only use information you remember about the caller.</textarea>
+                        <label class="form-label">Additional Custom Instructions (Optional)</label>
+                        <textarea class="form-control" rows="4" id="customInstructions" placeholder="Add any extra instructions here. Agent name and personality are controlled by settings above and sliders below."></textarea>
                     </div>
-                    <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Personality</button>
+                    <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Custom Instructions</button>
                 </div>
 
                 <!-- Personality Dimensions (30 Sliders) -->
@@ -845,28 +837,13 @@
             document.getElementById('clarityValue').textContent = this.value;
         });
 
-        // Voice and personality management
-        function loadPersonality() {
-            const preset = document.getElementById('personalityPreset').value;
-            const instructions = document.getElementById('customInstructions');
-            
-            const presets = {
-                insurance: "You are {Agent Name} from Peterson Family Insurance Agency. Be helpful and professional. Answer questions about insurance and help customers with their needs.",
-                professional: "You are a professional AI assistant. Maintain a formal, courteous tone. Provide accurate, helpful information.",
-                friendly: "You are a friendly AI assistant. Be warm, conversational, and approachable while remaining helpful.",
-                sales: "You are a sales-focused assistant. Identify customer needs and guide them toward appropriate solutions.",
-                support: "You are a customer support specialist. Focus on problem-solving and providing excellent service.",
-                custom: ""
-            };
-            
-            if (preset !== 'custom') {
-                instructions.value = presets[preset];
-            }
-        }
+        // Voice and personality management (DEPRECATED - now using 30 sliders)
+        // Old loadPersonality() function removed - personality now controlled by sliders below
 
         function testVoice() {
             const voiceId = document.getElementById('voiceSelect').value;
-            const testText = "Hi, this is {Agent Name} from Peterson Family Insurance Agency. How can I help you today?";
+            const agentName = document.getElementById('agentName').value || 'your AI assistant';
+            const testText = `Hi, this is ${agentName} from Peterson Family Insurance Agency. How can I help you today?`;
             
             fetch('/test-voice', {
                 method: 'POST',
