@@ -1390,13 +1390,15 @@ def update_personality_sliders():
         mem_store = HTTPMemoryStore()
         
         # Save slider values to AI-Memory
+        import time
         mem_store.write(
             memory_type="admin_setting",
             key="personality_sliders",
             value={
                 "setting_key": "personality_sliders",
+                "value": data,  # ✅ Add both value and setting_value
                 "setting_value": data,
-                "updated_by": "admin_panel"
+                "timestamp": time.time()
             },
             user_id="admin",
             scope="shared",
