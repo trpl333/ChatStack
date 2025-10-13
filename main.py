@@ -1853,6 +1853,11 @@ def update_memory():
             logging.error(f"❌ Missing required fields: {missing}")
             return jsonify({"success": False, "error": f"Missing required fields: {', '.join(missing)}"}), 400
         
+        # ✅ FIX: Admin panel person records get highest priority timestamp
+        if isinstance(value, dict) and "relationship" in value:
+            value["timestamp"] = 9999999999
+            logging.info(f"🔥 Admin panel person record detected, setting timestamp=9999999999 for {value.get('relationship')}: {value.get('name')}")
+        
         # Write updated/new memory to ai-memory
         logging.info(f"📝 Writing memory to ai-memory service: {memory_type}:{key} for user {user_id}")
         result = mem_store.write(
