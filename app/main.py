@@ -46,7 +46,8 @@ def get_admin_setting(setting_key, default=None):
             data = response.json()
             memory_text = data.get("memory", "")
             
-            # Parse concatenated JSON to find setting
+            # Parse concatenated JSON to find setting - use LAST match (most recent)
+            last_value = None
             for line in memory_text.split('\n'):
                 line = line.strip()
                 if not line or line == "test":
@@ -54,11 +55,13 @@ def get_admin_setting(setting_key, default=None):
                 try:
                     setting_obj = json.loads(line)
                     if setting_obj.get("setting_key") == setting_key:
-                        value = setting_obj.get("value") or setting_obj.get("setting_value")
-                        logger.info(f"📖 Retrieved admin setting {setting_key}: {value}")
-                        return value
+                        last_value = setting_obj.get("value") or setting_obj.get("setting_value")
                 except:
                     continue
+            
+            if last_value is not None:
+                logger.info(f"📖 Retrieved admin setting {setting_key}: {last_value}")
+                return last_value
         
         # Fallback to config.json
         logger.info(f"📖 Using config.json fallback for {setting_key}")
