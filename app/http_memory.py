@@ -324,7 +324,20 @@ class HTTPMemoryStore:
                                 }
                                 memories.append(normalized)
                             except json.JSONDecodeError:
-                                logger.warning(f"Could not parse memory line: {line[:100]}")
+                                # ✅ FIX: Handle plain text preferences (e.g., "John likes Ahi Tuna sushi")
+                                logger.info(f"📝 Plain text memory (search), converting to structured format: {line[:100]}")
+                                
+                                # Create a fact-type memory from plain text
+                                normalized = {
+                                    "type": "preference" if any(kw in line.lower() for kw in ["likes", "favorite", "prefers", "enjoys"]) else "fact",
+                                    "key": f"text_memory_{idx}",
+                                    "value": {"description": line},  # Wrap in dict so normalization can extract it
+                                    "scope": "user",
+                                    "user_id": user_id if 'user_id' in locals() else None,
+                                    "id": f"text_search_{idx}"
+                                }
+                                memories.append(normalized)
+                                logger.info(f"✅ Converted plain text to {normalized['type']} memory")
                     
                     logger.info(f"✅ Parsed {len(memories)} memories from concatenated format")
                     return memories
@@ -424,7 +437,20 @@ class HTTPMemoryStore:
                                     }
                                     page_memories.append(normalized)
                                 except json.JSONDecodeError:
-                                    logger.warning(f"Could not parse memory line: {line[:100]}")
+                                    # ✅ FIX: Handle plain text preferences (e.g., "John likes Ahi Tuna sushi")
+                                    logger.info(f"📝 Plain text memory detected, converting to structured format: {line[:100]}")
+                                    
+                                    # Create a fact-type memory from plain text
+                                    normalized = {
+                                        "type": "preference" if any(kw in line.lower() for kw in ["likes", "favorite", "prefers", "enjoys"]) else "fact",
+                                        "key": f"text_memory_{offset+idx}",
+                                        "value": {"description": line},  # Wrap in dict so normalization can extract it
+                                        "scope": "user",
+                                        "user_id": user_id,
+                                        "id": f"text_{offset+idx}"
+                                    }
+                                    page_memories.append(normalized)
+                                    logger.info(f"✅ Converted plain text to {normalized['type']} memory")
                 else:
                     logger.warning(f"⚠️ Unexpected response format at offset {offset}")
                 
