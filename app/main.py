@@ -21,13 +21,43 @@ from websocket import WebSocketApp
 from config_loader import get_secret, get_setting
 import sys
 import os
-# Import get_admin_setting from main.py
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-try:
-    from main import get_admin_setting
-except ImportError:
-    # Fallback if main.py not available
-    def get_admin_setting(setting_key, default=None):
+# Define get_admin_setting to query AI-Memory service directly
+def get_admin_setting(setting_key, default=None):
+    """Get admin setting from AI-Memory service"""
+    try:
+        import requests
+        
+        response = requests.post(
+            "http://172.17.0.1:8100/memory/retrieve",
+            json={"user_id": "admin", "key": f"admin:{setting_key}"},
+            headers={"Content-Type": "application/json"},
+            timeout=2
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            memory_text = data.get("memory", "")
+            
+            # Parse concatenated JSON to find setting
+            for line in memory_text.split('\n'):
+                line = line.strip()
+                if not line or line == "test":
+                    continue
+                try:
+                    setting_obj = json.loads(line)
+                    if setting_obj.get("setting_key") == setting_key:
+                        value = setting_obj.get("value") or setting_obj.get("setting_value")
+                        logger.info(f"📖 Retrieved admin setting {setting_key}: {value}")
+                        return value
+                except:
+                    continue
+        
+        # Fallback to config.json
+        logger.info(f"📖 Using config.json fallback for {setting_key}")
+        return get_setting(setting_key, default)
+        
+    except Exception as e:
+        logger.error(f"Error getting admin setting {setting_key}: {e}")
         return get_setting(setting_key, default)
 from app.models import ChatRequest, ChatResponse, MemoryObject
 from app.llm import chat as llm_chat, chat_realtime_stream, _get_llm_config, validate_llm_connection
