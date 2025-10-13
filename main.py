@@ -2069,7 +2069,30 @@ def save_user_schema():
         
         logging.info(f"💾 Saving schema for user: {normalized_user_id}")
         
-        # Save to ai-memory as normalized_schema type
+        # ✅ FIX: Save each person as INDIVIDUAL memory with highest priority timestamp
+        contacts = schema.get("contacts", {})
+        saved_count = 0
+        
+        for relationship, person_data in contacts.items():
+            if person_data and person_data.get("name"):
+                # Add timestamp=9999999999 to ensure admin panel data wins
+                person_data["timestamp"] = 9999999999
+                person_data["relationship"] = relationship
+                
+                # Save individual person record
+                result = mem_store.write(
+                    memory_type="person",
+                    key=f"{relationship}_{person_data['name'].replace(' ', '_')}",
+                    value=person_data,
+                    user_id=normalized_user_id,
+                    scope="user",
+                    ttl_days=3650,  # 10 years
+                    source="admin_panel"
+                )
+                logging.info(f"✅ Saved {relationship}: {person_data['name']} with timestamp=9999999999")
+                saved_count += 1
+        
+        # Also save full schema as backup (for UI display)
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         response = requests.post(
             f"{ai_memory_url}/memory/store",
@@ -2086,10 +2109,10 @@ def save_user_schema():
         )
         
         if response.status_code == 200:
-            logging.info(f"✅ Schema saved successfully for user {normalized_user_id}")
-            return jsonify({"success": True, "user_id": normalized_user_id})
+            logging.info(f"✅ Schema saved: {saved_count} person records + full schema for user {normalized_user_id}")
+            return jsonify({"success": True, "user_id": normalized_user_id, "saved_persons": saved_count})
         else:
-            logging.error(f"❌ Failed to save schema: HTTP {response.status_code}")
+            logging.error(f"❌ Failed to save schema backup: HTTP {response.status_code}")
             return jsonify({"success": False, "error": f"Save failed with status {response.status_code}"}), 500
             
     except Exception as e:
