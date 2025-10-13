@@ -493,12 +493,13 @@ class HTTPMemoryStore:
             Complete MEMORY_TEMPLATE dict with populated fields
         """
         # ✅ PRIORITY 1: Check for manually saved schema (overrides auto-extraction)
+        # 🚨 TEMPORARILY DISABLED: Manual schemas were returning empty data and blocking preferences
         manual_schemas = []
-        for mem in raw_memories:
-            if mem.get("type") == "normalized_schema" and mem.get("key") == "user_profile":
-                manual_schemas.append(mem.get("value"))
+        # for mem in raw_memories:
+        #     if mem.get("type") == "normalized_schema" and mem.get("key") == "user_profile":
+        #         manual_schemas.append(mem.get("value"))
         
-        if manual_schemas:
+        if False and manual_schemas:  # DISABLED
             # Use most recent (last) manual schema
             manual_schema = manual_schemas[-1]
             
