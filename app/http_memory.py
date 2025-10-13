@@ -555,7 +555,13 @@ class HTTPMemoryStore:
             mem_type = mem.get("type", "").lower()
             mem_key = (mem.get("key") or mem.get("k") or "").lower()
             value = mem.get("value", {})
-            timestamp = mem.get("timestamp", idx)  # Use index if no timestamp
+            
+            # ✅ PRIORITY FIX: Give admin panel "person" type memories HIGHEST priority
+            # This ensures structured contact data from admin panel overrides conversation text
+            if mem_type == "person":
+                timestamp = 9999999999  # Very high timestamp = highest priority
+            else:
+                timestamp = mem.get("timestamp", idx)  # Use index if no timestamp
             
             # Convert value to string for text mining if needed
             value_str = json.dumps(value) if isinstance(value, dict) else str(value)
