@@ -851,7 +851,7 @@
             const instructions = document.getElementById('customInstructions');
             
             const presets = {
-                insurance: "You are Samantha from Peterson Family Insurance Agency. Be helpful and professional. Answer questions about insurance and help customers with their needs.",
+                insurance: "You are {Agent Name} from Peterson Family Insurance Agency. Be helpful and professional. Answer questions about insurance and help customers with their needs.",
                 professional: "You are a professional AI assistant. Maintain a formal, courteous tone. Provide accurate, helpful information.",
                 friendly: "You are a friendly AI assistant. Be warm, conversational, and approachable while remaining helpful.",
                 sales: "You are a sales-focused assistant. Identify customer needs and guide them toward appropriate solutions.",
@@ -866,7 +866,7 @@
 
         function testVoice() {
             const voiceId = document.getElementById('voiceSelect').value;
-            const testText = "Hi, this is Samantha from Peterson Family Insurance Agency. How can I help you today?";
+            const testText = "Hi, this is {Agent Name} from Peterson Family Insurance Agency. How can I help you today?";
             
             fetch('/test-voice', {
                 method: 'POST',
