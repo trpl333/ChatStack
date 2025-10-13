@@ -2187,12 +2187,176 @@
             }
         }
 
+        // ==================== PERSONALITY SLIDERS ====================
+        
+        // List of all 30 personality dimensions
+        const personalityDimensions = [
+            'warmth', 'formality', 'humor', 'directness',
+            'empathy', 'confidence', 'curiosity', 'patience',
+            'creativity', 'analytical', 'storytelling', 'detail',
+            'assertiveness', 'humility', 'optimism', 'sarcasm',
+            'formalityShift', 'inclusive', 'memory', 'risk',
+            'selfReference', 'topicFocus', 'repetition', 'polish',
+            'intensity', 'caution', 'jargon', 'humorSensitivity',
+            'consistency', 'metaAwareness'
+        ];
+        
+        // Update slider value display in real-time
+        function updateSliderValue(dimension) {
+            const slider = document.getElementById(`slider-${dimension}`);
+            const valueSpan = document.getElementById(`${dimension}-val`);
+            if (slider && valueSpan) {
+                valueSpan.textContent = slider.value;
+            }
+        }
+        
+        // Load personality preset configurations
+        function loadPersonalityPreset(preset) {
+            const presets = {
+                'professional': {
+                    warmth: 60, formality: 80, humor: 20, directness: 70,
+                    empathy: 65, confidence: 85, curiosity: 50, patience: 80,
+                    creativity: 30, analytical: 80, storytelling: 30, detail: 75,
+                    assertiveness: 70, humility: 40, optimism: 70, sarcasm: 10,
+                    formalityShift: 60, inclusive: 85, memory: 85, risk: 30,
+                    selfReference: 30, topicFocus: 80, repetition: 75, polish: 90,
+                    intensity: 50, caution: 70, jargon: 60, humorSensitivity: 80,
+                    consistency: 85, metaAwareness: 50
+                },
+                'friendly': {
+                    warmth: 90, formality: 40, humor: 70, directness: 60,
+                    empathy: 85, confidence: 70, curiosity: 70, patience: 85,
+                    creativity: 60, analytical: 50, storytelling: 70, detail: 50,
+                    assertiveness: 50, humility: 60, optimism: 85, sarcasm: 40,
+                    formalityShift: 50, inclusive: 80, memory: 80, risk: 50,
+                    selfReference: 60, topicFocus: 60, repetition: 70, polish: 65,
+                    intensity: 70, caution: 60, jargon: 30, humorSensitivity: 70,
+                    consistency: 75, metaAwareness: 60
+                },
+                'assertive': {
+                    warmth: 50, formality: 60, humor: 30, directness: 90,
+                    empathy: 50, confidence: 95, curiosity: 40, patience: 50,
+                    creativity: 40, analytical: 75, storytelling: 40, detail: 60,
+                    assertiveness: 95, humility: 20, optimism: 80, sarcasm: 30,
+                    formalityShift: 50, inclusive: 70, memory: 75, risk: 70,
+                    selfReference: 50, topicFocus: 85, repetition: 80, polish: 75,
+                    intensity: 75, caution: 50, jargon: 50, humorSensitivity: 60,
+                    consistency: 80, metaAwareness: 40
+                },
+                'empathetic': {
+                    warmth: 90, formality: 50, humor: 50, directness: 50,
+                    empathy: 95, confidence: 65, curiosity: 75, patience: 95,
+                    creativity: 60, analytical: 60, storytelling: 75, detail: 60,
+                    assertiveness: 40, humility: 70, optimism: 80, sarcasm: 20,
+                    formalityShift: 60, inclusive: 95, memory: 90, risk: 40,
+                    selfReference: 60, topicFocus: 70, repetition: 75, polish: 70,
+                    intensity: 65, caution: 70, jargon: 25, humorSensitivity: 85,
+                    consistency: 80, metaAwareness: 70
+                },
+                'balanced': {
+                    warmth: 50, formality: 50, humor: 50, directness: 50,
+                    empathy: 50, confidence: 50, curiosity: 50, patience: 50,
+                    creativity: 50, analytical: 50, storytelling: 50, detail: 50,
+                    assertiveness: 50, humility: 50, optimism: 50, sarcasm: 50,
+                    formalityShift: 50, inclusive: 50, memory: 50, risk: 50,
+                    selfReference: 50, topicFocus: 50, repetition: 50, polish: 50,
+                    intensity: 50, caution: 50, jargon: 50, humorSensitivity: 50,
+                    consistency: 50, metaAwareness: 50
+                }
+            };
+            
+            const values = presets[preset] || presets['balanced'];
+            
+            // Update all sliders
+            personalityDimensions.forEach(dim => {
+                const slider = document.getElementById(`slider-${dim}`);
+                const valueSpan = document.getElementById(`${dim}-val`);
+                if (slider && valueSpan) {
+                    slider.value = values[dim];
+                    valueSpan.textContent = values[dim];
+                }
+            });
+            
+            showNotification('Success', `Loaded ${preset} preset!`, false);
+        }
+        
+        // Save all personality sliders to AI-Memory
+        async function savePersonalitySliders() {
+            const sliders = {};
+            personalityDimensions.forEach(dim => {
+                const slider = document.getElementById(`slider-${dim}`);
+                if (slider) {
+                    sliders[dim] = parseInt(slider.value);
+                }
+            });
+            
+            try {
+                const response = await fetch('/update-personality-sliders', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify(sliders)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Success', 'Personality dimensions saved! Changes will apply to new calls.', false);
+                } else {
+                    showNotification('Error', 'Failed to save: ' + (data.error || 'Unknown error'), true);
+                }
+            } catch (error) {
+                console.error('Save error:', error);
+                showNotification('Error', 'Failed to save: ' + error.message, true);
+            }
+        }
+        
+        // Load saved personality sliders from AI-Memory
+        async function loadPersonalitySliders() {
+            try {
+                const response = await fetch('/get-personality-sliders');
+                const data = await response.json();
+                
+                if (data.success && data.sliders) {
+                    personalityDimensions.forEach(dim => {
+                        const slider = document.getElementById(`slider-${dim}`);
+                        const valueSpan = document.getElementById(`${dim}-val`);
+                        if (slider && valueSpan && data.sliders[dim] !== undefined) {
+                            slider.value = data.sliders[dim];
+                            valueSpan.textContent = data.sliders[dim];
+                        }
+                    });
+                    console.log('✅ Loaded personality sliders:', data.sliders);
+                }
+            } catch (error) {
+                console.error('Failed to load sliders:', error);
+            }
+        }
+        
+        // Reset all sliders to default (50)
+        function resetSliders() {
+            if (!confirm('Reset all personality dimensions to default (50/100)?')) {
+                return;
+            }
+            
+            personalityDimensions.forEach(dim => {
+                const slider = document.getElementById(`slider-${dim}`);
+                const valueSpan = document.getElementById(`${dim}-val`);
+                if (slider && valueSpan) {
+                    slider.value = 50;
+                    valueSpan.textContent = 50;
+                }
+            });
+            
+            showNotification('Success', 'All sliders reset to default!', false);
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             loadSharedKnowledge();
             loadAgentName();
             loadOpenAIVoice();
             loadTransferRules(); // Load transfer routing rules
+            loadPersonalitySliders(); // Load personality sliders
             refreshStatus();
             loadAllUsers(); // Load user list on page load
             
