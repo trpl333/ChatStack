@@ -818,41 +818,82 @@ def handle_transfer():
 
 @app.route('/phone/incoming-realtime', methods=['POST'])
 def handle_incoming_call_realtime():
-    """Handle incoming phone calls using OpenAI Realtime API with Twilio Media Streams"""
+    """Handle incoming phone calls using OpenAI Realtime API with Twilio Media Streams - Multi-Tenant Version"""
     import time
     t0 = time.time()
     
     from_number = request.form.get('From')
+    to_number = request.form.get('To')  # Which Twilio number was called
     call_sid = request.form.get('CallSid')
     
-    logging.info(f"📞 Incoming call from {from_number} - Using OpenAI Realtime API")
+    logging.info(f"📞 Incoming call from {from_number} to {to_number} - Using OpenAI Realtime API")
     logging.info(f"⏱️ Stage: Call received | Elapsed: {time.time() - t0:.3f}s")
     
-    # Normalize user ID
+    # MULTI-TENANT: Look up customer by Twilio phone number
+    customer = None
+    customer_id = None
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from customer_models import Customer
+        
+        engine = create_engine(_get_config()["database_url"])
+        Session = sessionmaker(bind=engine)
+        db_session = Session()
+        
+        # Normalize to_number for matching (remove +1, spaces, etc)
+        normalized_to = ''.join(filter(str.isdigit, to_number)) if to_number else ''
+        
+        # Try exact match first
+        customer = db_session.query(Customer).filter_by(twilio_phone_number=to_number).first()
+        
+        # Try normalized match
+        if not customer and normalized_to:
+            customers = db_session.query(Customer).all()
+            for c in customers:
+                if c.twilio_phone_number:
+                    cust_normalized = ''.join(filter(str.isdigit, c.twilio_phone_number))
+                    if cust_normalized == normalized_to or cust_normalized.endswith(normalized_to[-10:]):
+                        customer = c
+                        break
+        
+        db_session.close()
+        
+        if customer:
+            customer_id = customer.id
+            logging.info(f"✅ Found customer {customer_id}: {customer.business_name}")
+        else:
+            logging.warning(f"⚠️ No customer found for phone number {to_number} - using default config")
+    except Exception as e:
+        logging.error(f"❌ Error looking up customer: {e}")
+    
+    # Normalize caller ID
     normalized_user_id = from_number
     if from_number:
         normalized_digits = ''.join(filter(str.isdigit, from_number))
         if len(normalized_digits) >= 10:
             normalized_user_id = normalized_digits[-10:]
     
-    # Check callback status
+    # Check callback status with customer namespacing
     is_callback = False
     try:
         from app.http_memory import HTTPMemoryStore
         mem_store = HTTPMemoryStore()
-        user_memories = mem_store.search("", user_id=normalized_user_id, k=3)
+        
+        # Use customer-namespaced user_id for memory lookup
+        namespaced_user_id = f"customer_{customer_id}_{normalized_user_id}" if customer_id else normalized_user_id
+        
+        user_memories = mem_store.search("", user_id=namespaced_user_id, k=3)
         if not user_memories:
-            user_memories = mem_store.search("", user_id=from_number, k=3)
+            # Try without namespace for backwards compatibility
+            user_memories = mem_store.search("", user_id=normalized_user_id, k=3)
         is_callback = len(user_memories) > 0
-        logging.info(f"🔄 Callback detection: user {normalized_user_id}, is_callback={is_callback}")
+        logging.info(f"🔄 Callback detection: user {namespaced_user_id}, is_callback={is_callback}")
     except Exception as e:
         logging.warning(f"Failed to check callback status: {e}")
     
     # Create TwiML response with Media Streams
     response = VoiceResponse()
-    
-    # ❌ REMOVED: Don't send greeting here - Realtime API will handle it
-    # This was causing double greetings with wrong voice
     
     # Connect to WebSocket for bidirectional audio streaming
     connect = Connect()
@@ -860,21 +901,32 @@ def handle_incoming_call_realtime():
     server_url = config["server_url"]
     
     # Construct wss:// URL for WebSocket (FastAPI on port 8001)
-    # In production, nginx proxies /phone/media-stream to the FastAPI service
     ws_url = server_url.replace("https://", "wss://").replace("http://", "ws://")
     ws_url = f"{ws_url}/phone/media-stream"
     
-    # Create Stream with custom parameters
+    # Create Stream with custom parameters - MULTI-TENANT ADDITIONS
     stream_elem = Stream(url=ws_url)
     stream_elem.parameter(name='user_id', value=normalized_user_id)
     stream_elem.parameter(name='call_sid', value=call_sid)
     stream_elem.parameter(name='is_callback', value=str(is_callback))
+    
+    # Pass customer context to orchestrator
+    if customer_id:
+        stream_elem.parameter(name='customer_id', value=str(customer_id))
+        stream_elem.parameter(name='agent_name', value=customer.agent_name or 'AI Assistant')
+        stream_elem.parameter(name='greeting_template', value=customer.greeting_template or 'Hello! How can I help you today?')
+        stream_elem.parameter(name='openai_voice', value=customer.openai_voice or 'alloy')
+        if customer.personality_sliders:
+            import json
+            stream_elem.parameter(name='personality_config', value=json.dumps(customer.personality_sliders))
     
     connect.append(stream_elem)
     response.append(connect)
     
     logging.info(f"⏱️ Stage: TwiML generated with Media Stream | Elapsed: {time.time() - t0:.3f}s")
     logging.info(f"🔗 WebSocket URL: {ws_url}")
+    if customer_id:
+        logging.info(f"👤 Customer Context: ID={customer_id}, Agent={customer.agent_name}, Voice={customer.openai_voice}")
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 

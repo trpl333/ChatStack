@@ -1735,10 +1735,29 @@ async def media_stream_endpoint(websocket: WebSocket):
                 call_sid = custom_params.get("call_sid")  # Extract call_sid for transfer functionality
                 is_callback = custom_params.get("is_callback") == "True"
                 
-                # ✅ Create stable thread_id for conversation continuity
-                thread_id = f"user_{user_id}" if user_id else None
+                # MULTI-TENANT: Extract customer context
+                customer_id = custom_params.get("customer_id")
+                agent_name_override = custom_params.get("agent_name")
+                greeting_override = custom_params.get("greeting_template")
+                voice_override = custom_params.get("openai_voice")
+                personality_config = custom_params.get("personality_config")
                 
-                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Call: {call_sid}, Thread: {thread_id}, Callback: {is_callback}")
+                # Parse personality config if provided
+                customer_sliders = None
+                if personality_config:
+                    try:
+                        customer_sliders = json.loads(personality_config)
+                    except:
+                        pass
+                
+                # ✅ Create stable thread_id with customer namespace for multi-tenancy
+                if customer_id:
+                    thread_id = f"customer_{customer_id}_user_{user_id}" if user_id else f"customer_{customer_id}"
+                    logger.info(f"🏢 Multi-tenant mode: Customer {customer_id}")
+                else:
+                    thread_id = f"user_{user_id}" if user_id else None
+                
+                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Call: {call_sid}, Thread: {thread_id}, Callback: {is_callback}, Customer: {customer_id}")
                 
                 # Build system instructions with memory context
                 try:
@@ -1769,11 +1788,16 @@ async def media_stream_endpoint(websocket: WebSocket):
                     except FileNotFoundError:
                         instructions = "You are Samantha for Peterson Family Insurance. Be concise, warm, and human."
                     
-                    # Add identity, personality, and greeting context - use get_admin_setting to query ai-memory directly
-                    agent_name = get_admin_setting("agent_name", "Betsy")
-                    instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency, part of Farmers Insurance."
+                    # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
+                    agent_name = agent_name_override or get_admin_setting("agent_name", "Betsy")
                     
-                    # ✅ ADD PERSONALITY INSTRUCTIONS (with dynamic sliders)
+                    # Use customer-specific business name or default
+                    if customer_id:
+                        instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you represent this customer's business (Customer ID: {customer_id})."
+                    else:
+                        instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency, part of Farmers Insurance."
+                    
+                    # ✅ ADD PERSONALITY INSTRUCTIONS (with dynamic sliders) - MULTI-TENANT
                     base_personality = """
 
 === YOUR PERSONALITY & VOICE ===
@@ -1781,11 +1805,10 @@ Sound smooth, happy, and confident—friendly but not over-excited.
 Be lightly playful and casual; show subtle warmth, even a bit flirty when appropriate.
 Switch to professional seriousness if the caller's tone or topic demands it.
 Keep responses short and natural. Allow brief pauses so callers can jump in.
-Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance when relevant.
 """
                     
-                    # Get personality sliders and generate dynamic instructions
-                    sliders = get_admin_setting("personality_sliders", {})
+                    # Get personality sliders - use customer-specific if available, otherwise admin settings
+                    sliders = customer_sliders or get_admin_setting("personality_sliders", {})
                     if sliders:
                         personality_instructions = generate_personality_instructions(sliders)
                         instructions += base_personality + personality_instructions
@@ -1857,9 +1880,14 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                         
                         logger.info(f"👤 Caller identity: user_name={user_name}, spouse={spouse_name}, is_callback={is_callback}")
                         
-                        greeting_template = get_admin_setting("existing_user_greeting", 
-                                                             f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
-                        logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
+                        # MULTI-TENANT: Use customer-specific greeting or fallback to admin setting
+                        if greeting_override:
+                            greeting_template = greeting_override
+                            logger.info(f"🎤 Using customer-specific greeting: '{greeting_template}'")
+                        else:
+                            greeting_template = get_admin_setting("existing_user_greeting", 
+                                                                 f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
+                            logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
                         
                         # Build caller identity context
                         identity_context = ""
@@ -1886,8 +1914,14 @@ Always refer naturally to Peterson Family Insurance Agency and Farmers Insurance
                         else:
                             time_greeting = "Good evening"
                         
-                        greeting_template = get_admin_setting("new_caller_greeting", 
-                                                             f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
+                        # MULTI-TENANT: Use customer-specific greeting or fallback to admin setting
+                        if greeting_override:
+                            greeting_template = greeting_override
+                            logger.info(f"🎤 Using customer-specific new caller greeting: '{greeting_template}'")
+                        else:
+                            greeting_template = get_admin_setting("new_caller_greeting", 
+                                                                 f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
+                        
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
                     
