@@ -2,6 +2,7 @@ import json
 import logging
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -104,6 +105,21 @@ TOOL_SCHEMAS = {
             },
             "required": ["text"]
         }
+    },
+    "get_current_time": {
+        "description": "Get the current time in Pacific Time Zone (PT). Use this when someone asks what time it is.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "format": {
+                    "type": "string",
+                    "description": "Time format to return",
+                    "enum": ["12-hour", "24-hour"],
+                    "default": "12-hour"
+                }
+            },
+            "required": []
+        }
     }
 }
 
@@ -181,6 +197,8 @@ class ToolDispatcher:
                 return self._search_knowledge(parameters)
             elif tool_name == "text_to_speech":
                 return self._text_to_speech(parameters)
+            elif tool_name == "get_current_time":
+                return self._get_current_time(parameters)
             else:
                 return {
                     "success": False,
@@ -323,6 +341,53 @@ class ToolDispatcher:
             "error": None,
             "audio_url": audio_url,
             "audio_id": audio_id
+        }
+    
+    def _get_current_time(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Get the current time in Pacific Time Zone.
+        
+        Args:
+            params: Time parameters (format option)
+            
+        Returns:
+            Current time result
+        """
+        time_format = params.get("format", "12-hour")
+        
+        # Get current Pacific time
+        pacific_tz = ZoneInfo("America/Los_Angeles")
+        now = datetime.now(pacific_tz)
+        
+        # Format the time
+        if time_format == "24-hour":
+            time_str = now.strftime("%H:%M")
+            formatted_time = f"{time_str} PT"
+        else:
+            time_str = now.strftime("%I:%M %p")
+            formatted_time = f"{time_str} PT"
+        
+        # Get day of week and date
+        day_name = now.strftime("%A")
+        date_str = now.strftime("%B %d, %Y")
+        
+        # Determine PST or PDT
+        dst_offset = now.dst()
+        timezone_name = "PST" if dst_offset is None or dst_offset.total_seconds() == 0 else "PDT"
+        
+        result = f"🕐 The current time is {formatted_time} ({timezone_name}) on {day_name}, {date_str}"
+        
+        logger.info(f"Current Pacific time requested: {formatted_time}")
+        
+        return {
+            "success": True,
+            "result": result,
+            "error": None,
+            "time": formatted_time,
+            "day": day_name,
+            "date": date_str,
+            "timezone": timezone_name,
+            "timestamp": now.isoformat()
         }
     
     def get_available_tools(self) -> List[Dict[str, Any]]:
