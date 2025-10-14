@@ -758,8 +758,11 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
                                 matched_words.append(f"{kw}~{tw}")
                                 break
                 
-                # Flexible matching: require at least 1 important word (for 2-word phrases) or 50% for longer phrases
-                min_matches = 1 if len(important_words) <= 2 else (len(important_words) + 1) // 2
+                # Strict matching for short phrases: require ALL words for 2-3 word phrases, 75% for longer
+                if len(important_words) <= 3:
+                    min_matches = len(important_words)  # Require ALL words for short phrases
+                else:
+                    min_matches = int(len(important_words) * 0.75)  # 75% for longer phrases
                 if matches >= min_matches:
                     logger.info(f"✅ Transfer rule matched (phrase): '{keyword}' ({matches}/{len(important_words)} words: {matched_words}) -> {number}")
                     execute_twilio_transfer(call_sid, number, keyword)
