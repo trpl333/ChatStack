@@ -3,6 +3,49 @@
 ### Overview
 **NeuroSphere Voice** is a **multi-tenant** AI-powered phone system platform built by The Insurance Doctors / Peterson Family Insurance (DBAs of the same company). The platform serves multiple insurance agency customers, with each customer getting their own AI agent with custom personality, voice, and dedicated phone number. Built on NeuroSphere Orchestrator (FastAPI), it's designed for intelligent call handling with persistent memory and rapid 2-2.5 second response times. The system features secure customer authentication, isolated conversation memory per tenant, and comprehensive multi-layer security. The orchestrator acts as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality. The system uses OpenAI's Realtime API and is fully deployed on DigitalOcean.
 
+---
+
+## 🚨 CRITICAL DEPLOYMENT RULE - READ THIS FIRST 🚨
+
+**PERMANENT DEPLOYMENT WORKFLOW - NO EXCEPTIONS:**
+
+All code changes MUST follow this exact sequence to keep Replit, GitHub, and DigitalOcean in perfect sync:
+
+### ✅ REQUIRED WORKFLOW:
+1. **Fix code in Replit** (development environment)
+2. **Push to GitHub** (version control):
+   ```bash
+   git add [files]
+   git commit -m "[description]"
+   git push origin main
+   ```
+3. **Deploy to DigitalOcean** (production):
+   ```bash
+   cd /opt/ChatStack
+   git fetch origin
+   git reset --hard origin/main
+   docker-compose down
+   docker-compose up -d --build
+   docker logs chatstack-orchestrator-worker-1 --tail 20  # verify
+   ```
+
+### ❌ NEVER ALLOWED:
+- **NO manual edits** on DigitalOcean server (sed, vim, nano, etc.)
+- **NO direct file modifications** in `/opt/ChatStack/` on production
+- **NO "quick fixes"** that bypass git workflow
+- **NO deployment without GitHub** as the source of truth
+
+### 🔒 WHY THIS RULE EXISTS:
+Manual production edits create:
+- Syntax errors from incomplete changes
+- Drift between environments (Replit ≠ GitHub ≠ DigitalOcean)
+- Deployment failures and phone system crashes
+- Lost changes when pulling from git
+
+**This rule was established after manual sed commands created catastrophic syntax errors that crashed the production phone system. Always use git workflow.**
+
+---
+
 ### User Preferences
 Preferred communication style: Simple, everyday language.
 
