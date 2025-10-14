@@ -2069,50 +2069,6 @@ Keep responses short and natural. Allow brief pauses so callers can jump in.
     except Exception as e:
         logger.exception(f"Media stream error: {e}")
     finally:
-        # Log call to Notion before closing
-        if 'thread_id' in locals() and 'user_id' in locals() and thread_id and user_id:
-            try:
-                # Generate call summary from thread history
-                history = THREAD_HISTORY.get(thread_id, [])
-                if history:
-                    # Build phone number from user_id
-                    phone_number = f"+1{user_id}" if not user_id.startswith('+') else user_id
-                    
-                    # Build full transcript
-                    transcript_lines = []
-                    for role, text in history:
-                        prefix = "Customer" if role == "user" else "Samantha"
-                        transcript_lines.append(f"{prefix}: {text}")
-                    
-                    full_transcript = "\n".join(transcript_lines[-20:])  # Last 20 exchanges
-                    
-                    # Extract caller name and spouse from history or normalized memory
-                    caller_name = 'user_name' in locals() and user_name or 'Unknown'
-                    spouse = 'spouse_name' in locals() and spouse_name or None
-                    
-                    # Generate AI summary
-                    summary = f"Call with {caller_name} - {len(history)} exchanges"
-                    
-                    # Extract transfer info if any
-                    transfer_to = None
-                    for role, text in reversed(list(history)[-5:]):
-                        if "transfer" in text.lower() or "connect you to" in text.lower():
-                            # Try to extract who they were transferred to
-                            for keyword in ["John", "Milissa", "Colin", "billing", "claims"]:
-                                if keyword.lower() in text.lower():
-                                    transfer_to = keyword
-                                    break
-                            break
-                    
-                    # Notion logging removed - to be re-implemented with clean setup
-                    # notion_client.upsert_customer(...)
-                    # notion_client.log_call(...)
-                    
-                    logger.info(f"📝 Call logging complete for {phone_number}")
-                    
-            except Exception as e:
-                logger.error(f"Failed to complete call logging: {e}")
-        
         if oai:
             oai.close()
         logger.info("🔌 WebSocket closed")
