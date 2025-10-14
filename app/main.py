@@ -1732,23 +1732,41 @@ async def media_stream_endpoint(websocket: WebSocket):
                 stream_sid = ev["start"]["streamSid"]
                 custom_params = ev["start"].get("customParameters", {})
                 user_id = custom_params.get("user_id")
-                call_sid = custom_params.get("call_sid")  # Extract call_sid for transfer functionality
+                call_sid = custom_params.get("call_sid")
                 is_callback = custom_params.get("is_callback") == "True"
                 
-                # MULTI-TENANT: Extract customer context
-                customer_id = custom_params.get("customer_id")
-                agent_name_override = custom_params.get("agent_name")
-                greeting_override = custom_params.get("greeting_template")
-                voice_override = custom_params.get("openai_voice")
-                personality_config = custom_params.get("personality_config")
-                
-                # Parse personality config if provided
+                # SECURITY: Retrieve customer context server-side using call_sid (prevents spoofing)
+                customer_id = None
+                agent_name_override = None
+                greeting_override = None
+                voice_override = None
                 customer_sliders = None
-                if personality_config:
+                
+                if call_sid:
                     try:
-                        customer_sliders = json.loads(personality_config)
-                    except:
-                        pass
+                        import requests
+                        # Call Flask API to get customer context (server-side lookup)
+                        # SECURITY: Include shared secret for authentication
+                        internal_secret = get_secret("SESSION_SECRET")
+                        response = requests.get(
+                            f"http://127.0.0.1:5000/api/internal/customer-context/{call_sid}",
+                            headers={"X-Internal-Secret": internal_secret},
+                            timeout=2
+                        )
+                        
+                        if response.status_code == 200:
+                            customer_data = response.json()
+                            customer_id = customer_data.get('customer_id')
+                            agent_name_override = customer_data.get('agent_name')
+                            greeting_override = customer_data.get('greeting_template')
+                            voice_override = customer_data.get('openai_voice')
+                            customer_sliders = customer_data.get('personality_sliders')
+                            
+                            logger.info(f"✅ Retrieved customer context: customer_id={customer_id}, agent={agent_name_override}")
+                        else:
+                            logger.warning(f"⚠️ No customer context found for call_sid={call_sid}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to retrieve customer context: {e}")
                 
                 # ✅ Create stable thread_id with customer namespace for multi-tenancy
                 if customer_id:
@@ -1756,8 +1774,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.info(f"🏢 Multi-tenant mode: Customer {customer_id}")
                 else:
                     thread_id = f"user_{user_id}" if user_id else None
+                    logger.info(f"📞 Default mode: No customer context, using admin settings")
                 
-                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Call: {call_sid}, Thread: {thread_id}, Callback: {is_callback}, Customer: {customer_id}")
+                logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Call: {call_sid}, Thread: {thread_id}, Callback: {is_callback}")
                 
                 # Build system instructions with memory context
                 try:

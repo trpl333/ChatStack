@@ -116,6 +116,26 @@ if not _initial_config["llm_base_url"]:
 # Phone call session storage (in production, use Redis or database)
 call_sessions = {}
 
+def cleanup_old_sessions():
+    """Remove sessions older than 1 hour to prevent memory leaks"""
+    import time
+    current_time = time.time()
+    expired_sessions = []
+    
+    for call_sid, session_data in call_sessions.items():
+        created_at = session_data.get('created_at', current_time)
+        age = current_time - created_at
+        
+        # Remove sessions older than 1 hour
+        if age > 3600:
+            expired_sessions.append(call_sid)
+    
+    for call_sid in expired_sessions:
+        del call_sessions[call_sid]
+        logging.info(f"🧹 Cleaned up expired session: {call_sid}")
+    
+    return len(expired_sessions)
+
 # Admin-configurable settings - initialize with fallback values first
 VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"  # Default voice ID
 VOICE_SETTINGS = {"stability": 0.71, "similarity_boost": 0.5}  # Default voice settings
@@ -816,11 +836,65 @@ def handle_transfer():
     logging.info(f"✅ Transfer TwiML generated for {number}")
     return str(response), 200, {'Content-Type': 'text/xml'}
 
+@app.route('/api/internal/customer-context/<call_sid>', methods=['GET'])
+def get_customer_context(call_sid):
+    """Internal API: Retrieve customer context by call_sid (for WebSocket use only)
+    
+    SECURITY: This endpoint uses shared secret authentication (not IP-based due to ProxyFix)
+    """
+    try:
+        # SECURITY: Validate shared secret header (instead of IP check due to ProxyFix)
+        secret_header = request.headers.get('X-Internal-Secret')
+        expected_secret = SESSION_SECRET  # Reuse session secret as internal API key
+        
+        if not secret_header or secret_header != expected_secret:
+            logging.error(f"❌ SECURITY: Unauthorized access attempt to internal API - invalid secret")
+            return jsonify({"error": "Forbidden"}), 403
+        
+        session_data = call_sessions.get(call_sid)
+        if not session_data:
+            logging.warning(f"⚠️ No customer session found for call_sid={call_sid}")
+            return jsonify({"error": "Session not found"}), 404
+        
+        # Mark session as retrieved (for one-time use tracking)
+        if 'retrieved' not in session_data:
+            session_data['retrieved'] = True
+            session_data['retrieved_at'] = time.time()
+        
+        logging.info(f"🔐 Retrieved customer session for call_sid={call_sid}, customer_id={session_data.get('customer_id')}")
+        return jsonify(session_data)
+    except Exception as e:
+        logging.error(f"❌ Error retrieving customer context: {e}")
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/phone/incoming-realtime', methods=['POST'])
 def handle_incoming_call_realtime():
     """Handle incoming phone calls using OpenAI Realtime API with Twilio Media Streams - Multi-Tenant Version"""
     import time
     t0 = time.time()
+    
+    # SECURITY: Validate Twilio request signature
+    from twilio.request_validator import RequestValidator
+    
+    config = _get_config()
+    validator = RequestValidator(config["twilio_auth_token"])
+    
+    # Get the request URL (must be the full URL Twilio called)
+    url = request.url
+    # For HTTPS behind proxy, ensure we use https://
+    if request.headers.get('X-Forwarded-Proto') == 'https':
+        url = url.replace('http://', 'https://')
+    
+    # Get Twilio signature from header
+    signature = request.headers.get('X-Twilio-Signature', '')
+    
+    # Validate signature
+    if not validator.validate(url, request.form, signature):
+        logging.error(f"❌ SECURITY: Invalid Twilio signature for URL: {url}")
+        logging.error(f"❌ Rejecting potentially spoofed request")
+        return "Unauthorized", 403
+    
+    logging.info(f"✅ SECURITY: Twilio signature validated")
     
     from_number = request.form.get('From')
     to_number = request.form.get('To')  # Which Twilio number was called
@@ -904,21 +978,31 @@ def handle_incoming_call_realtime():
     ws_url = server_url.replace("https://", "wss://").replace("http://", "ws://")
     ws_url = f"{ws_url}/phone/media-stream"
     
-    # Create Stream with custom parameters - MULTI-TENANT ADDITIONS
+    # SECURITY: Store customer context in session for WebSocket to retrieve
+    # Do NOT pass customer_id directly (can be spoofed) - use call_sid as secure session key
+    if customer_id:
+        call_sessions[call_sid] = {
+            'customer_id': customer_id,
+            'agent_name': customer.agent_name or 'AI Assistant',
+            'greeting_template': customer.greeting_template or 'Hello! How can I help you today?',
+            'openai_voice': customer.openai_voice or 'alloy',
+            'personality_sliders': customer.personality_sliders,
+            'business_name': customer.business_name,
+            'to_number': to_number,
+            'from_number': from_number,
+            'created_at': time.time()
+        }
+        logging.info(f"🔐 Stored customer session for call_sid={call_sid}, customer_id={customer_id}")
+    
+    # Cleanup old sessions periodically
+    if len(call_sessions) > 100:
+        cleanup_old_sessions()
+    
+    # Pass minimal parameters - WebSocket will lookup customer server-side using call_sid
     stream_elem = Stream(url=ws_url)
     stream_elem.parameter(name='user_id', value=normalized_user_id)
-    stream_elem.parameter(name='call_sid', value=call_sid)
+    stream_elem.parameter(name='call_sid', value=call_sid)  # Used for secure customer lookup
     stream_elem.parameter(name='is_callback', value=str(is_callback))
-    
-    # Pass customer context to orchestrator
-    if customer_id:
-        stream_elem.parameter(name='customer_id', value=str(customer_id))
-        stream_elem.parameter(name='agent_name', value=customer.agent_name or 'AI Assistant')
-        stream_elem.parameter(name='greeting_template', value=customer.greeting_template or 'Hello! How can I help you today?')
-        stream_elem.parameter(name='openai_voice', value=customer.openai_voice or 'alloy')
-        if customer.personality_sliders:
-            import json
-            stream_elem.parameter(name='personality_config', value=json.dumps(customer.personality_sliders))
     
     connect.append(stream_elem)
     response.append(connect)
