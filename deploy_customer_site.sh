@@ -15,6 +15,7 @@ echo "📁 Copying customer site files..."
 cp -r static/pricing.html /var/www/neurospherevoice/
 cp -r static/onboarding.html /var/www/neurospherevoice/
 cp -r static/dashboard.html /var/www/neurospherevoice/
+cp -r static/login.html /var/www/neurospherevoice/
 
 # Create index redirect
 cat > /var/www/neurospherevoice/index.html << 'EOF'
