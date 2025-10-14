@@ -1,19 +1,38 @@
 #!/usr/bin/env python3
 """
 Database Migration: Add password_hash column to customers table
-Run this on the DigitalOcean server to add password authentication
+Run this inside the Docker container to add password authentication
 """
 import os
 from sqlalchemy import create_engine, text
-from config_loader import get_secret
 
 def migrate():
     """Add password_hash column to customers table"""
     
-    # Get database URL
-    database_url = get_secret("DATABASE_URL")
+    # Try multiple ways to get DATABASE_URL
+    database_url = os.environ.get("DATABASE_URL")
+    
+    if not database_url:
+        # Try loading from .env file if running on host
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+            database_url = os.environ.get("DATABASE_URL")
+        except ImportError:
+            pass
+    
+    if not database_url:
+        # Try config_loader if available
+        try:
+            from config_loader import get_secret
+            database_url = get_secret("DATABASE_URL")
+        except ImportError:
+            pass
+    
     if not database_url:
         print("❌ DATABASE_URL not found in environment")
+        print("\n💡 TIP: Run this script inside the Docker container:")
+        print("   docker exec -it chatstack-web-1 python3 migrate_add_password.py")
         return False
     
     engine = create_engine(database_url)
