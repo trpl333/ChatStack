@@ -2389,6 +2389,7 @@ def admin_status():
 def customer_onboard():
     """Handle new customer onboarding"""
     try:
+        from werkzeug.security import generate_password_hash
         from sqlalchemy import create_engine
         from sqlalchemy.orm import sessionmaker
         from customer_models import Customer, CustomerConfiguration
@@ -2396,14 +2397,22 @@ def customer_onboard():
         
         data = request.get_json()
         
+        # Validate required fields
+        if not data.get('password'):
+            return jsonify({"success": False, "error": "Password is required"}), 400
+        
         # Create database engine
         engine = create_engine(_get_config()["database_url"])
         Session = sessionmaker(bind=engine)
         db_session = Session()
         
+        # Hash password
+        password_hash = generate_password_hash(data.get('password'))
+        
         # Create new customer
         customer = Customer(
             email=data.get('email'),
+            password_hash=password_hash,
             business_name=data.get('business_name'),
             contact_name=data.get('contact_name'),
             phone=data.get('phone'),
