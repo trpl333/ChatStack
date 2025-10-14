@@ -195,6 +195,17 @@
             </div>
             
             <div class="mb-4">
+                <label class="form-label">Password *</label>
+                <input type="password" class="form-control" id="password" placeholder="Create a secure password" required minlength="8">
+                <small class="text-muted">Minimum 8 characters</small>
+            </div>
+            
+            <div class="mb-4">
+                <label class="form-label">Confirm Password *</label>
+                <input type="password" class="form-control" id="confirmPassword" placeholder="Re-enter your password" required>
+            </div>
+            
+            <div class="mb-4">
                 <label class="form-label">Phone Number</label>
                 <input type="tel" class="form-control" id="phone" placeholder="+1 (555) 123-4567">
             </div>
@@ -397,11 +408,26 @@
         }
         
         async function completeOnboarding() {
+            // Validate passwords match
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (password !== confirmPassword) {
+                alert('Passwords do not match! Please try again.');
+                return;
+            }
+            
+            if (password.length < 8) {
+                alert('Password must be at least 8 characters long.');
+                return;
+            }
+            
             // Gather all data
             const onboardingData = {
                 business_name: document.getElementById('businessName').value,
                 contact_name: document.getElementById('contactName').value,
                 email: document.getElementById('email').value,
+                password: password,
                 phone: document.getElementById('phone').value,
                 agent_name: document.getElementById('agentName').value,
                 greeting_template: document.getElementById('greetingTemplate').value,
@@ -421,11 +447,23 @@
                 if (response.ok) {
                     const result = await response.json();
                     
-                    // Store customer ID
-                    localStorage.setItem('customer_id', result.customer_id);
+                    // Auto-login after successful onboarding
+                    const loginResponse = await fetch('/api/login', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            email: onboardingData.email,
+                            password: onboardingData.password
+                        })
+                    });
                     
-                    // Show success step
-                    nextStep(5);
+                    if (loginResponse.ok) {
+                        // Show success step
+                        nextStep(5);
+                    } else {
+                        alert('Onboarding successful! Please login at /login.html');
+                        window.location.href = '/login.html';
+                    }
                 } else {
                     alert('Failed to complete onboarding. Please try again.');
                 }
