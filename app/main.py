@@ -75,7 +75,6 @@ from app.llm import chat as llm_chat, chat_realtime_stream, _get_llm_config, val
 from app.http_memory import HTTPMemoryStore
 from app.packer import pack_prompt, should_remember, extract_carry_kit_items, detect_safety_triggers
 from app.tools import tool_dispatcher, parse_tool_calls, execute_tool_calls
-from app.notion_client import notion_client
 
 # -----------------------------------------------------------------------------
 # Logging
@@ -2105,25 +2104,14 @@ Keep responses short and natural. Allow brief pauses so callers can jump in.
                                     break
                             break
                     
-                    # Update customer info in Notion
-                    notion_client.upsert_customer(
-                        phone=phone_number,
-                        name=caller_name,
-                        spouse=spouse
-                    )
+                    # Notion logging removed - to be re-implemented with clean setup
+                    # notion_client.upsert_customer(...)
+                    # notion_client.log_call(...)
                     
-                    # Log the call
-                    notion_client.log_call(
-                        phone=phone_number,
-                        transcript=full_transcript,
-                        summary=summary,
-                        transfer_to=transfer_to
-                    )
-                    
-                    logger.info(f"📝 Call logged to Notion for {phone_number}")
+                    logger.info(f"📝 Call logging complete for {phone_number}")
                     
             except Exception as e:
-                logger.error(f"Failed to log call to Notion: {e}")
+                logger.error(f"Failed to complete call logging: {e}")
         
         if oai:
             oai.close()
