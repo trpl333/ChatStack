@@ -185,10 +185,13 @@
                 <h3 id="businessNameDisplay">Loading...</h3>
                 <p class="text-muted mb-0" id="packageTierDisplay">Starter Plan</p>
             </div>
-            <div>
+            <div class="d-flex align-items-center gap-3">
                 <span class="badge bg-success" style="padding: 8px 16px; font-size: 0.9rem;">
                     <i class="bi bi-check-circle"></i> Active
                 </span>
+                <button onclick="logout()" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </button>
             </div>
         </div>
         
@@ -337,9 +340,44 @@
     
     <script>
         let customerData = null;
+        let currentCustomer = null;
+        
+        // Check authentication on page load
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/check-session');
+                if (!response.ok) {
+                    window.location.href = '/login.html';
+                    return false;
+                }
+                const data = await response.json();
+                if (data.authenticated) {
+                    currentCustomer = data.customer;
+                    return true;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/login.html';
+                return false;
+            }
+        }
+        
+        async function logout() {
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/login.html';
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+        }
         
         async function loadCustomerData() {
-            const customerId = localStorage.getItem('customer_id');
+            if (!currentCustomer) {
+                const authOk = await checkAuth();
+                if (!authOk) return;
+            }
+            
+            const customerId = currentCustomer.id;
             
             if (!customerId) {
                 window.location.href = '/pricing.html';
@@ -392,7 +430,7 @@
         }
         
         async function saveSettings() {
-            const customerId = localStorage.getItem('customer_id');
+            const customerId = currentCustomer.id;
             
             const settings = {
                 agent_name: document.getElementById('settingsAgentName').value,
@@ -418,7 +456,7 @@
         }
         
         async function applyPersonality(preset) {
-            const customerId = localStorage.getItem('customer_id');
+            const customerId = currentCustomer.id;
             
             try {
                 const response = await fetch(`/api/customers/${customerId}/personality`, {
