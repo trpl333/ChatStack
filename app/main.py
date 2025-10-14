@@ -1049,8 +1049,8 @@ async def chat_completion(
         # Prepend rolling thread history (persistent across container restarts)
         if thread_id and THREAD_HISTORY.get(thread_id):
             hist = [{"role": r, "content": c} for (r, c) in THREAD_HISTORY[thread_id]]
-            # Take last ~40 messages to keep prompt lean
-            hist = hist[-40:]
+            # Take last ~100 messages to preserve more context (50 user/AI turns)
+            hist = hist[-100:]
             message_dicts = hist + message_dicts
             logger.info(f"🧵 Prepended {len(hist)} messages from THREAD_HISTORY[{thread_id}]")
         else:
