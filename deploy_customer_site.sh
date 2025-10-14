@@ -12,24 +12,11 @@ sudo chown -R $USER:$USER /var/www/neurospherevoice
 
 # Copy static files
 echo "📁 Copying customer site files..."
+cp -r static/index.html /var/www/neurospherevoice/
 cp -r static/pricing.html /var/www/neurospherevoice/
 cp -r static/onboarding.html /var/www/neurospherevoice/
 cp -r static/dashboard.html /var/www/neurospherevoice/
 cp -r static/login.html /var/www/neurospherevoice/
-
-# Create index redirect
-cat > /var/www/neurospherevoice/index.html << 'EOF'
-<!DOCTYPE html>
-<html>
-<head>
-    <meta http-equiv="refresh" content="0; url=/pricing.html">
-    <title>Redirecting...</title>
-</head>
-<body>
-    <p>Redirecting to pricing page...</p>
-</body>
-</html>
-EOF
 
 echo "✅ Files deployed to /var/www/neurospherevoice/"
 
