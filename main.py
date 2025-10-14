@@ -2456,6 +2456,30 @@ def customer_onboard():
         
         logging.info(f"✅ New customer onboarded: {customer.email} (ID: {customer.id})")
         
+        # Also save to Notion for easy management
+        try:
+            import requests
+            notion_response = requests.post('http://localhost:8200/notion/platform-customer', json={
+                'email': customer.email,
+                'business_name': customer.business_name,
+                'contact_name': customer.contact_name,
+                'phone': customer.phone,
+                'package_tier': customer.package_tier,
+                'agent_name': customer.agent_name,
+                'openai_voice': customer.openai_voice,
+                'personality_preset': data.get('personality_preset', 'professional'),
+                'greeting_template': customer.greeting_template,
+                'status': 'Active'
+            }, timeout=5)
+            
+            if notion_response.status_code == 200:
+                logging.info(f"✅ Customer synced to Notion: {customer.email}")
+            else:
+                logging.warning(f"⚠️ Failed to sync to Notion: {notion_response.text}")
+        except Exception as notion_error:
+            # Don't fail onboarding if Notion sync fails
+            logging.warning(f"⚠️ Notion sync failed (non-critical): {notion_error}")
+        
         db_session.close()
         
         return jsonify({

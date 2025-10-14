@@ -92,7 +92,56 @@ async function getNotionClient() {
 // ============================================================================
 
 const DATABASE_SCHEMAS = {
-  // Customer Database
+  // NeuroSphere Voice Platform Customers (Agencies purchasing the platform)
+  platform_customers: {
+    name: 'NeuroSphere Voice Customers',
+    properties: {
+      'Business Name': { title: {} },
+      'Contact Name': { rich_text: {} },
+      'Email': { email: {} },
+      'Phone': { phone_number: {} },
+      'Package Tier': { 
+        select: { 
+          options: [
+            { name: 'Starter', color: 'blue' },
+            { name: 'Professional', color: 'purple' },
+            { name: 'Enterprise', color: 'orange' }
+          ] 
+        } 
+      },
+      'Status': { 
+        select: { 
+          options: [
+            { name: 'Active', color: 'green' },
+            { name: 'Trial', color: 'yellow' },
+            { name: 'Suspended', color: 'red' },
+            { name: 'Cancelled', color: 'gray' }
+          ] 
+        } 
+      },
+      'Agent Name': { rich_text: {} },
+      'Voice Type': { 
+        select: { 
+          options: [
+            { name: 'alloy', color: 'gray' },
+            { name: 'echo', color: 'blue' },
+            { name: 'fable', color: 'purple' },
+            { name: 'onyx', color: 'default' },
+            { name: 'nova', color: 'pink' },
+            { name: 'shimmer', color: 'yellow' }
+          ] 
+        } 
+      },
+      'Twilio Number': { phone_number: {} },
+      'Personality Preset': { rich_text: {} },
+      'Greeting Template': { rich_text: {} },
+      'Created Date': { date: {} },
+      'Last Login': { date: {} },
+      'Notes': { rich_text: {} }
+    }
+  },
+
+  // Customer Database (Insurance clients - for The Insurance Doctors)
   customers: {
     name: 'Insurance Customers',
     properties: {
@@ -477,6 +526,63 @@ class NotionAIMemorySync {
       });
       customerId = page.id;
       console.log(`✅ Created new customer ${callData.name}`);
+    }
+
+    return customerId;
+  }
+
+  // Create/Update platform customer (NeuroSphere Voice customer)
+  async upsertPlatformCustomer(email, customerData) {
+    const notion = await getNotionClient();
+    
+    // Search for existing platform customer by email
+    const existing = await notion.databases.query({
+      database_id: this.databaseIds.platform_customers,
+      filter: {
+        property: 'Email',
+        email: { equals: email }
+      }
+    });
+
+    const platformCustomerProps = {
+      'Business Name': { title: [{ text: { content: customerData.business_name || 'Unknown' } }] },
+      'Contact Name': { rich_text: [{ text: { content: customerData.contact_name || '' } }] },
+      'Email': { email: email },
+      'Phone': { phone_number: customerData.phone || '' },
+      'Package Tier': { select: { name: customerData.package_tier || 'Starter' } },
+      'Status': { select: { name: customerData.status || 'Active' } },
+      'Agent Name': { rich_text: [{ text: { content: customerData.agent_name || 'AI Assistant' } }] },
+      'Voice Type': { select: { name: customerData.openai_voice || 'alloy' } },
+      'Personality Preset': { rich_text: [{ text: { content: customerData.personality_preset || 'professional' } }] },
+      'Created Date': { date: { start: new Date().toISOString() } }
+    };
+
+    if (customerData.twilio_phone_number) {
+      platformCustomerProps['Twilio Number'] = { phone_number: customerData.twilio_phone_number };
+    }
+    
+    if (customerData.greeting_template) {
+      platformCustomerProps['Greeting Template'] = { rich_text: [{ text: { content: customerData.greeting_template } }] };
+    }
+
+    let customerId;
+
+    if (existing.results.length > 0) {
+      // Update existing
+      customerId = existing.results[0].id;
+      await notion.pages.update({
+        page_id: customerId,
+        properties: platformCustomerProps
+      });
+      console.log(`✅ Updated platform customer ${customerData.business_name}`);
+    } else {
+      // Create new
+      const page = await notion.pages.create({
+        parent: { database_id: this.databaseIds.platform_customers },
+        properties: platformCustomerProps
+      });
+      customerId = page.id;
+      console.log(`✅ Created new platform customer ${customerData.business_name}`);
     }
 
     return customerId;

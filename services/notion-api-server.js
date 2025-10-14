@@ -63,6 +63,41 @@ app.post('/notion/customer', async (req, res) => {
 });
 
 /**
+ * POST /notion/platform-customer
+ * Create or update a NeuroSphere Voice platform customer
+ * 
+ * Body: {
+ *   email: "john@agency.com",
+ *   business_name: "ABC Insurance Agency",
+ *   contact_name: "John Smith",
+ *   phone: "555-1234",
+ *   package_tier: "Professional",
+ *   agent_name: "Sarah",
+ *   openai_voice: "nova",
+ *   personality_preset: "friendly",
+ *   greeting_template: "Hi, this is {agent_name}...",
+ *   twilio_phone_number: "+15551234567" (optional),
+ *   status: "Active"
+ * }
+ */
+app.post('/notion/platform-customer', async (req, res) => {
+  try {
+    const { email, ...customerData } = req.body;
+    
+    const customerId = await syncService.upsertPlatformCustomer(email, customerData);
+
+    res.json({ 
+      success: true, 
+      customer_id: customerId,
+      message: 'Platform customer synced to Notion'
+    });
+  } catch (error) {
+    console.error('Error upserting platform customer:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * POST /notion/call-log
  * Log a call to Notion
  * 
