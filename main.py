@@ -1375,6 +1375,21 @@ def admin_html():
     """Serve admin.html directly for external access"""
     return app.send_static_file('admin.html')
 
+@app.route('/login.html')
+def login_html():
+    """Serve login.html for customer authentication"""
+    return app.send_static_file('login.html')
+
+@app.route('/onboarding.html')
+def onboarding_html():
+    """Serve onboarding.html for new customer registration"""
+    return app.send_static_file('onboarding.html')
+
+@app.route('/dashboard.html')
+def dashboard_html():
+    """Serve dashboard.html for customer settings management"""
+    return app.send_static_file('dashboard.html')
+
 @app.route('/test-voice', methods=['POST'])
 def test_voice():
     """Test voice configuration"""
