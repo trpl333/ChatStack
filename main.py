@@ -6,7 +6,7 @@ import requests
 import json
 import io
 import base64
-from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response, send_from_directory
+from flask import Flask, render_template_string, request, jsonify, redirect, url_for, flash, Response, send_from_directory, session
 from twilio.rest import Client
 from twilio.twiml import TwiML
 from twilio.twiml.voice_response import VoiceResponse, Gather, Start, Stream, Connect
@@ -2443,6 +2443,86 @@ def customer_onboard():
     except Exception as e:
         logging.error(f"❌ Customer onboarding failed: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+# ==================== AUTHENTICATION ENDPOINTS ====================
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    """Customer login endpoint"""
+    try:
+        from werkzeug.security import check_password_hash
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from customer_models import Customer
+        
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        
+        if not email or not password:
+            return jsonify({"error": "Email and password required"}), 400
+        
+        engine = create_engine(_get_config()["database_url"])
+        Session = sessionmaker(bind=engine)
+        db_session = Session()
+        
+        customer = db_session.query(Customer).filter_by(email=email).first()
+        
+        if not customer:
+            db_session.close()
+            return jsonify({"error": "Invalid email or password"}), 401
+        
+        if not customer.password_hash:
+            db_session.close()
+            return jsonify({"error": "Password not set. Please contact support."}), 401
+        
+        if not check_password_hash(customer.password_hash, password):
+            db_session.close()
+            return jsonify({"error": "Invalid email or password"}), 401
+        
+        # Set session
+        session['customer_id'] = customer.id
+        session['customer_email'] = customer.email
+        session['customer_name'] = customer.contact_name
+        session.permanent = True
+        
+        logging.info(f"✅ Customer logged in: {customer.email} (ID: {customer.id})")
+        
+        db_session.close()
+        
+        return jsonify({
+            "success": True,
+            "customer": {
+                "id": customer.id,
+                "email": customer.email,
+                "business_name": customer.business_name,
+                "contact_name": customer.contact_name
+            }
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Login failed: {e}")
+        return jsonify({"error": "Login failed"}), 500
+
+@app.route('/api/logout', methods=['POST'])
+def logout():
+    """Customer logout endpoint"""
+    session.clear()
+    return jsonify({"success": True, "message": "Logged out successfully"})
+
+@app.route('/api/check-session', methods=['GET'])
+def check_session():
+    """Check if customer is logged in"""
+    if 'customer_id' in session:
+        return jsonify({
+            "authenticated": True,
+            "customer": {
+                "id": session['customer_id'],
+                "email": session.get('customer_email'),
+                "name": session.get('customer_name')
+            }
+        })
+    return jsonify({"authenticated": False}), 401
 
 @app.route('/api/customers/<int:customer_id>', methods=['GET'])
 def get_customer(customer_id):

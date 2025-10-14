@@ -14,6 +14,7 @@ class Customer(Base):
     
     id = Column(Integer, primary_key=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
+    password_hash = Column(String(256))  # Store hashed password
     business_name = Column(String(255), nullable=False)
     contact_name = Column(String(255), nullable=False)
     phone = Column(String(50))
