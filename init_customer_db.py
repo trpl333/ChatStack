@@ -2,18 +2,23 @@
 Initialize Customer Management Database Tables
 Run this script to create customer, configuration, and usage tables
 """
+import sys
 import os
+# Add current directory to path so we can import config_loader
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from sqlalchemy import create_engine
 from customer_models import Base, Customer, CustomerConfiguration, CustomerUsage
+from config_loader import get_secret
 
 def init_customer_database():
     """Create all customer management tables"""
     try:
-        # Get database URL from environment
-        database_url = os.environ.get('DATABASE_URL')
+        # Get database URL from config (same way Flask app does)
+        database_url = get_secret('DATABASE_URL')
         
         if not database_url:
-            print("❌ DATABASE_URL not found in environment")
+            print("❌ DATABASE_URL not found in environment or config")
             return False
         
         print(f"🔗 Connecting to database...")
