@@ -1412,13 +1412,32 @@ class OAIRealtime:
                 "output_audio_format": "pcm16",
                 "turn_detection": {"type": "server_vad"},
                 "temperature": 0.7,
-                "voice": self.voice  # Dynamic voice from admin panel
+                "voice": self.voice,  # Dynamic voice from admin panel
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "get_current_time",
+                        "description": "Get the current time in Pacific Time Zone (PT). Use this when someone asks what time it is.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "format": {
+                                    "type": "string",
+                                    "description": "Time format to return",
+                                    "enum": ["12-hour", "24-hour"]
+                                }
+                            },
+                            "required": []
+                        }
+                    }
+                ],
+                "tool_choice": "auto"
             }
         }
         logger.info(f"🔊 VOICE DEBUG: Sending session.update with voice='{self.voice}'")
         logger.info(f"🔊 VOICE DEBUG: Full session config: {json.dumps(session_update['session'], indent=2)}")
         ws.send(json.dumps(session_update))
-        logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice}")
+        logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice} and time tool")
         
         # Trigger immediate greeting - tell AI to start speaking first
         # Get the appropriate greeting from session instructions
@@ -1522,6 +1541,66 @@ class OAIRealtime:
                 # ✅ Check for transfer intent ONLY on user input, not AI responses
                 if hasattr(self, 'call_sid') and self.call_sid:
                     check_and_execute_transfer(transcript, self.call_sid)
+        
+        elif event_type == "response.output_item.done":
+            # Check if this is a function call
+            item = ev.get("item", {})
+            if item.get("type") == "function_call":
+                function_name = item.get("name")
+                call_id = item.get("call_id")
+                arguments_str = item.get("arguments", "{}")
+                
+                logger.info(f"🔧 Function call requested: {function_name} with args: {arguments_str}")
+                
+                # Execute the time tool
+                if function_name == "get_current_time":
+                    try:
+                        from datetime import datetime
+                        from zoneinfo import ZoneInfo
+                        
+                        # Parse arguments
+                        args = json.loads(arguments_str) if arguments_str else {}
+                        time_format = args.get("format", "12-hour")
+                        
+                        # Get current Pacific time
+                        pacific_tz = ZoneInfo("America/Los_Angeles")
+                        now = datetime.now(pacific_tz)
+                        
+                        # Format the time casually
+                        if time_format == "24-hour":
+                            time_str = now.strftime("%H:%M")
+                        else:
+                            time_str = now.strftime("%-I:%M%p").lower()  # e.g., "4:11pm"
+                        
+                        # Simple, casual result
+                        result = f"{time_str} Pacific time"
+                        
+                        logger.info(f"⏰ Returning time: {result}")
+                        
+                        # Send function result back to OpenAI
+                        ws.send(json.dumps({
+                            "type": "conversation.item.create",
+                            "item": {
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": result
+                            }
+                        }))
+                        
+                        # Trigger AI to respond with the result
+                        ws.send(json.dumps({"type": "response.create"}))
+                        
+                    except Exception as e:
+                        logger.error(f"Error executing get_current_time: {e}")
+                        # Send error back
+                        ws.send(json.dumps({
+                            "type": "conversation.item.create",
+                            "item": {
+                                "type": "function_call_output",
+                                "call_id": call_id,
+                                "output": f"Error getting time: {str(e)}"
+                            }
+                        }))
         
         elif event_type == "response.done":
             logger.info("✅ OpenAI response complete")
