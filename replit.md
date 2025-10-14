@@ -1,7 +1,7 @@
-# Peterson Family Insurance AI Phone System
+# NeuroSphere Voice - Multi-Tenant AI Phone System Platform
 
 ### Overview
-This project is a **multi-tenant** AI-powered phone system platform, originally built for Peterson Family Insurance, now architected to serve multiple customers. Each customer gets their own AI agent with custom personality, voice, and dedicated phone number. Built on NeuroSphere Orchestrator (FastAPI), it's designed for intelligent call handling with persistent memory and rapid 2-2.5 second response times. The system features secure customer authentication, isolated conversation memory per tenant, and comprehensive multi-layer security. The orchestrator acts as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality. The system uses OpenAI's Realtime API and is fully deployed on DigitalOcean.
+**NeuroSphere Voice** is a **multi-tenant** AI-powered phone system platform that serves multiple customers. Each customer gets their own AI agent with custom personality, voice, and dedicated phone number. **The Insurance Doctors** (the owner's insurance agency) is the first client, with other clients like Peterson Family Insurance also using the system. Built on NeuroSphere Orchestrator (FastAPI), it's designed for intelligent call handling with persistent memory and rapid 2-2.5 second response times. The system features secure customer authentication, isolated conversation memory per tenant, and comprehensive multi-layer security. The orchestrator acts as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality. The system uses OpenAI's Realtime API and is fully deployed on DigitalOcean.
 
 ### User Preferences
 Preferred communication style: Simple, everyday language.

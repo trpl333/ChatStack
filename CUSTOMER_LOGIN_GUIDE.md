@@ -190,6 +190,8 @@ docker-compose up -d
 # Should redirect to /login.html
 ```
 
+**Note:** The current deployment at `voice.theinsurancedoctors.com` hosts the NeuroSphere Voice platform, with The Insurance Doctors as the first client.
+
 **Test 4: Logout**
 ```bash
 # From dashboard, click "Logout" button
