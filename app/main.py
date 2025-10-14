@@ -92,9 +92,6 @@ memory_store: Optional[HTTPMemoryStore] = None
 # 500 msgs ~= ~250 user/assistant turns. Consolidation triggers at 400.
 THREAD_HISTORY: Dict[str, Deque[Tuple[str, str]]] = defaultdict(lambda: deque(maxlen=500))
 
-# Track which threads have been loaded from database
-THREAD_LOADED: Dict[str, bool] = {}
-
 def generate_personality_instructions(sliders: Dict[str, int]) -> str:
     """
     Convert personality slider values (0-100) into natural language instructions.
@@ -428,9 +425,8 @@ def generate_personality_instructions(sliders: Dict[str, int]) -> str:
 
 def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
     """Load thread history from ai-memory database if not already loaded"""
-    if THREAD_LOADED.get(thread_id):
-        logger.info(f"⏭️ Thread {thread_id} already loaded, skipping")
-        return  # Already loaded
+    # Always reload on new calls (don't cache) to ensure fresh memory
+    # The THREAD_LOADED cache was preventing memory from loading on subsequent calls
     
     try:
         # Search for stored thread history with exact key match
@@ -476,14 +472,11 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
                     last_msg = messages[-1]
                     logger.info(f"📝 First message: {first_msg['role']}: {first_msg['content'][:100]}...")
                     logger.info(f"📝 Last message: {last_msg['role']}: {last_msg['content'][:100]}...")
-                THREAD_LOADED[thread_id] = True
                 return
         
         logger.info(f"🧵 No stored history found for thread {thread_id} (searched {len(results)} results)")
-        THREAD_LOADED[thread_id] = True
     except Exception as e:
         logger.error(f"❌ Failed to load thread history for {thread_id}: {e}", exc_info=True)
-        THREAD_LOADED[thread_id] = True  # Mark as attempted to avoid retry loops
 
 def save_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Optional[str] = None):
     """Save thread history to ai-memory database for persistence"""
