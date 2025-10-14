@@ -2245,5 +2245,198 @@ def admin_status():
             "max_tokens": MAX_TOKENS
         })
 
+# ============================================================================
+# CUSTOMER MANAGEMENT API ROUTES
+# ============================================================================
+
+@app.route('/api/customers/onboard', methods=['POST'])
+def customer_onboard():
+    """Handle new customer onboarding"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from customer_models import Customer, CustomerConfiguration
+        import json
+        
+        data = request.get_json()
+        
+        # Create database engine
+        engine = create_engine(_get_config()["database_url"])
+        Session = sessionmaker(bind=engine)
+        db_session = Session()
+        
+        # Create new customer
+        customer = Customer(
+            email=data.get('email'),
+            business_name=data.get('business_name'),
+            contact_name=data.get('contact_name'),
+            phone=data.get('phone'),
+            package_tier=data.get('package_tier', 'starter'),
+            agent_name=data.get('agent_name', 'AI Assistant'),
+            openai_voice=data.get('openai_voice', 'alloy'),
+            greeting_template=data.get('greeting_template'),
+            personality_sliders=None,  # Will be set by personality preset
+            twilio_phone_number=None,  # Will be provisioned later
+            status='active'
+        )
+        
+        db_session.add(customer)
+        db_session.commit()
+        
+        # Save initial configuration
+        config = CustomerConfiguration(
+            customer_id=customer.id,
+            config_type='personality',
+            config_key='preset',
+            config_value={'preset': data.get('personality_preset', 'professional')},
+            created_by='onboarding'
+        )
+        db_session.add(config)
+        db_session.commit()
+        
+        logging.info(f"✅ New customer onboarded: {customer.email} (ID: {customer.id})")
+        
+        db_session.close()
+        
+        return jsonify({
+            "success": True,
+            "customer_id": customer.id,
+            "message": "Onboarding complete"
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Customer onboarding failed: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>', methods=['GET'])
+def get_customer(customer_id):
+    """Get customer details"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from customer_models import Customer
+        
+        engine = create_engine(_get_config()["database_url"])
+        Session = sessionmaker(bind=engine)
+        db_session = Session()
+        
+        customer = db_session.query(Customer).filter_by(id=customer_id).first()
+        
+        if not customer:
+            db_session.close()
+            return jsonify({"error": "Customer not found"}), 404
+        
+        result = customer.to_dict()
+        db_session.close()
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to get customer: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>/settings', methods=['PUT'])
+def update_customer_settings(customer_id):
+    """Update customer AI settings"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from customer_models import Customer, CustomerConfiguration
+        
+        data = request.get_json()
+        
+        engine = create_engine(_get_config()["database_url"])
+        Session = sessionmaker(bind=engine)
+        db_session = Session()
+        
+        customer = db_session.query(Customer).filter_by(id=customer_id).first()
+        
+        if not customer:
+            db_session.close()
+            return jsonify({"error": "Customer not found"}), 404
+        
+        # Update customer settings
+        if 'agent_name' in data:
+            customer.agent_name = data['agent_name']
+        if 'openai_voice' in data:
+            customer.openai_voice = data['openai_voice']
+        if 'greeting_template' in data:
+            customer.greeting_template = data['greeting_template']
+        
+        # Save configuration history
+        for key, value in data.items():
+            config = CustomerConfiguration(
+                customer_id=customer_id,
+                config_type='setting',
+                config_key=key,
+                config_value={'value': value},
+                created_by='customer'
+            )
+            db_session.add(config)
+        
+        db_session.commit()
+        db_session.close()
+        
+        logging.info(f"✅ Updated settings for customer {customer_id}")
+        
+        return jsonify({"success": True, "message": "Settings updated"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to update customer settings: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/customers/<int:customer_id>/personality', methods=['POST'])
+def apply_customer_personality(customer_id):
+    """Apply personality preset to customer"""
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from customer_models import Customer, CustomerConfiguration
+        
+        data = request.get_json()
+        preset = data.get('preset', 'professional')
+        
+        engine = create_engine(_get_config()["database_url"])
+        Session = sessionmaker(bind=engine)
+        db_session = Session()
+        
+        customer = db_session.query(Customer).filter_by(id=customer_id).first()
+        
+        if not customer:
+            db_session.close()
+            return jsonify({"error": "Customer not found"}), 404
+        
+        # Personality presets mapping
+        presets = {
+            'professional': {'warmth': 50, 'empathy': 50, 'directness': 70},
+            'friendly': {'warmth': 80, 'empathy': 75, 'directness': 40},
+            'assertive': {'warmth': 40, 'empathy': 40, 'directness': 85},
+            'empathetic': {'warmth': 75, 'empathy': 90, 'directness': 35}
+        }
+        
+        personality_config = presets.get(preset, presets['professional'])
+        
+        customer.personality_sliders = personality_config
+        
+        # Save to configuration history
+        config = CustomerConfiguration(
+            customer_id=customer_id,
+            config_type='personality',
+            config_key='preset',
+            config_value={'preset': preset, 'config': personality_config},
+            created_by='customer'
+        )
+        db_session.add(config)
+        db_session.commit()
+        db_session.close()
+        
+        logging.info(f"✅ Applied {preset} personality for customer {customer_id}")
+        
+        return jsonify({"success": True, "message": f"Applied {preset} personality"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to apply personality: {e}")
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
