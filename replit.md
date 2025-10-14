@@ -1,7 +1,7 @@
 # Peterson Family Insurance AI Phone System
 
 ### Overview
-This project is an AI-powered phone system for Peterson Family Insurance, utilizing "Samantha" as the AI agent. Built on NeuroSphere Orchestrator, it's a FastAPI-based solution designed for intelligent call handling with persistent memory, aiming for rapid 2-2.5 second response times. Key capabilities include maintaining conversation continuity via an HTTP-based AI-Memory service, integrating external tools for actions, and employing safety modes for content filtering. The orchestrator acts as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality. The system has successfully migrated to a microservices architecture and uses OpenAI's Realtime API.
+This project is a **multi-tenant** AI-powered phone system platform, originally built for Peterson Family Insurance, now architected to serve multiple customers. Each customer gets their own AI agent with custom personality, voice, and dedicated phone number. Built on NeuroSphere Orchestrator (FastAPI), it's designed for intelligent call handling with persistent memory and rapid 2-2.5 second response times. The system features secure customer authentication, isolated conversation memory per tenant, and comprehensive multi-layer security. The orchestrator acts as middleware between Twilio voice calls and Language Learning Models (LLMs), enhancing conversations through memory retrieval, prompt engineering, and extensible tool functionality. The system uses OpenAI's Realtime API and is fully deployed on DigitalOcean.
 
 ### User Preferences
 Preferred communication style: Simple, everyday language.
@@ -41,6 +41,8 @@ The `/opt/ChatStack/.env` file on the DigitalOcean server contains all productio
 -   **30-Slider Personality Control**: Fine-grained AI behavior control across 30 dimensions (warmth, empathy, directness, humor, etc.) with 5 quick presets (Professional Agent, Friendly Helper, Assertive Closer, Empathetic Support, Balanced Default). Each slider (0-100) generates natural language instructions injected into system prompts.
 -   **Voice-First Design**: Seamless voice interaction using ElevenLabs TTS.
 -   **Real-time Updates**: Admin changes apply immediately.
+-   **Customer Authentication**: Secure login system with password hashing, session management, and protected dashboard access.
+-   **Multi-Tenant Dashboard**: Each customer has isolated access to their AI settings, call history, and configuration.
 
 **Technical Implementations:**
 -   **Python Frameworks**: Flask and FastAPI.
