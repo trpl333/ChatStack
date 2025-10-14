@@ -969,6 +969,9 @@ def handle_incoming_call_realtime():
     # Create TwiML response with Media Streams
     response = VoiceResponse()
     
+    # Play brief hold message to fill initialization time (prevents dead air)
+    response.say("Please hold while I connect you.", voice="Polly.Joanna", language="en-US")
+    
     # Connect to WebSocket for bidirectional audio streaming
     connect = Connect()
     config = _get_config()
