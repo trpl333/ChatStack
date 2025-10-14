@@ -465,7 +465,16 @@
                         window.location.href = '/login.html';
                     }
                 } else {
-                    alert('Failed to complete onboarding. Please try again.');
+                    const errorData = await response.json();
+                    const errorMsg = errorData.error || 'Failed to complete onboarding. Please try again.';
+                    
+                    // Show user-friendly error messages
+                    if (errorMsg.includes('duplicate key') || errorMsg.includes('already exists')) {
+                        alert('This email is already registered. Please login instead or use a different email.');
+                        setTimeout(() => window.location.href = '/login.html', 2000);
+                    } else {
+                        alert(errorMsg);
+                    }
                 }
             } catch (error) {
                 console.error('Error:', error);
