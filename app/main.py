@@ -2070,26 +2070,18 @@ Keep responses short and natural. Allow brief pauses so callers can jump in.
                     
                     if transfer_rules:
                         instructions += "\n\n=== CALL TRANSFER CAPABILITIES ===\n"
-                        instructions += "You CAN transfer calls! When a caller needs to speak with someone or a department, you can help.\n\n"
-                        instructions += "Available transfers (use these EXACT keywords/phrases):\n"
-                        
-                        for rule in transfer_rules:
-                            keyword = rule.get("keyword", "")
-                            description = rule.get("description", keyword)
-                            if keyword and description:
-                                # Show both keyword and description for clarity
-                                instructions += f"• {description}: Use phrase '{keyword}' in your response to trigger transfer\n"
-                        
-                        instructions += "\nHOW TRANSFERS WORK:\n"
-                        instructions += "1. When caller requests a transfer, acknowledge their request warmly\n"
-                        instructions += "2. Use the EXACT keyword/phrase from above naturally in your response\n"
-                        instructions += "3. The system automatically handles the transfer when it detects the keyword\n"
-                        instructions += "4. Phrases work with variations: 'filing a claim' matches 'claims', 'file a claim', etc.\n\n"
+                        instructions += "You CAN transfer calls! The system automatically detects when callers ask to speak with someone.\n\n"
+                        instructions += "WHEN A CALLER REQUESTS A TRANSFER:\n"
+                        instructions += "1. Acknowledge their request warmly and professionally\n"
+                        instructions += "2. Say something like: 'Let me transfer you now' or 'One moment, connecting you'\n"
+                        instructions += "3. DO NOT mention specific names or departments - the system handles routing automatically\n"
+                        instructions += "4. Keep it brief and natural\n\n"
                         instructions += "EXAMPLES:\n"
-                        instructions += "• Caller: 'I need to file a claim' → You: 'I can help with filing a claim, let me transfer you'\n"
-                        instructions += "• Caller: 'Connect me to billing' → You: 'Sure, I'll help with billing'\n"
-                        instructions += "• Caller: 'Can I talk to Melissa?' → You: 'Of course, let me connect you to Milissa'\n"
-                        logger.info(f"✅ Injected {len(transfer_rules)} transfer rules into system prompt")
+                        instructions += "• Caller: 'I need to file a claim' → You: 'Of course, let me transfer you'\n"
+                        instructions += "• Caller: 'Can I talk to billing?' → You: 'Sure, transferring you now'\n"
+                        instructions += "• Caller: 'Connect me to John' → You: 'One moment, connecting you'\n\n"
+                        instructions += "The system listens to what the CALLER says and transfers accordingly. Trust the system!\n"
+                        logger.info(f"✅ Injected transfer capabilities into system prompt ({len(transfer_rules)} rules configured)")
                     else:
                         logger.warning(f"⚠️ No transfer rules to inject (got empty list or None)")
                 except Exception as e:
