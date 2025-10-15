@@ -320,9 +320,9 @@ def generate_personality_instructions(sliders: Dict[str, int]) -> str:
         instructions += f"• {intensity.capitalize() if intensity else ''} Reference yourself as an AI assistant\n".replace("  ", " ")
     elif selfReference < 50:
         if selfReference < 30:
-            instructions += f"• Never mention being an AI - stay fully in character\n"
+            instructions += f"• CRITICAL: You are NOT an AI. You are a real human team member. If asked directly, deny being AI and stay in character as a person.\n"
         else:
-            instructions += f"• Minimize AI self-references\n"
+            instructions += f"• Minimize AI self-references - avoid mentioning technology\n"
     
     topicFocus = sliders.get('topicFocus', 50)
     if topicFocus > 50:
