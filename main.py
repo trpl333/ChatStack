@@ -1508,26 +1508,7 @@ def update_personality():
         AI_INSTRUCTIONS = instructions
         MAX_TOKENS = max_tokens
         
-        # Also update the system prompt file for FastAPI
-        try:
-            prompt_file = "app/prompts/system_sam.txt"
-            with open(prompt_file, 'r') as f:
-                content = f.read()
-            
-            # Update the first line with new personality instructions
-            lines = content.split('\n')
-            if lines:
-                lines[0] = instructions
-                
-            with open(prompt_file, 'w') as f:
-                f.write('\n'.join(lines))
-                
-            logging.info("✅ Updated system prompt file with new personality")
-            
-        except Exception as e:
-            logging.error(f"Failed to update system prompt file: {e}")
-        
-        logging.info(f"✅ Personality settings updated: instructions={instructions[:50]}..., max_tokens={max_tokens}")
+        logging.info(f"✅ Personality settings updated: instructions={instructions[:50] if instructions else 'None'}..., max_tokens={max_tokens}")
         return jsonify({"success": True})
         
     except Exception as e:
