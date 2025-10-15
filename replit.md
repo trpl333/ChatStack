@@ -46,6 +46,53 @@ Manual production edits create:
 
 ---
 
+## 📍 SERVICE LOCATIONS ON DIGITALOCEAN
+
+**CRITICAL: The system consists of SEPARATE repositories and deployment locations:**
+
+### ChatStack (Main Phone System)
+- **GitHub Repo**: `https://github.com/trpl333/ChatStack.git`
+- **DigitalOcean Path**: `/opt/ChatStack/`
+- **Services**: Flask web (port 5000), FastAPI orchestrator (port 8001)
+- **Deployment**:
+  ```bash
+  cd /opt/ChatStack
+  git fetch origin
+  git reset --hard origin/main
+  docker-compose down
+  docker-compose up -d --build
+  docker logs chatstack-web-1 --tail 20
+  docker logs chatstack-orchestrator-worker-1 --tail 20
+  ```
+
+### AI-Memory Service (Persistent Memory & Admin Settings)
+- **GitHub Repo**: `https://github.com/trpl333/ai-memory.git`
+- **DigitalOcean Path**: `/opt/ai-memory/`
+- **Service**: FastAPI memory service (port 8100)
+- **Purpose**: Stores conversation memory, admin settings, user data
+- **Deployment**:
+  ```bash
+  cd /opt/ai-memory
+  git fetch origin
+  git reset --hard origin/main
+  docker-compose down
+  docker-compose up -d --build
+  docker logs ai-memory-worker-1 --tail 20
+  ```
+- **⚠️ IMPORTANT**: The `ai-memory-main.py` file in the ChatStack repo is just a REFERENCE COPY. To modify AI-Memory, you MUST work in the separate `ai-memory` repository.
+
+### Other Services on DigitalOcean
+- `/opt/neurosphere-sync/` - Notion sync service
+- `/opt/orchestrator/` - Legacy orchestrator (if still active)
+
+**When making changes:**
+1. ✅ Identify which repo/service needs the change
+2. ✅ Make changes in the correct GitHub repository
+3. ✅ Deploy to the correct `/opt/` directory
+4. ❌ NEVER edit files directly on the server
+
+---
+
 ### User Preferences
 Preferred communication style: Simple, everyday language.
 
