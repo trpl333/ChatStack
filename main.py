@@ -1016,16 +1016,9 @@ def handle_incoming_call_realtime():
     if customer_id:
         logging.info(f"👤 Customer Context: ID={customer_id}, Agent={customer.agent_name}, Voice={customer.openai_voice}")
     
-    # Enable call recording for transcription, summarization, and Notion logging
-    response.record(
-        recording_status_callback=f"{server_url}/phone/recording-status",
-        recording_status_callback_method="POST",
-        play_beep=False,
-        max_length=3600,  # 1 hour max
-        recording_channels="mono",
-        track="inbound_track"  # Record only the caller's audio (AI voice is already in transcript)
-    )
-    logging.info(f"🎙️ Call recording enabled - will callback to {server_url}/phone/recording-status")
+    # NOTE: Call recording disabled - conflicts with Media Streams causing response delays
+    # For call logging, transcripts are already captured in real-time through the WebSocket
+    # and can be sent to Notion directly from the conversation handler
     
     return str(response), 200, {'Content-Type': 'text/xml'}
 
@@ -1342,28 +1335,6 @@ def call_status():
     # Clean up session when call ends
     if call_status in ['completed', 'failed', 'busy', 'no-answer']:
         call_sessions.pop(call_sid, None)
-    
-    return '', 200
-
-@app.route('/phone/recording-status', methods=['POST'])
-def recording_status():
-    """Handle call recording completion callback from Twilio"""
-    call_sid = request.form.get('CallSid')
-    recording_sid = request.form.get('RecordingSid')
-    recording_url = request.form.get('RecordingUrl')
-    recording_status = request.form.get('RecordingStatus')
-    recording_duration = request.form.get('RecordingDuration')
-    
-    logging.info(f"🎙️ Recording {recording_status} for call {call_sid}")
-    logging.info(f"   Recording SID: {recording_sid}")
-    logging.info(f"   Duration: {recording_duration}s")
-    logging.info(f"   URL: {recording_url}")
-    
-    if recording_status == 'completed':
-        # TODO: Trigger ingestion pipeline to transcribe, summarize, and store in Notion
-        # For now, just log the recording details
-        logging.info(f"✅ Call recording ready for processing: {recording_sid}")
-        logging.info(f"   Run ingestion script: python3 /opt/neurosphere-sync/twilio_ingest_realtime.py")
     
     return '', 200
 
