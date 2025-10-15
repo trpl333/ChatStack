@@ -155,11 +155,12 @@ def get_admin_setting(setting_key, default=None):
         import json as json_module
         
         # ✅ Use retrieve endpoint to get all admin settings
+        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         response = requests.post(
-            "http://172.17.0.1:8100/memory/retrieve",
+            f"{ai_memory_url}/memory/retrieve",
             json={"user_id": "admin", "key": f"admin:{setting_key}"},
             headers={"Content-Type": "application/json"},
-            timeout=2
+            timeout=5
         )
         
         if response.status_code == 200:
