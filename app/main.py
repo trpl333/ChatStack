@@ -2039,7 +2039,7 @@ Keep responses short and natural. Allow brief pauses so callers can jump in.
                             logger.info(f"🎤 Using customer-specific new caller greeting: '{greeting_template}'")
                         else:
                             greeting_template = get_admin_setting("new_caller_greeting", 
-                                                                 f"{{time_greeting}}! This is {agent_name} from Peterson Family Insurance Agency. How can I help you?")
+                                                                 f"{{time_greeting}}! This is {agent_name}. What can I do for you?")
                         
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."

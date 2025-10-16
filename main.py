@@ -687,7 +687,7 @@ def get_personalized_greeting(user_id):
     
     # ✅ Final fallback if ai-memory fails - use agent_name from settings
     agent_name = get_admin_setting("agent_name", "Amanda")
-    return f"Hi, this is {agent_name} from Peterson Family Insurance Agency. How can I help you today?"
+    return f"Hi, this is {agent_name}. What can I do for you?"
 
 def get_ai_response(user_id, message, call_sid=None):
     """Get AI response from NeuroSphere backend with conversation context"""
@@ -744,16 +744,16 @@ def get_ai_response(user_id, message, call_sid=None):
             else:
                 logging.error(f"FastAPI error: {response.status_code} - {response.text}")
                 agent_name = get_admin_setting("agent_name", "Amanda")
-                return f"Hi! I'm {agent_name} from Peterson Family Insurance. I can help you with auto, home, life, or business insurance questions. What would you like to know?"
+                return f"Hi! I'm {agent_name}. What can I help you with?"
                 
         except requests.exceptions.RequestException as e:
             logging.error(f"Streaming request error: {e}")
             agent_name = get_admin_setting("agent_name", "Amanda")
-            return f"Hi, this is {agent_name} with Peterson Family Insurance. I'm here to help with your insurance needs - auto, home, life, or business coverage. What questions can I answer for you?"
+            return f"Hi, this is {agent_name}. What do you need?"
     except Exception as e:
         logging.error(f"AI Response Error: {e}")
         agent_name = get_admin_setting("agent_name", "Amanda")
-        return f"Hello! I'm {agent_name} from Peterson Family Insurance. I'm here to help with all your insurance questions - auto, home, life, and business coverage. How can I assist you today?"
+        return f"Hello! I'm {agent_name}. How can I help?"
 
 @app.route('/phone/incoming', methods=['POST'])
 def handle_incoming_call():
