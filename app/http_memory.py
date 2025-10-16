@@ -126,25 +126,11 @@ class HTTPMemoryStore:
     
     def __init__(self):
         """Initialize connection to AI-Memory service."""
-        ai_memory_url = get_setting("ai_memory_url", "http://127.0.0.1:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://172.17.0.1:8100")
         
-        # ✅ Smart environment detection: Use localhost if on same server (production)
-        # Check if FLASK_ENV=production or if hostname suggests we're on DigitalOcean
-        import os
-        import socket
-        is_production = (
-            os.getenv("FLASK_ENV") == "production" or 
-            os.getenv("environment") == "production" or
-            "chatbot-server" in socket.gethostname().lower() or
-            "digitalocean" in socket.gethostname().lower()
-        )
-        
-        # Convert external IP to localhost if running on same server
-        if is_production and "209.38.143.71" in ai_memory_url:
-            self.ai_memory_url = ai_memory_url.replace("209.38.143.71", "127.0.0.1")
-            logger.info(f"🔄 Production mode: Using localhost instead of external IP")
-        else:
-            self.ai_memory_url = ai_memory_url
+        # Use Docker bridge IP for container-to-host communication
+        # 172.17.0.1 is the standard Docker bridge that containers use to reach the host
+        self.ai_memory_url = ai_memory_url
         
         self.session = requests.Session()
         # Note: requests.Session doesn't have timeout as an attribute, 
