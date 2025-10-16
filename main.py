@@ -1741,15 +1741,46 @@ Output ONLY the refined prompt text, no explanations."""
         
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
-    """Save greetings to AI-Memory service"""
+    """Save greetings to AI-Memory service with placeholder validation"""
     try:
         from app.http_memory import HTTPMemoryStore
         import time
+        import re
         mem_store = HTTPMemoryStore()
         
         data = request.get_json()
-        existing_greeting = data.get('existing_user_greeting', '')
-        new_greeting = data.get('new_caller_greeting', '')
+        existing_greeting = data.get('existing_user_greeting', '').strip()
+        new_greeting = data.get('new_caller_greeting', '').strip()
+        
+        # ✅ Auto-fix: Ensure greetings use {agent_name} placeholder instead of hardcoded names
+        # This prevents old hardcoded names from being saved
+        def ensure_placeholder(greeting_text):
+            """Replace any hardcoded name with {agent_name} placeholder"""
+            if not greeting_text:
+                return greeting_text
+            
+            # If greeting already has {agent_name}, it's good
+            if '{agent_name}' in greeting_text:
+                return greeting_text
+            
+            # Pattern to detect "this is [NAME]" and replace with placeholder
+            # Matches: "this is Amanda", "This is Samantha", "it's Barbara", etc.
+            patterns = [
+                (r'this is ([A-Z][a-z]+)', 'this is {agent_name}'),
+                (r'This is ([A-Z][a-z]+)', 'This is {agent_name}'),
+                (r"it's ([A-Z][a-z]+)", "it's {agent_name}"),
+                (r"It's ([A-Z][a-z]+)", "It's {agent_name}"),
+                (r"I'm ([A-Z][a-z]+)", "I'm {agent_name}"),
+                (r"i'm ([A-Z][a-z]+)", "i'm {agent_name}")
+            ]
+            
+            for pattern, replacement in patterns:
+                greeting_text = re.sub(pattern, replacement, greeting_text)
+            
+            return greeting_text
+        
+        existing_greeting = ensure_placeholder(existing_greeting)
+        new_greeting = ensure_placeholder(new_greeting)
         
         # ✅ Save to AI-Memory service as admin settings with timestamp
         if existing_greeting:
@@ -1760,7 +1791,7 @@ def update_greetings():
                     "setting_key": "existing_user_greeting",
                     "value": existing_greeting,
                     "setting_value": existing_greeting,
-                    "timestamp": time.time(),  # ✅ Add timestamp for sorting
+                    "timestamp": time.time(),
                     "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
                 },
                 user_id="admin",
@@ -1778,7 +1809,7 @@ def update_greetings():
                     "setting_key": "new_caller_greeting",
                     "value": new_greeting,
                     "setting_value": new_greeting,
-                    "timestamp": time.time(),  # ✅ Add timestamp for sorting
+                    "timestamp": time.time(),
                     "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
                 },
                 user_id="admin",
@@ -1842,6 +1873,63 @@ def get_agent_name():
     except Exception as e:
         logging.error(f"❌ Failed to get agent name: {e}")
         return jsonify({"agent_name": "Amanda"})  # Return default on error
+
+@app.route('/phone/admin/reset-greetings', methods=['POST'])
+def reset_greetings_to_placeholders():
+    """Reset greetings to use proper {agent_name} placeholders - ADMIN ONLY"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        import time
+        mem_store = HTTPMemoryStore()
+        
+        # Default greetings with proper placeholders
+        default_existing = "Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {user_name}?"
+        default_new = "Good {time_greeting}! This is {agent_name} - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!"
+        
+        # Save both greetings with placeholders
+        mem_store.write(
+            memory_type="admin_setting",
+            key="existing_user_greeting",
+            value={
+                "setting_key": "existing_user_greeting",
+                "value": default_existing,
+                "setting_value": default_existing,
+                "timestamp": time.time(),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            },
+            user_id="admin",
+            scope="shared",
+            ttl_days=365,
+            source="admin_reset"
+        )
+        
+        mem_store.write(
+            memory_type="admin_setting",
+            key="new_caller_greeting",
+            value={
+                "setting_key": "new_caller_greeting",
+                "value": default_new,
+                "setting_value": default_new,
+                "timestamp": time.time(),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            },
+            user_id="admin",
+            scope="shared",
+            ttl_days=365,
+            source="admin_reset"
+        )
+        
+        logging.info("✅ Reset greetings to use {agent_name} placeholders")
+        return jsonify({
+            "success": True, 
+            "message": "Greetings reset to use dynamic placeholders",
+            "existing_greeting": default_existing,
+            "new_greeting": default_new
+        })
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to reset greetings: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/phone/update-openai-voice', methods=['POST'])
 def update_openai_voice():
