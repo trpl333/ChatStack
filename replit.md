@@ -69,7 +69,7 @@ Manual production edits create:
 - **GitHub Repo**: `https://github.com/trpl333/ai-memory.git`
 - **DigitalOcean Path**: `/opt/ai-memory/`
 - **Service**: FastAPI memory service (port 8100)
-- **Connection URL**: `http://172.17.0.1:8100` (Docker bridge IP for container-to-host communication)
+- **Connection URL**: `http://209.38.143.71:8100` (external DigitalOcean service)
 - **Purpose**: Stores conversation memory, admin settings, user data
 - **Deployment**:
   ```bash
@@ -82,7 +82,6 @@ Manual production edits create:
   ```
 - **⚠️ IMPORTANT**: 
   - The `ai-memory-main.py` file in the ChatStack repo is just a REFERENCE COPY. To modify AI-Memory, you MUST work in the separate `ai-memory` repository.
-  - AI-Memory runs on the **host** (not in Docker), so ChatStack containers use Docker bridge IP `172.17.0.1:8100` to communicate with it
 
 ### Other Services on DigitalOcean
 - `/opt/neurosphere-sync/` - Notion sync service
@@ -124,7 +123,7 @@ ChatStack cannot function without AI-Memory because it stores:
 **Step 1: Check AI-Memory Service Status**
 ```bash
 # SSH to DigitalOcean, then:
-curl http://172.17.0.1:8100/health
+curl http://209.38.143.71:8100/health
 
 # Expected response:
 # {"status": "ok", "db": true}
@@ -159,7 +158,7 @@ docker logs chatstack-orchestrator-worker-1 --tail 20
 ### Quick Health Check Script
 ```bash
 # Add to your server for quick diagnostics:
-echo "Checking AI-Memory..." && curl -s http://172.17.0.1:8100/health | jq
+echo "Checking AI-Memory..." && curl -s http://209.38.143.71:8100/health | jq
 echo "Checking ChatStack Web..." && curl -s http://127.0.0.1:5000/health | jq
 echo "Checking Orchestrator..." && curl -s http://127.0.0.1:8001/health | jq
 ```
@@ -194,7 +193,7 @@ The `/opt/ChatStack/.env` file on the DigitalOcean server contains all productio
 -   **Memory System**: A persistent hybrid, three-tier system for unlimited conversation memory:
     -   **Layer 1: Rolling Thread History**: FastAPI maintains a deque of up to 500 messages per unique `thread_id` (e.g., `user_{phone_number}`), saved to and loaded from the database. It features automatic memory consolidation at 400 messages and provides both within-call and cross-call continuity.
     -   **Layer 2: Automatic Memory Consolidation**: Triggers at 400 messages, using an LLM to extract structured data (people, facts, preferences, commitments) from the oldest 200 messages. This data is de-duplicated and the thread history is pruned.
-    -   **Layer 3: AI-Memory Service**: An HTTP-based service (`http://172.17.0.1:8100`) for permanent storage of structured facts, admin settings, and user registration.
+    -   **Layer 3: AI-Memory Service**: An HTTP-based service (`http://209.38.143.71:8100`) for permanent storage of structured facts, admin settings, and user registration.
 -   **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing, and safety triggers.
 -   **Tool System**: An extensible, JSON schema-based architecture for external tool execution (e.g., meeting booking, message sending) with a central dispatcher.
 -   **Data Models**: Pydantic for type-safe validation of request/response models.
@@ -222,7 +221,7 @@ The `/opt/ChatStack/.env` file on the DigitalOcean server contains all productio
 -   **Twilio**: For voice call management and webhooks.
 -   **OpenAI API**: Primary LLM service using GPT Realtime (`https://api.openai.com/v1/chat/completions`).
 -   **ElevenLabs**: For natural voice synthesis (Text-to-Speech).
--   **AI-Memory Service**: External HTTP service for conversation memory persistence (`http://172.17.0.1:8100`).
+-   **AI-Memory Service**: External HTTP service for conversation memory persistence (`http://209.38.143.71:8100`).
 -   **Notion API Service**: Node.js/Express server (port 8200) for Notion integration.
 
 **Databases:**
