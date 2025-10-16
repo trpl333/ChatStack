@@ -2358,13 +2358,18 @@
         
         async function loadPromptBlocksSystem() {
             try {
+                console.log('🔄 Loading prompt blocks system...');
                 // Load presets
                 const presetsResp = await fetch('/api/prompt-blocks/presets');
+                console.log('✅ Presets response:', presetsResp.status);
                 const presetsData = await presetsResp.json();
+                console.log('✅ Presets data:', presetsData);
                 
                 if (presetsData.success) {
                     promptCategories = presetsData.categories;
+                    console.log('✅ Categories loaded:', Object.keys(promptCategories));
                     buildPromptBlocksUI();
+                    console.log('✅ UI built');
                     
                     // Load saved blocks
                     const savedResp = await fetch('/api/prompt-blocks/load');
@@ -2372,18 +2377,31 @@
                     if (savedData.success && savedData.blocks) {
                         selectedBlocks = savedData.blocks;
                         populateSavedBlocks();
+                        console.log('✅ Saved blocks loaded');
+                    } else {
+                        console.log('ℹ️ No saved blocks found');
                     }
                 }
             } catch (error) {
-                console.error('Failed to load prompt blocks:', error);
+                console.error('❌ Failed to load prompt blocks:', error);
             }
         }
         
         function buildPromptBlocksUI() {
             const container = document.getElementById('promptBlocksContainer');
+            console.log('📦 Container element:', container);
+            if (!container) {
+                console.error('❌ promptBlocksContainer not found!');
+                return;
+            }
             const sortedCategories = Object.entries(promptCategories).sort((a, b) => a[1].order - b[1].order);
+            console.log('📊 Building UI for categories:', sortedCategories.length);
             
             sortedCategories.forEach(([key, category]) => {
+                const presetsOptions = Object.entries(category.presets)
+                    .map(([presetKey, preset]) => '<option value="' + presetKey + '">' + preset.name + '</option>')
+                    .join('');
+                
                 const blockHtml = `
                     <div class="card mb-3">
                         <div class="card-header bg-primary text-white">
@@ -2396,9 +2414,7 @@
                                     <label class="form-label">Select Preset</label>
                                     <select class="form-select" id="preset-${key}" onchange="loadPresetBlock('${key}', this.value)">
                                         <option value="">-- Choose Preset --</option>
-                                        ${Object.entries(category.presets).map(([presetKey, preset]) => `
-                                            <option value="${presetKey}">${preset.name}</option>
-                                        `).join('')}
+                                        ${presetsOptions}
                                     </select>
                                 </div>
                                 <div class="col-md-6">
