@@ -116,6 +116,10 @@ def pack_prompt(
                     if stored_blocks:
                         selected_blocks = stored_blocks
                         logger.info(f"✅ Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
+                        # 🔍 DEBUG: Show what's in system_role specifically
+                        if 'system_role' in stored_blocks:
+                            system_role_val = stored_blocks['system_role']
+                            logger.info(f"🔍 system_role value: {system_role_val[:150] if isinstance(system_role_val, str) and len(system_role_val) > 150 else system_role_val}...")
                         break
             
             # Build prompt from blocks if available
@@ -204,6 +208,9 @@ def pack_prompt(
         "role": "system",
         "content": system_prompt
     })
+    
+    # 🔍 DEBUG: Log the actual system prompt being sent
+    logger.info(f"🔍 SYSTEM PROMPT BEING SENT TO OPENAI:\n{system_prompt[:500]}...")  # First 500 chars
     
     # Thread recap
     if recap and recap != "(New conversation)":
