@@ -71,18 +71,12 @@ def pack_prompt(
         try:
             from app.http_memory import HTTPMemoryStore
             from app.prompt_templates import build_complete_prompt, get_all_preset_categories
+            from app.main import get_admin_setting
             mem_store = HTTPMemoryStore()
             
-            # Load agent_name from admin panel
-            agent_results = mem_store.search("agent_name", user_id="admin", k=5)
-            for result in agent_results:
-                if result.get("key") == "agent_name" or result.get("setting_key") == "agent_name":
-                    value = result.get("value", {})
-                    stored_name = value.get("value") or value.get("setting_value") or value.get("agent_name")
-                    if stored_name:
-                        agent_name = stored_name
-                        logger.info(f"✅ Using agent name from admin panel: {agent_name}")
-                        break
+            # Load agent_name from admin panel using timestamp-sorted retrieval
+            agent_name = get_admin_setting("agent_name", "Amanda")
+            logger.info(f"✅ Using agent name from admin panel: {agent_name}")
             
             # Load prompt blocks from admin panel
             prompt_block_results = mem_store.search("prompt_blocks", user_id="admin", k=5)
