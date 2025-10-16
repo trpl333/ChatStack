@@ -149,7 +149,7 @@ ai_instructions = AI_INSTRUCTIONS
 
 # Dynamic greeting templates - load from config on each request
 def get_admin_setting(setting_key, default=None):
-    """Get admin setting from AI-Memory service by parsing concatenated JSON"""
+    """Get admin setting from AI-Memory service with robust JSON parsing"""
     try:
         import requests
         import json as json_module
@@ -165,29 +165,57 @@ def get_admin_setting(setting_key, default=None):
         
         if response.status_code == 200:
             data = response.json()
-            memory_text = data.get("memory", "")
             
-            # Parse concatenated JSON lines to find setting
+            # ✅ FIX: Handle multiple AI-Memory response formats
+            # Format 1: {"memory": "concatenated\nJSON\nlines"}
+            # Format 2: {"memory": {...single object...}}
+            # Format 3: {"memory": [{...array...}]}
+            memory_data = data.get("memory", "")
+            
             matches = []
-            for line in memory_text.split('\n'):
-                line = line.strip()
-                if not line or line == "test":
-                    continue
-                try:
-                    setting_obj = json_module.loads(line)
-                    if setting_obj.get("setting_key") == setting_key:
-                        value = setting_obj.get("value") or setting_obj.get("setting_value")
-                        timestamp = setting_obj.get("timestamp", 0)
-                        matches.append({"value": value, "timestamp": float(timestamp)})
-                except:
-                    continue
             
-            # Return most recent match
+            # If memory is already a dict (single object response)
+            if isinstance(memory_data, dict):
+                if memory_data.get("setting_key") == setting_key or memory_data.get("key") == setting_key:
+                    value = memory_data.get("value") or memory_data.get("setting_value") or memory_data.get(setting_key)
+                    if value:
+                        logging.info(f"📖 Retrieved admin setting {setting_key}: {value}")
+                        return value
+            
+            # If memory is a list (array response)
+            elif isinstance(memory_data, list):
+                for item in memory_data:
+                    if item.get("setting_key") == setting_key or item.get("key") == setting_key:
+                        value = item.get("value") or item.get("setting_value") or item.get(setting_key)
+                        timestamp = item.get("timestamp", 0)
+                        if value:
+                            matches.append({"value": value, "timestamp": float(timestamp)})
+            
+            # If memory is a string (concatenated JSON lines)
+            elif isinstance(memory_data, str):
+                for line in memory_data.split('\n'):
+                    line = line.strip()
+                    if not line or line == "test":
+                        continue
+                    try:
+                        setting_obj = json_module.loads(line)
+                        if setting_obj.get("setting_key") == setting_key or setting_obj.get("key") == setting_key:
+                            value = setting_obj.get("value") or setting_obj.get("setting_value") or setting_obj.get(setting_key)
+                            timestamp = setting_obj.get("timestamp", 0)
+                            if value:
+                                matches.append({"value": value, "timestamp": float(timestamp)})
+                    except json_module.JSONDecodeError:
+                        continue
+            
+            # Return most recent match if any found
             if matches:
                 matches.sort(key=lambda x: x["timestamp"], reverse=True)
                 latest_value = matches[0]["value"]
                 logging.info(f"📖 Retrieved admin setting {setting_key}: {latest_value}")
                 return latest_value
+            
+            # If still nothing found, log for debugging
+            logging.warning(f"⚠️ No value found for {setting_key} in AI-Memory response: {type(memory_data).__name__}")
         
         # Fallback to config.json
         config_value = get_setting(setting_key, default)
