@@ -93,6 +93,78 @@ Manual production edits create:
 
 ---
 
+## 🔧 CRITICAL: AI-Memory Service Dependency
+
+### Why AI-Memory Was Separated
+
+**Historical Context:**
+- AI-Memory was originally part of ChatStack's docker-compose.yml
+- It was separated into its own service at `/opt/ai-memory/` for independent scaling and management
+- Each service now has its own GitHub repo, Docker containers, and deployment cycle
+
+### Critical Dependency Chain
+
+```
+Phone Call → ChatStack (Flask/FastAPI) → AI-Memory Service → PostgreSQL
+```
+
+**⚠️ IF AI-MEMORY IS DOWN, THE ENTIRE PHONE SYSTEM STOPS WORKING**
+
+ChatStack cannot function without AI-Memory because it stores:
+- All conversation history and context
+- Admin panel settings (personality sliders, greetings, voice)
+- User authentication and registration data
+- Transfer rules and routing configuration
+
+### Troubleshooting: "Phone System Stopped Working"
+
+**Step 1: Check AI-Memory Service Status**
+```bash
+# SSH to DigitalOcean, then:
+curl http://127.0.0.1:8100/health
+
+# Expected response:
+# {"status": "ok", "db": true}
+```
+
+**Step 2: Check if AI-Memory Container is Running**
+```bash
+docker ps | grep -i memory
+
+# Expected output:
+# ai-memory-worker-1 (running)
+```
+
+**Step 3: Restart AI-Memory if Down**
+```bash
+cd /opt/ai-memory
+docker-compose up -d
+docker logs ai-memory-worker-1 --tail 20
+
+# Verify it's working:
+curl http://127.0.0.1:8100/health
+```
+
+**Step 4: Restart ChatStack (if AI-Memory was down)**
+```bash
+cd /opt/ChatStack
+docker-compose restart
+docker logs chatstack-web-1 --tail 20
+docker logs chatstack-orchestrator-worker-1 --tail 20
+```
+
+### Quick Health Check Script
+```bash
+# Add to your server for quick diagnostics:
+echo "Checking AI-Memory..." && curl -s http://127.0.0.1:8100/health | jq
+echo "Checking ChatStack Web..." && curl -s http://127.0.0.1:5000/health | jq
+echo "Checking Orchestrator..." && curl -s http://127.0.0.1:8001/health | jq
+```
+
+**Remember:** AI-Memory must be running BEFORE ChatStack starts, otherwise ChatStack will start in degraded mode without memory/admin features.
+
+---
+
 ### User Preferences
 Preferred communication style: Simple, everyday language.
 
