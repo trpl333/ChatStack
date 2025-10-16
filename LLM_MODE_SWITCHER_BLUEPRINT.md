@@ -155,23 +155,56 @@ DATABASE_URL=postgresql://user:pass@host:5432/db
 | **TTS API Key** | Built-in | `ELEVENLABS_API_KEY` | `.env` |
 | **Voice ID** | Default | `ELEVENLABS_VOICE_ID` | `.env` |
 
-### 4.2 Endpoints by Mode
+### 4.2 Endpoints by Mode (with namespace fixes)
 
 | Service | OpenAI Realtime | RunPod Streaming |
 |---------|----------------|------------------|
 | **Main Endpoint** | `wss://api.openai.com/v1/realtime` | `https://a100.neurospherevoice.com` |
-| **STT Endpoint** | Built-in | `https://a100.neurospherevoice.com` |
+| **WebSocket Path** | `/phone/media-stream` | `/streaming/media` (distinct!) |
+| **STT Endpoint** | Built-in | `https://a100.neurospherevoice.com/v1/audio` |
 | **TTS Endpoint** | Built-in | `https://api.elevenlabs.io/v1` |
 | **Ports** | 443 (HTTPS/WSS) | 443 (HTTPS) |
 
-### 4.3 Environment Detection
+**Nginx Configuration (distinct paths to avoid collision):**
+```nginx
+# OpenAI Realtime WebSocket
+location /phone/media-stream {
+    proxy_pass http://127.0.0.1:8001/phone/media-stream;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+
+# RunPod Streaming (separate path)
+location /streaming/ {
+    proxy_pass http://127.0.0.1:8001/streaming/;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+### 4.3 Environment Detection (with Docker bridge verification)
 
 ```python
 def get_ai_memory_url():
-    """Environment-aware AI-Memory URL"""
+    """Environment-aware AI-Memory URL with fallback"""
     env = os.getenv("ENVIRONMENT", "development")
+    
     if env == "production":
-        return os.getenv("AI_MEMORY_URL_PROD", "http://172.17.0.1:8100")
+        # Try Docker bridge first
+        bridge_url = os.getenv("AI_MEMORY_URL_PROD", "http://172.17.0.1:8100")
+        
+        # Verify Docker bridge is reachable
+        try:
+            response = requests.get(f"{bridge_url}/health", timeout=2)
+            if response.status_code == 200:
+                return bridge_url
+        except requests.RequestException:
+            logger.warning(f"Docker bridge {bridge_url} unreachable, falling back to external")
+        
+        # Fallback to external
+        return os.getenv("AI_MEMORY_URL_DEV", "http://209.38.143.71:8100")
     else:
         return os.getenv("AI_MEMORY_URL_DEV", "http://209.38.143.71:8100")
 ```
@@ -180,21 +213,65 @@ def get_ai_memory_url():
 
 ## 5. Implementation Plan
 
-### 5.1 Core Pipeline Router
+### 5.1 Core Pipeline Router (with ChatGPT fixes)
 
 **File**: `app/llm_router.py` (new file)
 
 ```python
-def get_active_llm_pipeline():
-    """Get active LLM pipeline based on mode"""
-    mode = get_admin_setting("llm_mode", os.getenv("LLM_MODE", "openai_realtime"))
+import os
+import asyncio
+from threading import Lock
+
+# Global lock to prevent mid-call mode switching
+_mode_switch_lock = Lock()
+_active_call_count = 0
+_current_mode = None
+_grace_period_seconds = 5
+
+def increment_call_count():
+    global _active_call_count
+    _active_call_count += 1
+
+def decrement_call_count():
+    global _active_call_count
+    _active_call_count = max(0, _active_call_count - 1)
+
+async def get_active_llm_pipeline():
+    """Get active LLM pipeline based on mode with hot reload and grace period"""
+    global _current_mode
     
-    if mode == "openai_realtime":
+    # Hot reload mode from .env (fixes caching issue)
+    from dotenv import load_dotenv
+    load_dotenv(override=True)
+    
+    requested_mode = get_admin_setting("llm_mode", os.getenv("LLM_MODE", "openai_realtime"))
+    
+    # If mode changed and calls are active, wait for grace period
+    if _current_mode != requested_mode and _active_call_count > 0:
+        logger.warning(f"Mode switch requested during {_active_call_count} active calls. Applying {_grace_period_seconds}s grace period...")
+        await asyncio.sleep(_grace_period_seconds)
+    
+    _current_mode = requested_mode
+    
+    if _current_mode == "openai_realtime":
         return OpenAIRealtimePipeline()
-    elif mode == "runpod_streaming":
+    elif _current_mode == "runpod_streaming":
         return RunPodStreamingPipeline()
     else:
-        raise ValueError(f"Unknown LLM mode: {mode}")
+        raise ValueError(f"Unknown LLM mode: {_current_mode}")
+
+def switch_llm_mode(new_mode: str):
+    """Switch LLM mode with safety checks"""
+    global _current_mode
+    
+    with _mode_switch_lock:
+        if _active_call_count > 0:
+            raise RuntimeError(f"Cannot switch mode: {_active_call_count} calls active. Wait for completion.")
+        
+        _current_mode = new_mode
+        # Update AI-Memory
+        mem_store.write("admin_setting", "llm_mode", {"value": new_mode}, user_id="admin")
+        logger.info(f"✅ LLM mode switched to: {new_mode}")
 ```
 
 ### 5.2 Pipeline Interface
@@ -290,12 +367,15 @@ for token in ws_stream:
     yield token  # Tokens streamed in real-time
 ```
 
-### 6.2 RunPod Streaming (To Implement)
+### 6.2 RunPod Streaming (with buffer parser fix)
 
 ```python
 # New: app/runpod_streaming.py
 async def runpod_stream_inference(text: str):
-    """Stream LLM response from RunPod"""
+    """Stream LLM response from RunPod with proper chunk buffering"""
+    buffer = ""
+    token_idx = 0
+    
     async with aiohttp.ClientSession() as session:
         async with session.post(
             f"{RUNPOD_ENDPOINT}/v1/chat/completions",
@@ -303,14 +383,33 @@ async def runpod_stream_inference(text: str):
                 "model": "meta-llama/Meta-Llama-3-70B-Instruct",
                 "messages": [{"role": "user", "content": text}],
                 "stream": True  # Enable streaming
-            }
+            },
+            timeout=aiohttp.ClientTimeout(total=30)  # Add timeout
         ) as response:
             async for line in response.content:
-                if line.startswith(b"data: "):
-                    data = json.loads(line[6:])
-                    if "choices" in data:
-                        delta = data["choices"][0]["delta"].get("content", "")
-                        yield delta
+                try:
+                    if line.startswith(b"data: "):
+                        buffer += line.decode('utf-8')[6:].strip()
+                        
+                        # Only parse when we have complete JSON
+                        if buffer.endswith("}") or buffer.endswith("]"):
+                            data = json.loads(buffer)
+                            buffer = ""  # Clear buffer after successful parse
+                            
+                            if "choices" in data:
+                                delta = data["choices"][0]["delta"].get("content", "")
+                                if delta:
+                                    # Throttle logging (every 10th token)
+                                    if token_idx % 10 == 0:
+                                        logger.debug(f"Token {token_idx}: {delta}")
+                                    token_idx += 1
+                                    yield delta
+                except json.JSONDecodeError:
+                    # Partial chunk - keep buffering
+                    continue
+                except asyncio.TimeoutError:
+                    logger.error("RunPod streaming timeout")
+                    break
 ```
 
 ### 6.3 ElevenLabs Streaming (Already Implemented)
