@@ -2506,16 +2506,11 @@
             const blocks = {};
             
             Object.keys(promptCategories).forEach(categoryKey => {
-                const presetSelect = document.getElementById(`preset-${categoryKey}`);
                 const promptText = document.getElementById(`prompt-${categoryKey}`).value;
                 
-                if (promptText) {
-                    // If preset is selected (not custom), save preset key; otherwise save custom text
-                    if (presetSelect.value && presetSelect.value !== 'custom') {
-                        blocks[categoryKey] = presetSelect.value;
-                    } else if (promptText.trim()) {
-                        blocks[categoryKey] = promptText;
-                    }
+                // Always save the textarea content (custom or preset text), not the dropdown value
+                if (promptText && promptText.trim()) {
+                    blocks[categoryKey] = promptText;
                 }
             });
             
