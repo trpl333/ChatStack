@@ -44,6 +44,28 @@ class STMManager:
 # Global STM manager instance
 stm_manager = STMManager()
 
+# Simple cache for admin settings to reduce AI-Memory calls
+class SettingsCache:
+    """Cache admin settings with TTL to reduce latency"""
+    def __init__(self, ttl_seconds=30):
+        self._cache = {}
+        self._ttl = ttl_seconds
+    
+    def get(self, key):
+        import time
+        if key in self._cache:
+            value, timestamp = self._cache[key]
+            if time.time() - timestamp < self._ttl:
+                return value
+        return None
+    
+    def set(self, key, value):
+        import time
+        self._cache[key] = (value, time.time())
+
+# Global settings cache (30 second TTL)
+settings_cache = SettingsCache(ttl_seconds=30)
+
 def pack_prompt(
     messages: List[Dict[str, str]], 
     memories: List[Dict[str, Any]], 
@@ -74,9 +96,14 @@ def pack_prompt(
             from app.main import get_admin_setting
             mem_store = HTTPMemoryStore()
             
-            # Load agent_name from admin panel using timestamp-sorted retrieval
-            agent_name = get_admin_setting("agent_name", "Amanda")
-            logger.info(f"✅ Using agent name from admin panel: {agent_name}")
+            # Load agent_name from admin panel using cached retrieval for speed
+            agent_name = settings_cache.get("agent_name")
+            if not agent_name:
+                agent_name = get_admin_setting("agent_name", "Amanda")
+                settings_cache.set("agent_name", agent_name)
+                logger.info(f"✅ Loaded agent name from AI-Memory: {agent_name}")
+            else:
+                logger.info(f"✅ Using cached agent name: {agent_name}")
             
             # Load prompt blocks from admin panel
             prompt_block_results = mem_store.search("prompt_blocks", user_id="admin", k=5)
