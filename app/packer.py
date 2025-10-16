@@ -63,26 +63,15 @@ def pack_prompt(
         Complete message list ready for LLM
     """
     
-    # ✅ Load AI instructions from admin panel settings (ai-memory)
+    # ✅ Load AI instructions from prompt blocks + personality sliders
     system_prompt = SYSTEM_BASE  # Default fallback
     agent_name = "Amanda"  # Default agent name
     
     if not safety_mode:
         try:
             from app.http_memory import HTTPMemoryStore
+            from app.prompt_templates import build_complete_prompt, get_all_preset_categories
             mem_store = HTTPMemoryStore()
-            
-            # Search for personality settings from admin panel
-            results = mem_store.search("personality_settings", user_id="admin", k=5)
-            
-            for result in results:
-                if result.get("key") == "personality_settings" or result.get("setting_key") == "personality_settings":
-                    value = result.get("value", {})
-                    admin_instructions = value.get("setting_value", {}).get("ai_instructions") or value.get("ai_instructions")
-                    if admin_instructions:
-                        system_prompt = admin_instructions
-                        logger.info(f"✅ Using AI instructions from admin panel: {admin_instructions[:100]}...")
-                        break
             
             # Load agent_name from admin panel
             agent_results = mem_store.search("agent_name", user_id="admin", k=5)
@@ -94,6 +83,44 @@ def pack_prompt(
                         agent_name = stored_name
                         logger.info(f"✅ Using agent name from admin panel: {agent_name}")
                         break
+            
+            # Load prompt blocks from admin panel
+            prompt_block_results = mem_store.search("prompt_blocks", user_id="admin", k=5)
+            selected_blocks = {}
+            
+            for result in prompt_block_results:
+                if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
+                    value = result.get("value", {})
+                    stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
+                    if stored_blocks:
+                        selected_blocks = stored_blocks
+                        logger.info(f"✅ Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
+                        break
+            
+            # Build prompt from blocks if available
+            if selected_blocks:
+                system_prompt = build_complete_prompt(selected_blocks, agent_name)
+                logger.info(f"✅ Built system prompt from {len(selected_blocks)} blocks")
+            
+            # Load personality sliders for fine-tuning
+            slider_results = mem_store.search("personality_sliders", user_id="admin", k=5)
+            personality_sliders = {}
+            
+            for result in slider_results:
+                if result.get("key") == "personality_sliders" or result.get("setting_key") == "personality_sliders":
+                    value = result.get("value", {})
+                    stored_sliders = value.get("value") or value.get("setting_value") or value.get("sliders")
+                    if stored_sliders:
+                        personality_sliders = stored_sliders
+                        logger.info(f"✅ Using {len(personality_sliders)} personality sliders for fine-tuning")
+                        break
+            
+            # Apply slider modifications to prompt
+            if personality_sliders:
+                slider_instructions = generate_slider_modifications(personality_sliders)
+                if slider_instructions:
+                    system_prompt += f"\n\n[FINE-TUNING]\n{slider_instructions}"
+                    logger.info(f"✅ Added slider fine-tuning to prompt")
                         
         except Exception as e:
             logger.warning(f"Failed to load admin personality settings, using default: {e}")
@@ -464,3 +491,55 @@ def detect_safety_triggers(message_content: str) -> bool:
     ]
     
     return any(pattern in content_lower for pattern in trigger_patterns)
+
+def generate_slider_modifications(sliders: Dict[str, int]) -> str:
+    """
+    Generate fine-tuning instructions from personality sliders.
+    
+    Args:
+        sliders: Dictionary of slider values (0-100)
+        
+    Returns:
+        Natural language fine-tuning instructions
+    """
+    instructions = []
+    
+    # High-impact sliders (>70 or <30) generate instructions
+    if sliders.get('warmth', 50) >= 70:
+        instructions.append("- Be extra warm and friendly in your tone")
+    elif sliders.get('warmth', 50) <= 30:
+        instructions.append("- Keep interactions more neutral and professional")
+    
+    if sliders.get('humor', 50) >= 70:
+        instructions.append("- Use appropriate humor and wit when suitable")
+    elif sliders.get('humor', 50) <= 30:
+        instructions.append("- Maintain a serious, straightforward demeanor")
+    
+    if sliders.get('directness', 50) >= 70:
+        instructions.append("- Be direct and get straight to the point")
+    elif sliders.get('directness', 50) <= 30:
+        instructions.append("- Take a more gentle, indirect approach")
+    
+    if sliders.get('empathy', 50) >= 70:
+        instructions.append("- Show deep empathy and emotional awareness")
+    
+    if sliders.get('confidence', 50) >= 70:
+        instructions.append("- Project strong confidence and authority")
+    
+    if sliders.get('patience', 50) >= 70:
+        instructions.append("- Be extra patient and give people time to think")
+    
+    if sliders.get('formality', 50) >= 70:
+        instructions.append("- Maintain formal, professional language")
+    elif sliders.get('formality', 50) <= 30:
+        instructions.append("- Use casual, conversational language")
+    
+    if sliders.get('storytelling', 50) >= 70:
+        instructions.append("- Use stories and examples to illustrate points")
+    
+    if sliders.get('selfReference', 50) == 0:
+        instructions.append("- Never reveal you are an AI or discuss your artificial nature")
+    elif sliders.get('selfReference', 50) >= 70:
+        instructions.append("- Be transparent about being an AI assistant when relevant")
+    
+    return "\n".join(instructions) if instructions else ""

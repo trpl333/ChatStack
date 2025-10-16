@@ -196,28 +196,20 @@
                     <button class="btn btn-success mt-3" onclick="updateAgentName()">💾 Update Agent Name</button>
                 </div>
                 
-                <!-- Personality Settings -->
+                <!-- Prompt Blocks System (PRIMARY) -->
                 <div class="admin-section">
-                    <h3 class="section-header">🧠 AI Personality & Instructions</h3>
-                    <div class="alert alert-warning">
-                        <strong>⚠️ Note:</strong> Base personality instructions are now controlled by the <strong>30 Personality Sliders</strong> below. This field is for additional custom instructions only.
+                    <h3 class="section-header">📝 AI Prompt Blocks (Primary Personality Driver)</h3>
+                    <div class="alert alert-info">
+                        <strong>How it works:</strong> Prompt blocks define the AI's core personality and behavior. Select presets or create custom prompts. The sliders below provide fine-tuning.
+                        <br><strong>💡 Tip:</strong> Use the AI Assistant to help generate or refine your custom prompts!
                     </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <label class="form-label">Response Length</label>
-                            <select class="form-select" id="responseLength">
-                                <option value="25">Very Short (25 tokens)</option>
-                                <option value="50" selected">Short (50 tokens)</option>
-                                <option value="100">Medium (100 tokens)</option>
-                                <option value="150">Long (150 tokens)</option>
-                            </select>
-                        </div>
-                    </div>
+                    
+                    <div id="promptBlocksContainer"></div>
+                    
                     <div class="mt-3">
-                        <label class="form-label">Additional Custom Instructions (Optional)</label>
-                        <textarea class="form-control" rows="4" id="customInstructions" placeholder="Add any extra instructions here. Agent name and personality are controlled by settings above and sliders below."></textarea>
+                        <button class="btn btn-success" onclick="savePromptBlocks()">💾 Save Prompt Blocks</button>
+                        <button class="btn btn-outline-info ms-2" onclick="previewCompletePrompt()">👁️ Preview Complete Prompt</button>
                     </div>
-                    <button class="btn btn-success mt-2" onclick="updatePersonality()">💾 Update Custom Instructions</button>
                 </div>
 
                 <!-- Personality Dimensions (30 Sliders) -->
@@ -2359,13 +2351,204 @@
             showNotification('Success', 'All sliders reset to default!', false);
         }
 
+        // ==================== PROMPT BLOCKS SYSTEM ====================
+        
+        let promptCategories = {};
+        let selectedBlocks = {};
+        
+        async function loadPromptBlocksSystem() {
+            try {
+                // Load presets
+                const presetsResp = await fetch('/api/prompt-blocks/presets');
+                const presetsData = await presetsResp.json();
+                
+                if (presetsData.success) {
+                    promptCategories = presetsData.categories;
+                    buildPromptBlocksUI();
+                    
+                    // Load saved blocks
+                    const savedResp = await fetch('/api/prompt-blocks/load');
+                    const savedData = await savedResp.json();
+                    if (savedData.success && savedData.blocks) {
+                        selectedBlocks = savedData.blocks;
+                        populateSavedBlocks();
+                    }
+                }
+            } catch (error) {
+                console.error('Failed to load prompt blocks:', error);
+            }
+        }
+        
+        function buildPromptBlocksUI() {
+            const container = document.getElementById('promptBlocksContainer');
+            const sortedCategories = Object.entries(promptCategories).sort((a, b) => a[1].order - b[1].order);
+            
+            sortedCategories.forEach(([key, category]) => {
+                const blockHtml = `
+                    <div class="card mb-3">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">${category.name}</h5>
+                            <small>${category.description}</small>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-2">
+                                <div class="col-md-6">
+                                    <label class="form-label">Select Preset</label>
+                                    <select class="form-select" id="preset-${key}" onchange="loadPresetBlock('${key}', this.value)">
+                                        <option value="">-- Choose Preset --</option>
+                                        ${Object.entries(category.presets).map(([presetKey, preset]) => `
+                                            <option value="${presetKey}">${preset.name}</option>
+                                        `).join('')}
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">AI Assistant</label>
+                                    <div class="input-group">
+                                        <input type="text" class="form-control" id="ai-prompt-${key}" placeholder="Describe what you want...">
+                                        <button class="btn btn-outline-primary" onclick="generateWithAI('${key}', 'generate')">🤖 Generate</button>
+                                        <button class="btn btn-outline-secondary" onclick="generateWithAI('${key}', 'refine')">✨ Refine</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-2">
+                                <label class="form-label">Prompt Text</label>
+                                <textarea class="form-control" rows="4" id="prompt-${key}" placeholder="Select a preset or use AI Assistant to generate..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += blockHtml;
+            });
+        }
+        
+        function loadPresetBlock(categoryKey, presetKey) {
+            if (!presetKey) return;
+            
+            const category = promptCategories[categoryKey];
+            const preset = category.presets[presetKey];
+            
+            if (preset) {
+                document.getElementById(`prompt-${categoryKey}`).value = preset.prompt;
+                selectedBlocks[categoryKey] = presetKey;
+            }
+        }
+        
+        function populateSavedBlocks() {
+            Object.entries(selectedBlocks).forEach(([categoryKey, value]) => {
+                const category = promptCategories[categoryKey];
+                if (!category) return;
+                
+                // Check if it's a preset key
+                if (category.presets[value]) {
+                    document.getElementById(`preset-${categoryKey}`).value = value;
+                    document.getElementById(`prompt-${categoryKey}`).value = category.presets[value].prompt;
+                } else {
+                    // It's custom text
+                    document.getElementById(`preset-${categoryKey}`).value = 'custom';
+                    document.getElementById(`prompt-${categoryKey}`).value = value;
+                }
+            });
+        }
+        
+        async function generateWithAI(categoryKey, action) {
+            const description = document.getElementById(`ai-prompt-${categoryKey}`).value;
+            const existingPrompt = document.getElementById(`prompt-${categoryKey}`).value;
+            
+            if (!description) {
+                showNotification('Error', 'Please describe what you want the AI to do', true);
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/prompt-blocks/generate', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        description: description,
+                        existing_prompt: existingPrompt,
+                        block_type: categoryKey,
+                        action: action
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById(`prompt-${categoryKey}`).value = data.prompt;
+                    document.getElementById(`preset-${categoryKey}`).value = 'custom';
+                    showNotification('Success', `AI ${action === 'generate' ? 'generated' : 'refined'} your prompt!`);
+                } else {
+                    showNotification('Error', data.error || 'Failed to generate prompt', true);
+                }
+            } catch (error) {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            }
+        }
+        
+        async function savePromptBlocks() {
+            const blocks = {};
+            
+            Object.keys(promptCategories).forEach(categoryKey => {
+                const presetSelect = document.getElementById(`preset-${categoryKey}`);
+                const promptText = document.getElementById(`prompt-${categoryKey}`).value;
+                
+                if (promptText) {
+                    // If preset is selected (not custom), save preset key; otherwise save custom text
+                    if (presetSelect.value && presetSelect.value !== 'custom') {
+                        blocks[categoryKey] = presetSelect.value;
+                    } else if (promptText.trim()) {
+                        blocks[categoryKey] = promptText;
+                    }
+                }
+            });
+            
+            try {
+                const response = await fetch('/api/prompt-blocks/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ blocks: blocks })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    selectedBlocks = blocks;
+                    showNotification('Success', 'Prompt blocks saved successfully!');
+                } else {
+                    showNotification('Error', data.error || 'Failed to save', true);
+                }
+            } catch (error) {
+                showNotification('Error', 'Network error: ' + error.message, true);
+            }
+        }
+        
+        function previewCompletePrompt() {
+            const agentName = document.getElementById('agentName').value || 'Amanda';
+            const blocks = {};
+            
+            Object.keys(promptCategories).forEach(categoryKey => {
+                const promptText = document.getElementById(`prompt-${categoryKey}`).value;
+                if (promptText) blocks[categoryKey] = promptText;
+            });
+            
+            // Simple preview - in production, this would call the backend to build the prompt
+            let preview = `=== COMPLETE AI PROMPT (Agent: ${agentName}) ===\n\n`;
+            
+            Object.entries(blocks).forEach(([key, text]) => {
+                const category = promptCategories[key];
+                preview += `[${category.name}]\n${text}\n\n`;
+            });
+            
+            // Show in modal or alert
+            alert(preview);
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             loadSharedKnowledge();
             loadAgentName();
             loadOpenAIVoice();
             loadTransferRules(); // Load transfer routing rules
-            loadPersonalitySliders(); // Load personality sliders
+            loadPromptBlocksSystem(); // Load prompt blocks system (PRIMARY)
+            loadPersonalitySliders(); // Load personality sliders (SECONDARY fine-tuning)
             refreshStatus();
             loadAllUsers(); // Load user list on page load
             

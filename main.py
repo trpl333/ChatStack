@@ -1569,6 +1569,147 @@ def get_personality_sliders():
     except Exception as e:
         logging.error(f"❌ Failed to get personality sliders: {e}")
         return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/prompt-blocks/presets', methods=['GET'])
+def get_prompt_presets():
+    """Get all available prompt block presets"""
+    try:
+        from app.prompt_templates import get_all_preset_categories
+        categories = get_all_preset_categories()
+        return jsonify({"success": True, "categories": categories})
+    except Exception as e:
+        logging.error(f"❌ Failed to get prompt presets: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/prompt-blocks/save', methods=['POST'])
+def save_prompt_blocks():
+    """Save selected prompt blocks to AI-Memory"""
+    try:
+        from app.http_memory import HTTPMemoryStore
+        import time
+        mem_store = HTTPMemoryStore()
+        
+        data = request.get_json()
+        selected_blocks = data.get('blocks', {})
+        
+        # Save to AI-Memory
+        mem_store.write(
+            memory_type="admin_setting",
+            key="prompt_blocks",
+            value={
+                "setting_key": "prompt_blocks",
+                "value": selected_blocks,
+                "setting_value": selected_blocks,
+                "timestamp": time.time(),
+                "updated_at": time.strftime("%Y-%m-%d %H:%M:%S")
+            },
+            user_id="admin",
+            scope="shared",
+            ttl_days=365,
+            source="admin_panel"
+        )
+        
+        logging.info(f"✅ Saved prompt blocks: {list(selected_blocks.keys())}")
+        return jsonify({"success": True, "message": "Prompt blocks saved successfully"})
+        
+    except Exception as e:
+        logging.error(f"❌ Failed to save prompt blocks: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/prompt-blocks/load', methods=['GET'])
+def load_prompt_blocks():
+    """Load saved prompt blocks from AI-Memory"""
+    try:
+        blocks = get_admin_setting("prompt_blocks", {})
+        logging.info(f"✅ Retrieved prompt blocks: {list(blocks.keys()) if blocks else 'none'}")
+        return jsonify({"success": True, "blocks": blocks or {}})
+    except Exception as e:
+        logging.error(f"❌ Failed to load prompt blocks: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/prompt-blocks/generate', methods=['POST'])
+def generate_prompt_with_ai():
+    """Generate or refine a prompt using OpenAI"""
+    try:
+        data = request.get_json()
+        user_description = data.get('description', '')
+        existing_prompt = data.get('existing_prompt', '')
+        block_type = data.get('block_type', 'system_role')
+        action = data.get('action', 'generate')  # 'generate' or 'refine'
+        
+        if not user_description and not existing_prompt:
+            return jsonify({"success": False, "error": "Please provide a description or existing prompt"})
+        
+        # Build prompt for OpenAI to help create/refine the block
+        if action == 'generate':
+            system_prompt = f"""You are an expert AI prompt engineer. Create a professional prompt block for a phone AI system.
+
+Block Type: {block_type.replace('_', ' ').title()}
+User Request: {user_description}
+
+Create a clear, effective prompt that:
+1. Defines the AI's behavior for this specific aspect
+2. Is written in second person ("You are...", "Be...", "Focus on...")
+3. Is concise but comprehensive (3-5 sentences)
+4. Can work alongside other prompt blocks
+
+Output ONLY the prompt text, no explanations or meta-commentary."""
+
+        else:  # refine
+            system_prompt = f"""You are an expert AI prompt engineer. Improve and refine the following prompt block.
+
+Block Type: {block_type.replace('_', ' ').title()}
+Current Prompt: {existing_prompt}
+Improvement Request: {user_description}
+
+Refine the prompt to:
+1. Incorporate the requested improvements
+2. Maintain clarity and effectiveness
+3. Keep it concise (3-5 sentences)
+4. Ensure it works with other prompt blocks
+
+Output ONLY the refined prompt text, no explanations."""
+
+        # Call OpenAI to generate/refine
+        config = _get_config()
+        llm_base_url = config.get("llm_base_url", "https://api.openai.com/v1")
+        api_key = config.get("openai_api_key")
+        
+        if not api_key:
+            return jsonify({"success": False, "error": "OpenAI API key not configured"})
+        
+        response = requests.post(
+            f"{llm_base_url}/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "gpt-4o-mini",
+                "messages": [{"role": "user", "content": system_prompt}],
+                "temperature": 0.7,
+                "max_tokens": 300
+            },
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            generated_prompt = result['choices'][0]['message']['content'].strip()
+            
+            logging.info(f"✅ AI-generated prompt for {block_type}: {generated_prompt[:100]}...")
+            return jsonify({
+                "success": True,
+                "prompt": generated_prompt,
+                "action": action
+            })
+        else:
+            logging.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            return jsonify({"success": False, "error": f"API error: {response.status_code}"})
+            
+    except Exception as e:
+        logging.error(f"❌ Failed to generate prompt: {e}")
+        return jsonify({"success": False, "error": str(e)})
         
 @app.route('/update-greetings', methods=['POST'])
 def update_greetings():
