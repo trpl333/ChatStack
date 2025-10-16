@@ -105,40 +105,49 @@ def pack_prompt(
             else:
                 logger.info(f"✅ Using cached agent name: {agent_name}")
             
-            # Load prompt blocks from admin panel
+            # Load prompt blocks from admin panel - use NEWEST entry (timestamp sorted)
             prompt_block_results = mem_store.search("prompt_blocks", user_id="admin", k=5)
             selected_blocks = {}
             
+            # ✅ FIX: Iterate through ALL results and use the LAST (newest) match
             for result in prompt_block_results:
                 if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
                     value = result.get("value", {})
                     stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
                     if stored_blocks:
-                        selected_blocks = stored_blocks
-                        logger.info(f"✅ Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
-                        # 🔍 DEBUG: Show what's in system_role specifically
-                        if 'system_role' in stored_blocks:
-                            system_role_val = stored_blocks['system_role']
-                            logger.info(f"🔍 system_role value: {system_role_val[:150] if isinstance(system_role_val, str) and len(system_role_val) > 150 else system_role_val}...")
-                        break
+                        selected_blocks = stored_blocks  # Keep updating to get the LAST (newest)
+            
+            # Log after loop completes with the newest blocks
+            if selected_blocks:
+                logger.info(f"✅ Using NEWEST prompt blocks from admin panel: {list(selected_blocks.keys())}")
+                # 🔍 DEBUG: Show what's in system_role and emotional_tone specifically
+                if 'system_role' in selected_blocks:
+                    system_role_val = selected_blocks['system_role']
+                    logger.info(f"🔍 system_role value: {system_role_val[:150] if isinstance(system_role_val, str) and len(system_role_val) > 150 else system_role_val}...")
+                if 'emotional_tone' in selected_blocks:
+                    emotional_tone_val = selected_blocks['emotional_tone']
+                    logger.info(f"🔍 emotional_tone value: {emotional_tone_val[:150] if isinstance(emotional_tone_val, str) and len(emotional_tone_val) > 150 else emotional_tone_val}...")
             
             # Build prompt from blocks if available
             if selected_blocks:
                 system_prompt = build_complete_prompt(selected_blocks, agent_name)
                 logger.info(f"✅ Built system prompt from {len(selected_blocks)} blocks")
             
-            # Load personality sliders for fine-tuning
+            # Load personality sliders for fine-tuning - use NEWEST entry (timestamp sorted)
             slider_results = mem_store.search("personality_sliders", user_id="admin", k=5)
             personality_sliders = {}
             
+            # ✅ FIX: Iterate through ALL results and use the LAST (newest) match
             for result in slider_results:
                 if result.get("key") == "personality_sliders" or result.get("setting_key") == "personality_sliders":
                     value = result.get("value", {})
                     stored_sliders = value.get("value") or value.get("setting_value") or value.get("sliders")
                     if stored_sliders:
-                        personality_sliders = stored_sliders
-                        logger.info(f"✅ Using {len(personality_sliders)} personality sliders for fine-tuning")
-                        break
+                        personality_sliders = stored_sliders  # Keep updating to get the LAST (newest)
+            
+            # Log after loop completes with the newest sliders
+            if personality_sliders:
+                logger.info(f"✅ Using NEWEST {len(personality_sliders)} personality sliders for fine-tuning")
             
             # Apply slider modifications to prompt
             if personality_sliders:
