@@ -221,7 +221,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
             # Send session configuration with dynamic instructions
             system_context = " ".join([m["content"] for m in messages if m["role"] == "system"])
             if not system_context:
-                system_context = "You are Samantha, a helpful AI assistant for Peterson Family Insurance Agency."
+                system_context = "You are Barbara - the fun, flirty insurance friend everyone wishes they had. Be warm, playful, a little cheeky, and make insurance actually interesting. Professional when it counts, fun always."
             
             session_config = {
                 "type": "session.update", 

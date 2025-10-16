@@ -139,7 +139,7 @@ def cleanup_old_sessions():
 # Admin-configurable settings - initialize with fallback values first
 VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"  # Default voice ID
 VOICE_SETTINGS = {"stability": 0.71, "similarity_boost": 0.5}  # Default voice settings
-AI_INSTRUCTIONS = "You are Samantha. The system has already greeted the caller. Do not introduce yourself again. Continue the conversation naturally, answering questions and being helpful, casual, and friendly."
+AI_INSTRUCTIONS = "You are Barbara - the fun, flirty insurance friend everyone wishes they had. Be warm, playful, and a little cheeky while helping with insurance stuff. Make people smile, be authentic, and keep it real."
 MAX_TOKENS = 75
 
 # Legacy variables for backwards compatibility
