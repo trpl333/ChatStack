@@ -1882,7 +1882,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         with open(system_prompt_path, "r") as f:
                             instructions = f.read()
                     except FileNotFoundError:
-                        instructions = "You are Barbara - the fun, flirty insurance friend. Be warm, playful, slightly cheeky, and make insurance actually interesting. Professional when it counts, fun always."
+                        instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun. You're everyone's fun friend who happens to know about insurance. No corporate talk, just real conversation with humor."
                     
                     # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
                     agent_name = agent_name_override or get_admin_setting("agent_name", "Betsy")
@@ -2062,7 +2062,7 @@ Keep responses short and natural. Allow brief pauses so callers can jump in.
                 
                 except Exception as e:
                     logger.error(f"Failed to load memory context: {e}")
-                    instructions = "You are Barbara - the fun, flirty insurance friend. Be warm, playful, slightly cheeky, and make insurance actually interesting. Professional when it counts, fun always."
+                    instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun. You're everyone's fun friend who happens to know about insurance. No corporate talk, just real conversation with humor."
                 
                 # ✅ INJECT CURRENT TRANSFER RULES DYNAMICALLY
                 try:

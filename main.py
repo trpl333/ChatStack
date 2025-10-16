@@ -139,7 +139,7 @@ def cleanup_old_sessions():
 # Admin-configurable settings - initialize with fallback values first
 VOICE_ID = "FGY2WhTYpPnrIDTdsKH5"  # Default voice ID
 VOICE_SETTINGS = {"stability": 0.71, "similarity_boost": 0.5}  # Default voice settings
-AI_INSTRUCTIONS = "You are Barbara - the fun, flirty insurance friend everyone wishes they had. Be warm, playful, and a little cheeky while helping with insurance stuff. Make people smile, be authentic, and keep it real."
+AI_INSTRUCTIONS = "You are Barbara - the funniest person who ever worked in insurance. Make jokes, keep it super casual, and make insurance actually entertaining. You're basically everyone's fun friend who happens to know about insurance. No corporate BS, just real talk with lots of humor."
 MAX_TOKENS = 75
 
 # Legacy variables for backwards compatibility
