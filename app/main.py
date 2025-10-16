@@ -1876,16 +1876,39 @@ async def media_stream_endpoint(websocket: WebSocket):
                     else:
                         memories = []
                     
-                    # Load base system prompt
-                    system_prompt_path = "app/prompts/system_sam.txt"
-                    try:
-                        with open(system_prompt_path, "r") as f:
-                            instructions = f.read()
-                    except FileNotFoundError:
-                        instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun. You're everyone's fun friend who happens to know about insurance. No corporate talk, just real conversation with humor."
+                    # ✅ PRIORITY ORDER: Admin panel blocks > File fallback
+                    # Load prompt blocks from admin panel FIRST
+                    from app.prompt_templates import build_complete_prompt
+                    
+                    prompt_block_results = mem_store.search("prompt_blocks", user_id="admin", k=5)
+                    selected_blocks = {}
+                    
+                    for result in prompt_block_results:
+                        if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
+                            value = result.get("value", {})
+                            stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
+                            if stored_blocks:
+                                selected_blocks = stored_blocks
+                                logger.info(f"✅ Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
+                                break
                     
                     # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
                     agent_name = agent_name_override or get_admin_setting("agent_name", "Betsy")
+                    
+                    # Build instructions from admin panel blocks if available
+                    if selected_blocks:
+                        instructions = build_complete_prompt(selected_blocks, agent_name)
+                        logger.info(f"✅ Built system prompt from {len(selected_blocks)} admin panel blocks")
+                    else:
+                        # Fallback to file only if no admin blocks exist
+                        system_prompt_path = "app/prompts/system_sam.txt"
+                        try:
+                            with open(system_prompt_path, "r") as f:
+                                instructions = f.read()
+                            logger.info(f"⚠️ No admin panel blocks found, using file: {system_prompt_path}")
+                        except FileNotFoundError:
+                            instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun. You're everyone's fun friend who happens to know about insurance. No corporate talk, just real conversation with humor."
+                            logger.info(f"⚠️ No admin blocks or file, using hardcoded fallback")
                     
                     # Use customer-specific business name or default
                     if customer_id:
