@@ -1451,6 +1451,38 @@ class OAIRealtime:
         ws.send(json.dumps(session_update))
         logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice} and time tool")
         
+        # =====================================================
+        # 🧠 SEND PREVIOUS CONVERSATION HISTORY TO OPENAI
+        # =====================================================
+        # Load and send thread history so AI remembers previous calls
+        if self.thread_id and THREAD_HISTORY.get(self.thread_id):
+            history = list(THREAD_HISTORY[self.thread_id])
+            # Send last 20 messages (10 exchanges) to avoid overwhelming the context
+            recent_history = history[-20:] if len(history) > 20 else history
+            
+            logger.info(f"🧠 Sending {len(recent_history)} previous messages to OpenAI for context")
+            
+            for role, content in recent_history:
+                # Create conversation item for each previous message
+                conversation_item = {
+                    "type": "conversation.item.create",
+                    "item": {
+                        "type": "message",
+                        "role": role,  # "user" or "assistant"
+                        "content": [
+                            {
+                                "type": "input_text",
+                                "text": content
+                            }
+                        ]
+                    }
+                }
+                ws.send(json.dumps(conversation_item))
+            
+            logger.info(f"✅ Loaded {len(recent_history)} previous messages into AI context")
+        else:
+            logger.info("🧠 No previous conversation history found - starting fresh")
+        
         # Trigger immediate greeting - tell AI to start speaking first
         # Get the appropriate greeting from session instructions
         greeting_instruction = "Start the call by speaking first. Say your greeting exactly as specified in your GREETING GUIDANCE section. Speak in English."
