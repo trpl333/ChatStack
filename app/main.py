@@ -1211,43 +1211,6 @@ async def chat_completions_alias(
         body = await request.json()
         chat_req = ChatRequest(**body)
         
-        # =====================================================
-        # 📨 SEND CALL SUMMARY TO /call-summary (send_text service)
-        # =====================================================
-        try:
-            call_sid = locals().get("call_sid", "unknown")
-            from_number = locals().get("from_number", "Unknown Caller")
-            summary_text = locals().get("summary", "No summary generated.")
-
-            payload = {
-                "data": {
-                    "metadata": {
-                        "phone_call": {
-                            "call_sid": call_sid,
-                            "external_number": from_number
-                        }
-                    },
-                    "analysis": {
-                        "transcript_summary": summary_text
-                    }
-                }
-            }
-
-            response = requests.post(
-                "https://voice.theinsurancedoctors.com/call-summary",
-                headers={"Content-Type": "application/json"},
-                data=json.dumps(payload),
-                timeout=10
-            )
-
-            if response.status_code == 200:
-                print(f"✅ Call summary sent to send_text service: {call_sid}")
-            else:
-                print(f"⚠️ Call summary POST failed: {response.status_code} - {response.text}")
-
-        except Exception as e:
-            print(f"❌ Error sending call summary webhook: {str(e)}")
-
         return await chat_completion(
             chat_req, thread_id=thread_id, user_id=user_id, mem_store=mem_store
         )
@@ -2182,6 +2145,58 @@ async def media_stream_endpoint(websocket: WebSocket):
     finally:
         if oai:
             oai.close()
+        
+        # =====================================================
+        # 📨 SEND CALL SUMMARY TO /call-summary (send_text service)
+        # =====================================================
+        if call_sid and user_id:
+            try:
+                import requests
+                
+                # Generate summary from conversation history
+                thread_key = f"user_{user_id}"
+                history = THREAD_HISTORY.get(thread_key, deque())
+                
+                # Extract last 10 exchanges for summary
+                recent_messages = list(history)[-20:] if len(history) > 20 else list(history)
+                summary_lines = []
+                for role, content in recent_messages:
+                    summary_lines.append(f"{role.upper()}: {content}")
+                
+                summary_text = "\n".join(summary_lines) if summary_lines else "No conversation recorded."
+                
+                # Format phone number for display
+                from_number = f"+1{user_id}" if len(user_id) == 10 else user_id
+                
+                payload = {
+                    "data": {
+                        "metadata": {
+                            "phone_call": {
+                                "call_sid": call_sid,
+                                "external_number": from_number
+                            }
+                        },
+                        "analysis": {
+                            "transcript_summary": summary_text
+                        }
+                    }
+                }
+                
+                response = requests.post(
+                    "http://127.0.0.1:3000/call-summary",
+                    headers={"Content-Type": "application/json"},
+                    json=payload,
+                    timeout=2
+                )
+                
+                if response.status_code == 200:
+                    logger.info(f"✅ Call summary sent to send_text service: {call_sid}")
+                else:
+                    logger.warning(f"⚠️ Call summary POST failed: {response.status_code}")
+            
+            except Exception as e:
+                logger.error(f"❌ Error sending call summary: {str(e)}")
+        
         logger.info("🔌 WebSocket closed")
 
 # -----------------------------------------------------------------------------
