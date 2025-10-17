@@ -2167,7 +2167,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             "limit": 500,
                             "types": ["thread_history"]
                         },
-                        timeout=5
+                        timeout=1.0  # Short timeout - fallback to local if slow
                     )
                     
                     if memory_response.status_code == 200:
