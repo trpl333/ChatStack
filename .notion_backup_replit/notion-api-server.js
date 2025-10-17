@@ -105,14 +105,17 @@ app.post('/notion/platform-customer', async (req, res) => {
  *   phone: "+19495565377",
  *   transcript: "Full conversation...",
  *   summary: "Customer called about...",
- *   transfer_to: "John" (optional)
+ *   transfer_to: "John" (optional),
+ *   call_sid: "CAxxxxxxx" (optional),
+ *   transcript_url: "https://voice.theinsurancedoctors.com/calls/CAxxxx.txt" (optional),
+ *   audio_url: "https://voice.theinsurancedoctors.com/calls/CAxxxx.mp3" (optional)
  * }
  */
 app.post('/notion/call-log', async (req, res) => {
   try {
-    const { phone, transcript, summary, transfer_to } = req.body;
+    const { phone, transcript, summary, transfer_to, call_sid, transcript_url, audio_url } = req.body;
     
-    await syncService.logCall(phone, transcript, summary, transfer_to);
+    await syncService.logCall(phone, transcript, summary, transfer_to, call_sid, transcript_url, audio_url);
 
     res.json({ 
       success: true,

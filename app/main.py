@@ -2324,6 +2324,46 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.info(f"✅ Response from send_text: {response.text[:200]}")
                 else:
                     logger.warning(f"⚠️ Call summary POST failed: {response.status_code}, Response: {response.text[:200]}")
+                
+                # =====================================================
+                # 📊 SEND TO NOTION FOR DASHBOARD TRACKING
+                # =====================================================
+                try:
+                    from app.notion_client import NotionClient
+                    
+                    notion = NotionClient(base_url="http://172.17.0.1:8200")
+                    
+                    # Check if Notion service is available
+                    if notion.health_check():
+                        # Build URLs for transcript and audio
+                        base_url = "https://voice.theinsurancedoctors.com/calls"
+                        transcript_url = f"{base_url}/{call_sid}.txt"
+                        audio_url = f"{base_url}/{call_sid}.mp3"
+                        
+                        # Create brief summary (first 200 chars) for Notion Summary column
+                        # The full transcript goes in the Transcript column
+                        brief_summary = summary_text[:200] + "..." if len(summary_text) > 200 else summary_text
+                        
+                        logger.info(f"📊 Logging call to Notion: {call_sid}")
+                        logger.info(f"📊 Full transcript length: {len(summary_text)} chars")
+                        logger.info(f"📊 Brief summary: {brief_summary[:100]}...")
+                        
+                        notion.log_call(
+                            phone=from_number,
+                            transcript=summary_text,  # Full conversation transcript
+                            summary=brief_summary,  # Brief summary for quick view
+                            transfer_to=None,  # TODO: Detect if call was transferred
+                            call_sid=call_sid,
+                            transcript_url=transcript_url,
+                            audio_url=audio_url
+                        )
+                        
+                        logger.info(f"✅ Call logged to Notion dashboard: {call_sid}")
+                    else:
+                        logger.warning(f"⚠️ Notion service not available, skipping Notion logging")
+                        
+                except Exception as notion_error:
+                    logger.warning(f"⚠️ Failed to log to Notion (non-critical): {notion_error}")
             
             except Exception as e:
                 logger.error(f"❌ Error saving transcript/sending summary: {str(e)}")

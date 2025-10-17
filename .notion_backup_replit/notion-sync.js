@@ -176,9 +176,12 @@ const DATABASE_SCHEMAS = {
       'Call Date': { date: {} },
       'Customer': { relation: { database_id: 'customers' } },
       'Phone Number': { phone_number: {} },
+      'Call SID': { rich_text: {} },
       'Duration': { number: { format: 'number' } },
       'Transcript': { rich_text: {} },
       'Summary': { rich_text: {} },
+      'Transcript URL': { url: {} },
+      'Audio URL': { url: {} },
       'Transfer To': { rich_text: {} },
       'Call Type': { 
         select: { 
@@ -192,9 +195,20 @@ const DATABASE_SCHEMAS = {
       'Status': { 
         select: { 
           options: [
-            { name: 'Completed', color: 'green' },
-            { name: 'Transferred', color: 'yellow' },
-            { name: 'Voicemail', color: 'gray' }
+            { name: 'New', color: 'red' },
+            { name: 'Read', color: 'yellow' },
+            { name: 'Completed', color: 'green' }
+          ] 
+        } 
+      },
+      'Assigned Agent': { 
+        select: { 
+          options: [
+            { name: 'Unassigned', color: 'gray' },
+            { name: 'John', color: 'blue' },
+            { name: 'Milissa', color: 'purple' },
+            { name: 'Colin', color: 'green' },
+            { name: 'Samantha (AI)', color: 'orange' }
           ] 
         } 
       },
@@ -589,7 +603,7 @@ class NotionAIMemorySync {
   }
 
   // Log call to Notion
-  async logCall(phoneNumber, transcript, summary, transferTo = null) {
+  async logCall(phoneNumber, transcript, summary, transferTo = null, callSid = null, transcriptUrl = null, audioUrl = null) {
     const notion = await getNotionClient();
 
     // Find customer
@@ -602,10 +616,23 @@ class NotionAIMemorySync {
       'Call Date': { date: { start: new Date().toISOString() } },
       'Phone Number': { phone_number: phoneNumber },
       'Transcript': { rich_text: [{ text: { content: transcript.substring(0, 2000) } }] },
-      'Summary': { rich_text: [{ text: { content: summary } }] },
+      'Summary': { rich_text: [{ text: { content: summary.substring(0, 2000) } }] },
       'Call Type': { select: { name: 'Inbound' } },
-      'Status': { select: { name: transferTo ? 'Transferred' : 'Completed' } }
+      'Status': { select: { name: 'New' } },  // All new calls start as "New"
+      'Assigned Agent': { select: { name: 'Unassigned' } }  // Default to unassigned
     };
+
+    if (callSid) {
+      callProps['Call SID'] = { rich_text: [{ text: { content: callSid } }] };
+    }
+
+    if (transcriptUrl) {
+      callProps['Transcript URL'] = { url: transcriptUrl };
+    }
+
+    if (audioUrl) {
+      callProps['Audio URL'] = { url: audioUrl };
+    }
 
     if (customer.results.length > 0) {
       callProps['Customer'] = { relation: [{ id: customer.results[0].id }] };
