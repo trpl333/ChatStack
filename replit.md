@@ -66,24 +66,96 @@ Manual production edits create:
   ```
 
 ### AI-Memory Service (Persistent Memory & Admin Settings)
-- **GitHub Repo**: `https://github.com/trpl333/ai-memory.git`
-- **DigitalOcean Path**: `/opt/ai-memory/`
-- **Service**: FastAPI memory service (port 8100)
+**📅 Last Updated: Oct 17, 2025 - CRITICAL LOCATION CLARIFICATION**
+
+- **GitHub Repo**: `https://github.com/trpl333/ai-memory.git` *(needs verification)*
+- **ACTUAL DigitalOcean Path**: `/opt/neurosphere-memory-bridge/` ⚠️
+- **Service Type**: Systemd service (NOT Docker)
+- **Service Name**: `ai-memory.service`
+- **Port**: 8100
 - **Connection URL**: `http://209.38.143.71:8100` (external DigitalOcean service)
 - **Purpose**: Stores conversation memory, admin settings, user data
-- **Deployment**:
-  ```bash
-  cd /opt/ai-memory
-  git fetch origin
-  git reset --hard origin/main
-  docker-compose down
-  docker-compose up -d --build
-  docker logs ai-memory-worker-1 --tail 20
-  ```
-- **⚠️ IMPORTANT**: 
-  - The `ai-memory-main.py` file in the ChatStack repo is just a REFERENCE COPY. To modify AI-Memory, you MUST work in the separate `ai-memory` repository.
 
-### Other Services on DigitalOcean
+**🗂️ Directory Confusion - READ THIS:**
+There are **3 different AI-Memory directories** on the server - DO NOT confuse them:
+
+1. **`/opt/neurosphere-memory-bridge/`** ✅ ACTIVE AI-Memory service
+   - This is the REAL AI-Memory service running on port 8100
+   - Contains: `main.py`, `.venv/`, `.env`
+   - Started via systemd: `systemctl start ai-memory`
+   
+2. **`/opt/ai-memory/`** ❌ This is actually ChatStack repo clone (NOT AI-Memory!)
+   - Contains ChatStack code, NOT AI-Memory service
+   - Has `ai-memory-main.py` which is just a reference copy
+   
+3. **`/root/ai-memory/`** ⚠️ Old/stale copy from Oct 6-9, 2025
+   - Legacy directory, may be outdated
+   - DO NOT use for production
+
+**Service Management (Systemd - NOT Docker):**
+```bash
+# Check status
+systemctl status ai-memory
+
+# Start/Stop/Restart
+systemctl start ai-memory
+systemctl stop ai-memory
+systemctl restart ai-memory
+
+# View logs
+journalctl -u ai-memory -f
+
+# Health check
+curl http://127.0.0.1:8100/health
+curl http://209.38.143.71:8100/health
+```
+
+**Service File Location:**
+- `/etc/systemd/system/ai-memory.service`
+- Created: Oct 17, 2025 at 18:19 UTC
+- WorkingDirectory: `/opt/neurosphere-memory-bridge`
+- ExecStart: `.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8100`
+
+**⚠️ KNOWN ISSUES (as of Oct 17, 2025):**
+1. **Endpoint Mismatch**: Service returns 404 for `/memory/retrieve` 
+   - ChatStack expects: `/memory/retrieve`, `/memory/store`
+   - Current service may have different endpoint names
+   - **Action needed**: Verify endpoint compatibility between ChatStack and AI-Memory
+
+2. **Historical Notes:**
+   - Service was managed by cron job until Oct 7, 2025 (restarted every 5 mins)
+   - Manually stopped Oct 7 at 17:35 UTC
+   - Recreated Oct 17 at 18:19 UTC
+
+**⚠️ CRITICAL DEPENDENCY:**
+- The `ai-memory-main.py` file in ChatStack repo is just a REFERENCE COPY
+- To modify AI-Memory, work in `/opt/neurosphere-memory-bridge/` on the server
+- ChatStack depends entirely on this service - if it's down, phone system fails
+
+### All Active Services on DigitalOcean
+**📅 Last Verified: Oct 17, 2025**
+
+**Critical Services (must be running):**
+
+1. **orchestrator.service** - ChatStack Orchestrator
+   - Path: `/opt/ChatStack/`
+   - Port: 5000 (Flask) + 8001 (FastAPI)
+   - Control: `systemctl start/stop/restart orchestrator`
+   - Logs: `journalctl -u orchestrator -f`
+
+2. **ai-memory.service** - Memory Service
+   - Path: `/opt/neurosphere-memory-bridge/`
+   - Port: 8100
+   - Control: `systemctl start/stop/restart ai-memory`
+   - Logs: `journalctl -u ai-memory -f`
+
+3. **voice-bridge.service** - Twilio Voice Bridge
+   - Path: `/opt/voice-bridge/`
+   - Port: 9100
+   - Control: `systemctl start/stop/restart voice-bridge`
+   - Logs: `journalctl -u voice-bridge -f`
+
+**Other Services:**
 - `/opt/neurosphere-sync/` - Notion sync service
 - `/opt/orchestrator/` - Legacy orchestrator (if still active)
 
@@ -119,40 +191,52 @@ ChatStack cannot function without AI-Memory because it stores:
 - Transfer rules and routing configuration
 
 ### Troubleshooting: "Phone System Stopped Working"
+**📅 Updated: Oct 17, 2025 - Systemd Service Management**
 
 **Step 1: Check AI-Memory Service Status**
 ```bash
 # SSH to DigitalOcean, then:
+systemctl status ai-memory
+
+# Also test endpoint:
 curl http://209.38.143.71:8100/health
 
 # Expected response:
-# {"status": "ok", "db": true}
+# {"ok": true}
 ```
 
-**Step 2: Check if AI-Memory Container is Running**
+**Step 2: Check if AI-Memory is Listening on Port 8100**
 ```bash
-docker ps | grep -i memory
+sudo lsof -i :8100
+# OR
+netstat -tulnp | grep 8100
 
 # Expected output:
-# ai-memory-worker-1 (running)
+# uvicorn running on 0.0.0.0:8100
 ```
 
 **Step 3: Restart AI-Memory if Down**
 ```bash
-cd /opt/ai-memory
-docker-compose up -d
-docker logs ai-memory-worker-1 --tail 20
+# Restart the systemd service
+sudo systemctl restart ai-memory
+
+# Check logs
+journalctl -u ai-memory -f --lines 50
 
 # Verify it's working:
 curl http://127.0.0.1:8100/health
 ```
 
-**Step 4: Restart ChatStack (if AI-Memory was down)**
+**Step 4: Restart Orchestrator (if AI-Memory was down)**
 ```bash
-cd /opt/ChatStack
-docker-compose restart
-docker logs chatstack-web-1 --tail 20
-docker logs chatstack-orchestrator-worker-1 --tail 20
+# Restart ChatStack orchestrator
+sudo systemctl restart orchestrator
+
+# Check status
+systemctl status orchestrator
+
+# View logs
+journalctl -u orchestrator -f --lines 20
 ```
 
 ### Quick Health Check Script
