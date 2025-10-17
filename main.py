@@ -1067,6 +1067,28 @@ def handle_incoming_call_realtime():
 def recording_complete():
     """Handle recording completion callback from Twilio"""
     try:
+        # SECURITY: Validate Twilio request signature
+        from twilio.request_validator import RequestValidator
+        
+        config = _get_config()
+        validator = RequestValidator(config["twilio_auth_token"])
+        
+        # Get the request URL (must be the full URL Twilio called)
+        url = request.url
+        # For HTTPS behind proxy, ensure we use https://
+        if request.headers.get('X-Forwarded-Proto') == 'https':
+            url = url.replace('http://', 'https://')
+        
+        # Get Twilio signature from header
+        signature = request.headers.get('X-Twilio-Signature', '')
+        
+        # Validate signature
+        if not validator.validate(url, request.form, signature):
+            logging.error(f"❌ SECURITY: Invalid Twilio signature for recording webhook")
+            return "Unauthorized", 403
+        
+        logging.info(f"✅ SECURITY: Twilio recording signature validated")
+        
         call_sid = request.form.get('CallSid')
         recording_url = request.form.get('RecordingUrl')
         recording_sid = request.form.get('RecordingSid')
@@ -1075,22 +1097,47 @@ def recording_complete():
             logging.error("❌ Missing recording URL or call SID")
             return '', 200
         
+        # SECURITY: Validate recording URL is from Twilio
+        if not recording_url.startswith('https://api.twilio.com/'):
+            logging.error(f"❌ SECURITY: Invalid recording URL (not from Twilio): {recording_url}")
+            return "Invalid recording URL", 400
+        
+        # SECURITY: Sanitize call_sid to prevent directory traversal
+        import re
+        if not re.match(r'^[A-Za-z0-9]+$', call_sid):
+            logging.error(f"❌ SECURITY: Invalid call_sid format: {call_sid}")
+            return "Invalid call SID", 400
+        
         logging.info(f"🎙️ Recording completed for call {call_sid}: {recording_url}")
         
-        # Download recording from Twilio
-        config = _get_config()
+        # Download recording from Twilio with size limit
         auth = (config["twilio_account_sid"], config["twilio_auth_token"])
         
         # Get MP3 format recording
         mp3_url = f"{recording_url}.mp3"
-        response = requests.get(mp3_url, auth=auth)
+        response = requests.get(mp3_url, auth=auth, stream=True, timeout=30)
         
         if response.status_code == 200:
-            # Save to static/calls directory
-            recording_path = os.path.join(CALLS_DIR, f"{call_sid}.mp3")
-            with open(recording_path, 'wb') as f:
-                f.write(response.content)
-            logging.info(f"✅ Recording saved: {recording_path}")
+            # SECURITY: Limit file size to 100MB
+            max_size = 100 * 1024 * 1024  # 100MB
+            
+            # Save to static/calls directory with temp file and atomic rename
+            temp_path = os.path.join(CALLS_DIR, f"{call_sid}.mp3.tmp")
+            final_path = os.path.join(CALLS_DIR, f"{call_sid}.mp3")
+            
+            total_size = 0
+            with open(temp_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    total_size += len(chunk)
+                    if total_size > max_size:
+                        os.remove(temp_path)
+                        logging.error(f"❌ Recording too large (>{max_size} bytes)")
+                        return "Recording too large", 413
+                    f.write(chunk)
+            
+            # Atomic rename
+            os.rename(temp_path, final_path)
+            logging.info(f"✅ Recording saved: {final_path} ({total_size} bytes)")
         else:
             logging.error(f"❌ Failed to download recording: {response.status_code}")
         

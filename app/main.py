@@ -2177,27 +2177,36 @@ async def media_stream_endpoint(websocket: WebSocket):
                     f.write(summary_text)
                 logger.info(f"📝 Transcript saved: {transcript_path}")
                 
-                # Update calls.json index
+                # Update calls.json index with file locking to prevent race conditions
+                import fcntl
                 calls_index_path = os.path.join(calls_dir, "calls.json")
                 calls_data = []
-                if os.path.exists(calls_index_path):
+                
+                # Acquire exclusive lock before reading/writing
+                with open(calls_index_path, 'a+') as lock_file:
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
                     try:
-                        with open(calls_index_path, 'r') as f:
-                            calls_data = json.load(f)
+                        lock_file.seek(0)
+                        content = lock_file.read()
+                        if content:
+                            calls_data = json.loads(content)
                     except:
                         calls_data = []
+                    
+                    calls_data.append({
+                        "call_sid": call_sid,
+                        "date": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                        "caller": from_number,
+                        "summary": summary_text[:200] + "..." if len(summary_text) > 200 else summary_text,
+                        "transcript_file": f"{call_sid}.txt",
+                        "audio_file": f"{call_sid}.mp3"
+                    })
+                    
+                    lock_file.seek(0)
+                    lock_file.truncate()
+                    lock_file.write(json.dumps(calls_data, indent=2))
+                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
                 
-                calls_data.append({
-                    "call_sid": call_sid,
-                    "date": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
-                    "caller": from_number,
-                    "summary": summary_text[:200] + "..." if len(summary_text) > 200 else summary_text,
-                    "transcript_file": f"{call_sid}.txt",
-                    "audio_file": f"{call_sid}.mp3"
-                })
-                
-                with open(calls_index_path, 'w') as f:
-                    json.dump(calls_data, f, indent=2)
                 logger.info(f"📒 Updated calls index: {calls_index_path}")
                 
                 # Send to send_text service for SMS notification
