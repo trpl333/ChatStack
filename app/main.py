@@ -429,27 +429,39 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
         
         logger.info(f"🔍 Loading thread history: key={history_key}, user_id={user_id}")
         
-        # Strategy: Search broadly (type filter doesn't work in ai-memory service)
-        # Then filter client-side for exact key match
-        results = mem_store.search(history_key, user_id=user_id, k=200)
-        
-        logger.info(f"🔍 Search returned {len(results)} results for key: {history_key}")
+        # ✅ FIX: Use get_user_memories() instead of search() for more reliable key matching
+        # search() uses semantic similarity which doesn't work well for exact key lookups
+        if user_id:
+            # Use high limit to ensure we don't miss thread history for users with many memories
+            # Match the limit used elsewhere in the code (line 1870) for consistency
+            results = mem_store.get_user_memories(user_id, limit=3000, include_shared=False)
+            logger.info(f"🔍 Retrieved {len(results)} total memories for user {user_id}")
+            
+            # If we hit the limit, warn that some memories might be missing
+            if len(results) >= 3000:
+                logger.warning(f"⚠️ Hit memory limit (3000) - some older memories may be missing. Consider pagination.")
+        else:
+            # Fallback to search if no user_id
+            results = mem_store.search(history_key, user_id=user_id, k=200)
+            logger.info(f"🔍 Search returned {len(results)} results for key: {history_key}")
         
         # Filter for exact key match (case-insensitive for safety)
         matching_memory = None
         for result in results:
             result_key = result.get("key") or result.get("k") or ""
-            # Check exact match OR if the value contains our thread history
-            if result_key == history_key:
+            result_type = result.get("type", "")
+            # Check exact match for thread_history key
+            if result_key == history_key and result_type == "thread_recap":
                 matching_memory = result
-                logger.info(f"✅ Found exact match for key: {history_key}")
+                logger.info(f"✅ Found exact match for key: {history_key}, type: {result_type}")
                 break
             # Fallback: check if value contains thread history data
             elif isinstance(result.get("value"), dict) and "messages" in result.get("value", {}):
                 # This might be our thread history with a different key format
-                logger.info(f"🔍 Found potential match with key={result_key}")
-                matching_memory = result
-                break
+                if history_key in result_key or result_type == "thread_recap":
+                    logger.info(f"🔍 Found potential match with key={result_key}, type={result_type}")
+                    matching_memory = result
+                    break
         
         if matching_memory:
             value = matching_memory.get("value", {})
@@ -469,7 +481,7 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
                     logger.info(f"📝 Last message: {last_msg['role']}: {last_msg['content'][:100]}...")
                 return
         
-        logger.info(f"🧵 No stored history found for thread {thread_id} (searched {len(results)} results)")
+        logger.warning(f"⚠️ No stored history found for thread {thread_id} (checked {len(results)} memories, looking for key={history_key})")
     except Exception as e:
         logger.error(f"❌ Failed to load thread history for {thread_id}: {e}", exc_info=True)
 
@@ -2275,6 +2287,11 @@ async def media_stream_endpoint(websocket: WebSocket):
                 # Truncate summary to 500 chars to avoid SMS 1600 char limit
                 short_summary = summary_text[:500] + "..." if len(summary_text) > 500 else summary_text
                 
+                logger.info(f"📱 Preparing SMS for call {call_sid}")
+                logger.info(f"📱 Phone number: {from_number}")
+                logger.info(f"📱 Summary length: {len(summary_text)} chars (truncated to {len(short_summary)})")
+                logger.info(f"📱 First 100 chars of summary: {short_summary[:100]}...")
+                
                 payload = {
                     "data": {
                         "metadata": {
@@ -2289,6 +2306,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                     }
                 }
                 
+                logger.info(f"📱 Payload call_sid: {payload['data']['metadata']['phone_call']['call_sid']}")
+                logger.info(f"📱 Payload phone: {payload['data']['metadata']['phone_call']['external_number']}")
+                
                 # Send to send_text service (use Docker host gateway to reach host machine)
                 response = requests.post(
                     "http://172.17.0.1:3000/call-summary",
@@ -2299,8 +2319,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                 
                 if response.status_code == 200:
                     logger.info(f"✅ Call summary sent to send_text service: {call_sid}")
+                    logger.info(f"✅ Response from send_text: {response.text[:200]}")
                 else:
-                    logger.warning(f"⚠️ Call summary POST failed: {response.status_code}")
+                    logger.warning(f"⚠️ Call summary POST failed: {response.status_code}, Response: {response.text[:200]}")
             
             except Exception as e:
                 logger.error(f"❌ Error saving transcript/sending summary: {str(e)}")
