@@ -341,17 +341,20 @@ def build_complete_prompt(selected_blocks: dict, agent_name: str = "Amanda") -> 
         if category_key in selected_blocks:
             block_value = selected_blocks[category_key]
             
-            # Check if it's a preset key or custom text
-            presets = categories[category_key]['presets']
-            if block_value in presets:
-                prompt_text = presets[block_value]['prompt']
-            else:
-                # It's custom text
-                prompt_text = block_value
+            # ALWAYS treat as custom text (preset expansion disabled to prevent insurance language)
+            # This forces the system to use whatever text is in the database as-is
+            prompt_text = block_value
             
             if prompt_text:
                 # Inject agent name
                 prompt_text = prompt_text.replace("{agent_name}", agent_name)
                 prompt_parts.append(prompt_text)
     
-    return "\n\n".join(prompt_parts)
+    final_prompt = "\n\n".join(prompt_parts)
+    
+    # 🔍 DEBUG: Log the final prompt to verify no insurance language
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"🔍 FINAL PROMPT BEING SENT (first 300 chars):\n{final_prompt[:300]}")
+    
+    return final_prompt
