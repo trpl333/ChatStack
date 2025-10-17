@@ -1210,6 +1210,44 @@ async def chat_completions_alias(
     try:
         body = await request.json()
         chat_req = ChatRequest(**body)
+        
+        # =====================================================
+        # 📨 SEND CALL SUMMARY TO /call-summary (send_text service)
+        # =====================================================
+        try:
+            call_sid = locals().get("call_sid", "unknown")
+            from_number = locals().get("from_number", "Unknown Caller")
+            summary_text = locals().get("summary", "No summary generated.")
+
+            payload = {
+                "data": {
+                    "metadata": {
+                        "phone_call": {
+                            "call_sid": call_sid,
+                            "external_number": from_number
+                        }
+                    },
+                    "analysis": {
+                        "transcript_summary": summary_text
+                    }
+                }
+            }
+
+            response = requests.post(
+                "https://voice.theinsurancedoctors.com/call-summary",
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(payload),
+                timeout=10
+            )
+
+            if response.status_code == 200:
+                print(f"✅ Call summary sent to send_text service: {call_sid}")
+            else:
+                print(f"⚠️ Call summary POST failed: {response.status_code} - {response.text}")
+
+        except Exception as e:
+            print(f"❌ Error sending call summary webhook: {str(e)}")
+
         return await chat_completion(
             chat_req, thread_id=thread_id, user_id=user_id, mem_store=mem_store
         )
