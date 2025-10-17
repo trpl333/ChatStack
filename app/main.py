@@ -2167,7 +2167,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                 from datetime import datetime
                 
                 # Extract full conversation from AI-Memory (authoritative source)
-                logger.info(f"🔍 Retrieving transcript from AI-Memory for call {call_sid}...")
+                # Thread history is stored with key = thread_history:user_{user_id}
+                thread_key = f"user_{user_id}"
+                logger.info(f"🔍 Retrieving transcript from AI-Memory for call {call_sid}, thread_key={thread_key}...")
                 
                 try:
                     memory_response = requests.post(
@@ -2175,9 +2177,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                         headers={"Content-Type": "application/json"},
                         json={
                             "user_id": user_id,
-                            "message": f"thread_history {call_sid}",
+                            "message": f"thread_history:{thread_key}",  # Correct key format
                             "limit": 500,
-                            "types": ["thread_history"]
+                            "types": ["thread_recap"]  # Correct type
                         },
                         timeout=3.0  # 3 second timeout for AI-Memory
                     )
