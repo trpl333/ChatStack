@@ -1770,6 +1770,7 @@ async def media_stream_endpoint(websocket: WebSocket):
     
     stream_sid = None
     call_sid = None  # Track call_sid for transfer functionality
+    user_id = None  # Track user_id for transcript retrieval
     oai = None
     last_media_ts = time.time()
     
