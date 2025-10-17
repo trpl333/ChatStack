@@ -2147,27 +2147,60 @@ async def media_stream_endpoint(websocket: WebSocket):
             oai.close()
         
         # =====================================================
-        # 📨 SEND CALL SUMMARY TO /call-summary (send_text service)
+        # 📨 SAVE TRANSCRIPT & SEND CALL SUMMARY
         # =====================================================
         if call_sid and user_id:
             try:
                 import requests
+                from datetime import datetime
                 
-                # Generate summary from conversation history
+                # Generate transcript from conversation history
                 thread_key = f"user_{user_id}"
                 history = THREAD_HISTORY.get(thread_key, deque())
                 
-                # Extract last 10 exchanges for summary
-                recent_messages = list(history)[-20:] if len(history) > 20 else list(history)
-                summary_lines = []
-                for role, content in recent_messages:
-                    summary_lines.append(f"{role.upper()}: {content}")
+                # Build full transcript
+                transcript_lines = []
+                for role, content in history:
+                    transcript_lines.append(f"{role.upper()}: {content}")
                 
-                summary_text = "\n".join(summary_lines) if summary_lines else "No conversation recorded."
+                summary_text = "\n".join(transcript_lines) if transcript_lines else "No conversation recorded."
                 
                 # Format phone number for display
                 from_number = f"+1{user_id}" if len(user_id) == 10 else user_id
                 
+                # Save transcript to file
+                calls_dir = "/opt/ChatStack/static/calls"
+                os.makedirs(calls_dir, exist_ok=True)
+                
+                transcript_path = os.path.join(calls_dir, f"{call_sid}.txt")
+                with open(transcript_path, 'w') as f:
+                    f.write(summary_text)
+                logger.info(f"📝 Transcript saved: {transcript_path}")
+                
+                # Update calls.json index
+                calls_index_path = os.path.join(calls_dir, "calls.json")
+                calls_data = []
+                if os.path.exists(calls_index_path):
+                    try:
+                        with open(calls_index_path, 'r') as f:
+                            calls_data = json.load(f)
+                    except:
+                        calls_data = []
+                
+                calls_data.append({
+                    "call_sid": call_sid,
+                    "date": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                    "caller": from_number,
+                    "summary": summary_text[:200] + "..." if len(summary_text) > 200 else summary_text,
+                    "transcript_file": f"{call_sid}.txt",
+                    "audio_file": f"{call_sid}.mp3"
+                })
+                
+                with open(calls_index_path, 'w') as f:
+                    json.dump(calls_data, f, indent=2)
+                logger.info(f"📒 Updated calls index: {calls_index_path}")
+                
+                # Send to send_text service for SMS notification
                 payload = {
                     "data": {
                         "metadata": {
@@ -2195,7 +2228,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.warning(f"⚠️ Call summary POST failed: {response.status_code}")
             
             except Exception as e:
-                logger.error(f"❌ Error sending call summary: {str(e)}")
+                logger.error(f"❌ Error saving transcript/sending summary: {str(e)}")
         
         logger.info("🔌 WebSocket closed")
 

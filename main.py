@@ -77,6 +77,15 @@ if not SESSION_SECRET:
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
 
+# Create calls directory for storing transcripts and recordings
+CALLS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'calls')
+os.makedirs(CALLS_DIR, exist_ok=True)
+CALLS_INDEX = os.path.join(CALLS_DIR, 'calls.json')
+if not os.path.exists(CALLS_INDEX):
+    with open(CALLS_INDEX, 'w') as f:
+        json.dump([], f)
+logging.info(f"📁 Calls directory ready: {CALLS_DIR}")
+
 def _get_backend_url():
     """Get LLM backend URL dynamically"""
     config = _get_config()
@@ -1039,16 +1048,56 @@ def handle_incoming_call_realtime():
     connect.append(stream_elem)
     response.append(connect)
     
+    # ✅ Enable call recording (runs in parallel on Twilio's servers, no latency impact)
+    response.record(
+        recording_status_callback=f"{server_url}/recording-complete",
+        recording_status_callback_method='POST',
+        recording_status_callback_event=['completed']
+    )
+    
     logging.info(f"⏱️ Stage: TwiML generated with Media Stream | Elapsed: {time.time() - t0:.3f}s")
     logging.info(f"🔗 WebSocket URL: {ws_url}")
+    logging.info(f"🎙️ Call recording enabled - callback: {server_url}/recording-complete")
     if customer_id:
         logging.info(f"👤 Customer Context: ID={customer_id}, Agent={customer.agent_name}, Voice={customer.openai_voice}")
     
-    # NOTE: Call recording disabled - conflicts with Media Streams causing response delays
-    # For call logging, transcripts are already captured in real-time through the WebSocket
-    # and can be sent to Notion directly from the conversation handler
-    
     return str(response), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/recording-complete', methods=['POST'])
+def recording_complete():
+    """Handle recording completion callback from Twilio"""
+    try:
+        call_sid = request.form.get('CallSid')
+        recording_url = request.form.get('RecordingUrl')
+        recording_sid = request.form.get('RecordingSid')
+        
+        if not recording_url or not call_sid:
+            logging.error("❌ Missing recording URL or call SID")
+            return '', 200
+        
+        logging.info(f"🎙️ Recording completed for call {call_sid}: {recording_url}")
+        
+        # Download recording from Twilio
+        config = _get_config()
+        auth = (config["twilio_account_sid"], config["twilio_auth_token"])
+        
+        # Get MP3 format recording
+        mp3_url = f"{recording_url}.mp3"
+        response = requests.get(mp3_url, auth=auth)
+        
+        if response.status_code == 200:
+            # Save to static/calls directory
+            recording_path = os.path.join(CALLS_DIR, f"{call_sid}.mp3")
+            with open(recording_path, 'wb') as f:
+                f.write(response.content)
+            logging.info(f"✅ Recording saved: {recording_path}")
+        else:
+            logging.error(f"❌ Failed to download recording: {response.status_code}")
+        
+        return '', 200
+    except Exception as e:
+        logging.error(f"❌ Error handling recording: {e}")
+        return '', 500
 
 @app.route('/phone/process-speech', methods=['POST'])
 def process_speech():
