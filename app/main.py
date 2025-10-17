@@ -2167,7 +2167,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             "limit": 500,
                             "types": ["thread_history"]
                         },
-                        timeout=1.0  # Short timeout - fallback to local if slow
+                        timeout=3.0  # 3 second timeout for AI-Memory
                     )
                     
                     if memory_response.status_code == 200:
@@ -2272,6 +2272,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                 logger.info(f"📒 Updated calls index: {calls_index_path}")
                 
                 # Send to send_text service for SMS notification
+                # Truncate summary to 500 chars to avoid SMS 1600 char limit
+                short_summary = summary_text[:500] + "..." if len(summary_text) > 500 else summary_text
+                
                 payload = {
                     "data": {
                         "metadata": {
@@ -2281,7 +2284,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             }
                         },
                         "analysis": {
-                            "transcript_summary": summary_text
+                            "transcript_summary": short_summary
                         }
                     }
                 }
