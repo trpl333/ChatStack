@@ -2286,8 +2286,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                     }
                 }
                 
+                # Send to send_text service (use Docker host gateway to reach host machine)
                 response = requests.post(
-                    "http://127.0.0.1:3000/call-summary",
+                    "http://172.17.0.1:3000/call-summary",
                     headers={"Content-Type": "application/json"},
                     json=payload,
                     timeout=2
