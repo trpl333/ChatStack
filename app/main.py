@@ -2230,8 +2230,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                 # Format phone number for display
                 from_number = f"+1{user_id}" if len(user_id) == 10 else user_id
                 
-                # Save transcript to file
-                calls_dir = "/opt/ChatStack/static/calls"
+                # Save transcript to file (use container path /app/static/calls)
+                calls_dir = "/app/static/calls"
                 os.makedirs(calls_dir, exist_ok=True)
                 
                 transcript_path = os.path.join(calls_dir, f"{call_sid}.txt")
