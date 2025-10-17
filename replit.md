@@ -23,6 +23,11 @@ The system employs a microservices architecture with distinct components:
     -   **Rolling Thread History**: FastAPI maintains a deque of up to 500 messages per unique `thread_id`, saved to and loaded from PostgreSQL. It includes automatic memory consolidation and provides both within-call and cross-call continuity.
     -   **Automatic Memory Consolidation**: Triggers at 400 messages, using an LLM to extract structured data (people, facts, preferences, commitments) from older messages, which are then de-duplicated and the thread history pruned.
     -   **AI-Memory Service**: Permanent storage for structured facts, admin settings, and user registration.
+-   **Call Recording & Transcripts**: Every call automatically saves:
+    -   **Transcript**: Retrieved from AI-Memory (authoritative source) and saved to `/opt/ChatStack/static/calls/{call_sid}.txt` with formatted conversation history
+    -   **Audio Recording**: Downloaded from Twilio after call ends, saved to `/opt/ChatStack/static/calls/{call_sid}.mp3`
+    -   **Call Index**: Metadata stored in `calls.json` with timestamps, caller info, and file references
+    -   **Security**: Twilio signature validation, URL sanitization, file size limits, atomic writes with file locking
 -   **Prompt Engineering**: Employs file-based system prompts for AI personalities, intelligent context packing, and safety triggers.
 -   **Tool System**: An extensible, JSON schema-based architecture with a central dispatcher for external tool execution.
 -   **Data Models**: Pydantic for type-safe validation.

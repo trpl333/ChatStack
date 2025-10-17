@@ -2154,16 +2154,78 @@ async def media_stream_endpoint(websocket: WebSocket):
                 import requests
                 from datetime import datetime
                 
-                # Generate transcript from conversation history
-                thread_key = f"user_{user_id}"
-                history = THREAD_HISTORY.get(thread_key, deque())
+                # Extract full conversation from AI-Memory (authoritative source)
+                logger.info(f"🔍 Retrieving transcript from AI-Memory for call {call_sid}...")
                 
-                # Build full transcript
-                transcript_lines = []
-                for role, content in history:
-                    transcript_lines.append(f"{role.upper()}: {content}")
+                try:
+                    memory_response = requests.post(
+                        "http://209.38.143.71:8100/memory/retrieve",
+                        headers={"Content-Type": "application/json"},
+                        json={
+                            "user_id": user_id,
+                            "message": f"thread_history {call_sid}",
+                            "limit": 500,
+                            "types": ["thread_history"]
+                        },
+                        timeout=5
+                    )
+                    
+                    if memory_response.status_code == 200:
+                        memory_data = memory_response.json()
+                        memory_content = memory_data.get("memory", "")
+                        
+                        if memory_content:
+                            # Parse the JSON memory content
+                            memory_json = json.loads(memory_content)
+                            messages = memory_json.get("messages", [])
+                            
+                            if messages:
+                                logger.info(f"✅ Retrieved {len(messages)} messages from AI-Memory")
+                                
+                                # Build formatted transcript from AI-Memory
+                                transcript_lines = [
+                                    f"Call SID: {call_sid}",
+                                    f"Phone Number: +1{user_id}",
+                                    f"Date: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
+                                    "=" * 80,
+                                    ""
+                                ]
+                                
+                                for msg in messages:
+                                    role = msg.get("role", "unknown")
+                                    content = msg.get("content", "")
+                                    
+                                    if role == "assistant":
+                                        transcript_lines.append(f"AI: {content}")
+                                    elif role == "user":
+                                        transcript_lines.append(f"CALLER: {content}")
+                                    else:
+                                        transcript_lines.append(f"{role.upper()}: {content}")
+                                    transcript_lines.append("")
+                                
+                                summary_text = "\n".join(transcript_lines)
+                                logger.info(f"✅ Formatted transcript from AI-Memory ({len(summary_text)} bytes)")
+                            else:
+                                logger.warning(f"⚠️ No messages in AI-Memory, using fallback")
+                                raise ValueError("No messages in memory")
+                        else:
+                            logger.warning(f"⚠️ Empty memory content, using fallback")
+                            raise ValueError("Empty memory content")
+                    else:
+                        logger.warning(f"⚠️ AI-Memory returned {memory_response.status_code}, using fallback")
+                        raise ValueError(f"AI-Memory error: {memory_response.status_code}")
                 
-                summary_text = "\n".join(transcript_lines) if transcript_lines else "No conversation recorded."
+                except Exception as e:
+                    # Fallback: use local THREAD_HISTORY if AI-Memory fails
+                    logger.warning(f"⚠️ AI-Memory retrieval failed ({e}), using local THREAD_HISTORY")
+                    thread_key = f"user_{user_id}"
+                    history = THREAD_HISTORY.get(thread_key, deque())
+                    
+                    transcript_lines = []
+                    for role, content in history:
+                        transcript_lines.append(f"{role.upper()}: {content}")
+                    
+                    summary_text = "\n".join(transcript_lines) if transcript_lines else "No conversation recorded."
                 
                 # Format phone number for display
                 from_number = f"+1{user_id}" if len(user_id) == 10 else user_id
