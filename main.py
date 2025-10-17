@@ -1868,11 +1868,11 @@ def update_agent_name():
 def get_agent_name():
     """Get agent name from AI-Memory service"""
     try:
-        agent_name = get_admin_setting("agent_name", "Amanda")  # Default to Amanda
+        agent_name = get_admin_setting("agent_name", "AI Assistant")  # Generic fallback
         return jsonify({"agent_name": agent_name})
     except Exception as e:
         logging.error(f"❌ Failed to get agent name: {e}")
-        return jsonify({"agent_name": "Amanda"})  # Return default on error
+        return jsonify({"agent_name": "AI Assistant"})  # Return generic default on error
 
 @app.route('/phone/admin/reset-greetings', methods=['POST'])
 def reset_greetings_to_placeholders():
@@ -1882,9 +1882,9 @@ def reset_greetings_to_placeholders():
         import time
         mem_store = HTTPMemoryStore()
         
-        # Default greetings with proper placeholders
-        default_existing = "Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {user_name}?"
-        default_new = "Good {time_greeting}! This is {agent_name} - how's your day going? I'm here at Peterson Family Insurance, and I'd love to help you out with whatever you need!"
+        # Default greetings with proper placeholders (NO insurance language)
+        default_existing = "Hi, this is {agent_name}. Is this {user_name}?"
+        default_new = "Good {time_greeting}! This is {agent_name}. How can I help you?"
         
         # Save both greetings with placeholders
         mem_store.write(

@@ -1893,7 +1893,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 break
                     
                     # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
-                    agent_name = agent_name_override or get_admin_setting("agent_name", "Betsy")
+                    agent_name = agent_name_override or get_admin_setting("agent_name", "AI Assistant")
                     
                     # Build instructions from admin panel blocks if available
                     if selected_blocks:
@@ -1985,7 +1985,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             logger.info(f"🎤 Using customer-specific greeting: '{greeting_template}'")
                         else:
                             greeting_template = get_admin_setting("existing_user_greeting", 
-                                                                 f"Hi, this is {agent_name} from Peterson Family Insurance Agency. Is this {{user_name}}?")
+                                                                 f"Hi, this is {agent_name}. Is this {{user_name}}?")
                             logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
                         
                         # Build caller identity context
@@ -2019,7 +2019,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             logger.info(f"🎤 Using customer-specific new caller greeting: '{greeting_template}'")
                         else:
                             greeting_template = get_admin_setting("new_caller_greeting", 
-                                                                 f"{{time_greeting}}! This is {agent_name}. What can I do for you?")
+                                                                 f"{{time_greeting}}! This is {agent_name}. How can I help you?")
                         
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
