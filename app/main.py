@@ -1907,32 +1907,12 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 instructions = f.read()
                             logger.info(f"⚠️ No admin panel blocks found, using file: {system_prompt_path}")
                         except FileNotFoundError:
-                            instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun. You're everyone's fun friend who happens to know about insurance. No corporate talk, just real conversation with humor."
-                            logger.info(f"⚠️ No admin blocks or file, using hardcoded fallback")
+                            instructions = f"You are {agent_name}, a helpful assistant. Be friendly, casual, and conversational."
+                            logger.info(f"⚠️ No admin blocks or file, using generic fallback")
                     
-                    # Use customer-specific business name or default
-                    if customer_id:
-                        instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you represent this customer's business (Customer ID: {customer_id})."
-                    else:
-                        instructions += f"\n\n=== YOUR IDENTITY ===\nYour name is {agent_name} and you work for Peterson Family Insurance Agency, part of Farmers Insurance."
-                    
-                    # ✅ ADD PERSONALITY INSTRUCTIONS (with dynamic sliders) - MULTI-TENANT
-                    base_personality = """
-
-=== YOUR PERSONALITY & VOICE ===
-Sound smooth, happy, and confident—friendly but not over-excited.
-Be lightly playful and casual; show subtle warmth, even a bit flirty when appropriate.
-Switch to professional seriousness if the caller's tone or topic demands it.
-Keep responses short and natural. Allow brief pauses so callers can jump in.
-"""
-                    
-                    # Get personality sliders - use customer-specific if available, otherwise admin settings
-                    sliders = customer_sliders or get_admin_setting("personality_sliders", {})
-                    if sliders:
-                        personality_instructions = generate_personality_instructions(sliders)
-                        instructions += base_personality + personality_instructions
-                    else:
-                        instructions += base_personality
+                    # ✅ REMOVED: All hardcoded identity and personality instructions
+                    # The prompt blocks from admin panel already contain all necessary instructions
+                    # No need to append anything else
                     
                     # ✅ NORMALIZE MEMORIES FIRST (before greeting) to extract caller identity
                     normalized = {}
