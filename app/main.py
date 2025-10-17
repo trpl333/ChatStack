@@ -2189,9 +2189,20 @@ async def media_stream_endpoint(websocket: WebSocket):
                         memory_content = memory_data.get("memory", "")
                         
                         if memory_content:
-                            # Parse the JSON memory content
-                            memory_json = json.loads(memory_content)
-                            messages = memory_json.get("messages", [])
+                            # Parse newline-delimited JSON (AI-Memory returns this format)
+                            messages = []
+                            for line in memory_content.strip().split('\n'):
+                                line = line.strip()
+                                if line:
+                                    try:
+                                        memory_json = json.loads(line)
+                                        # Each line should be a thread_history object with messages array
+                                        if "messages" in memory_json:
+                                            messages = memory_json.get("messages", [])
+                                            break  # Found the thread history
+                                    except json.JSONDecodeError as e:
+                                        logger.warning(f"⚠️ Failed to parse memory line: {e}")
+                                        continue
                             
                             if messages:
                                 logger.info(f"✅ Retrieved {len(messages)} messages from AI-Memory")
