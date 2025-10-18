@@ -1771,6 +1771,7 @@ async def media_stream_endpoint(websocket: WebSocket):
     stream_sid = None
     call_sid = None  # Track call_sid for transfer functionality
     user_id = None  # Track user_id for transcript retrieval
+    thread_id = None  # Track thread_id for memory continuity
     oai = None
     last_media_ts = time.time()
     
@@ -2200,9 +2201,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                 from datetime import datetime
                 
                 # Extract full conversation from AI-Memory (authoritative source)
-                # Thread history is stored with key = thread_history:user_{user_id}
-                thread_key = f"user_{user_id}"
-                logger.info(f"🔍 Retrieving transcript from AI-Memory for call {call_sid}, thread_key={thread_key}...")
+                # Thread history is stored with key = thread_history:{thread_id}
+                # Use the SAME thread_id that was used during the call
+                logger.info(f"🔍 Retrieving transcript from AI-Memory for call {call_sid}, thread_id={thread_id}...")
                 
                 try:
                     memory_response = requests.post(
@@ -2210,7 +2211,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         headers={"Content-Type": "application/json"},
                         json={
                             "user_id": user_id,
-                            "message": f"thread_history:{thread_key}",  # Correct key format
+                            "message": f"thread_history:{thread_id}",  # Use actual thread_id
                             "limit": 500,
                             "types": ["thread_recap"]  # Correct type
                         },
@@ -2276,8 +2277,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                 except Exception as e:
                     # Fallback: use local THREAD_HISTORY if AI-Memory fails
                     logger.warning(f"⚠️ AI-Memory retrieval failed ({e}), using local THREAD_HISTORY")
-                    thread_key = f"user_{user_id}"
-                    history = THREAD_HISTORY.get(thread_key, deque())
+                    history = THREAD_HISTORY.get(thread_id, deque()) if thread_id else deque()
                     
                     transcript_lines = []
                     for role, content in history:
