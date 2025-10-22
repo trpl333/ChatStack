@@ -21,21 +21,26 @@ from websocket import WebSocketApp
 from config_loader import get_secret, get_setting
 import sys
 import os
-# Define get_admin_setting to query AI-Memory service directly
-def get_admin_setting(setting_key, default=None):
-    """Get admin setting from AI-Memory service"""
+# Define get_admin_setting to query AI-Memory service directly (ASYNC to prevent blocking)
+async def get_admin_setting(setting_key, default=None):
+    """Get admin setting from AI-Memory service (async to prevent event loop blocking)"""
     try:
+        # Use asyncio.to_thread to run the blocking requests call in a thread pool
         import requests
         
         # Use AI-Memory service URL from config
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
-        response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
-            json={"user_id": "admin", "key": f"admin:{setting_key}"},
-            headers={"Content-Type": "application/json"},
-            timeout=5
-        )
+        # Run blocking requests.post in thread pool to not block event loop
+        def _fetch():
+            return requests.post(
+                f"{ai_memory_url}/memory/retrieve",
+                json={"user_id": "admin", "key": f"admin:{setting_key}"},
+                headers={"Content-Type": "application/json"},
+                timeout=2  # Reduced from 5s to 2s
+            )
+        
+        response = await asyncio.to_thread(_fetch)
         
         if response.status_code == 200:
             data = response.json()
@@ -57,14 +62,39 @@ def get_admin_setting(setting_key, default=None):
             if last_value is not None:
                 logger.info(f"📖 Retrieved admin setting {setting_key}: {last_value}")
                 return last_value
+            else:
+                logger.warning(f"⚠️ Admin setting '{setting_key}' exists but has no value, using default: {default}")
+        else:
+            logger.warning(f"⚠️ Failed to retrieve admin setting '{setting_key}' (status {response.status_code}), using default: {default}")
         
         # Fallback to config.json
-        logger.info(f"📖 Using config.json fallback for {setting_key}")
+        logger.info(f"📖 Using config.json fallback for {setting_key}: {default}")
         return get_setting(setting_key, default)
         
     except Exception as e:
-        logger.error(f"Error getting admin setting {setting_key}: {e}")
+        logger.error(f"❌ Error getting admin setting '{setting_key}': {e}, using default: {default}")
+        import traceback
+        logger.error(traceback.format_exc())
         return get_setting(setting_key, default)
+
+# Synchronous wrapper for backward compatibility (use only from non-async contexts)
+def get_admin_setting_sync(setting_key, default=None):
+    """Synchronous wrapper for get_admin_setting (for use in non-async functions)"""
+    try:
+        # Try to get the running event loop
+        loop = asyncio.get_running_loop()
+        # We're in an async context but called from a sync function
+        # This shouldn't happen, but fall back to config if it does
+        logger.warning(f"⚠️ get_admin_setting_sync called from async context, using config fallback for {setting_key}")
+        return get_setting(setting_key, default)
+    except RuntimeError:
+        # No running loop - we're in a truly synchronous context
+        # Create a new event loop just for this call
+        try:
+            return asyncio.run(get_admin_setting(setting_key, default))
+        except Exception as e:
+            logger.error(f"❌ Sync wrapper failed for '{setting_key}': {e}, using config fallback")
+            return get_setting(setting_key, default)
 from app.models import ChatRequest, ChatResponse, MemoryObject
 from app.llm import chat as llm_chat, chat_realtime_stream, _get_llm_config, validate_llm_connection
 from app.http_memory import HTTPMemoryStore
@@ -675,8 +705,8 @@ def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
     try:
         transcript_lower = transcript.lower()
         
-        # Load transfer rules from admin settings
-        rules_json = get_admin_setting("transfer_rules", "[]")
+        # Load transfer rules from admin settings (using sync wrapper for non-async context)
+        rules_json = get_admin_setting_sync("transfer_rules", "[]")
         rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
         
         # Check for explicit transfer intent keywords (talk to, speak with, etc.)
@@ -1805,8 +1835,8 @@ async def media_stream_endpoint(websocket: WebSocket):
         try:
             logger.info(f"🎙️ Generating ElevenLabs TTS for: {text[:100]}...")
             
-            # Get voice_id from admin panel
-            voice_id = get_admin_setting("voice_id", "FGY2WhTYpPnrIDTdsKH5")
+            # Get voice_id from admin panel (using sync wrapper for non-async callback)
+            voice_id = get_admin_setting_sync("voice_id", "FGY2WhTYpPnrIDTdsKH5")
             logger.info(f"🔊 Using ElevenLabs voice_id: {voice_id}")
             
             # Import ElevenLabs client
@@ -1940,7 +1970,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 break
                     
                     # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
-                    agent_name = agent_name_override or get_admin_setting("agent_name", "AI Assistant")
+                    agent_name = agent_name_override or await get_admin_setting("agent_name", "AI Assistant")
                     
                     # Build instructions from admin panel blocks if available
                     if selected_blocks:
@@ -2031,7 +2061,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             greeting_template = greeting_override
                             logger.info(f"🎤 Using customer-specific greeting: '{greeting_template}'")
                         else:
-                            greeting_template = get_admin_setting("existing_user_greeting", 
+                            greeting_template = await get_admin_setting("existing_user_greeting", 
                                                                  f"Hi, this is {agent_name}. Is this {{user_name}}?")
                             logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
                         
@@ -2065,7 +2095,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             greeting_template = greeting_override
                             logger.info(f"🎤 Using customer-specific new caller greeting: '{greeting_template}'")
                         else:
-                            greeting_template = get_admin_setting("new_caller_greeting", 
+                            greeting_template = await get_admin_setting("new_caller_greeting", 
                                                                  f"{{time_greeting}}! This is {agent_name}. How can I help you?")
                         
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
@@ -2116,7 +2146,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                 
                 # ✅ INJECT CURRENT TRANSFER RULES DYNAMICALLY
                 try:
-                    rules_json = get_admin_setting("transfer_rules", "[]")
+                    rules_json = await get_admin_setting("transfer_rules", "[]")
                     logger.info(f"🔧 Raw transfer_rules from admin: {rules_json}")
                     transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
                     logger.info(f"🔧 Parsed transfer_rules: {len(transfer_rules)} rules")
@@ -2144,7 +2174,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.error(traceback.format_exc())
                 
                 # Get voice from admin panel (alloy, echo, shimmer)
-                openai_voice = get_admin_setting("openai_voice", "alloy")
+                openai_voice = await get_admin_setting("openai_voice", "alloy")
                 logger.info(f"🎤 Using OpenAI voice from admin panel: {openai_voice}")
                 
                 # Connect to OpenAI with thread tracking
