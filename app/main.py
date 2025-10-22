@@ -2122,18 +2122,19 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.info(f"🔧 Parsed transfer_rules: {len(transfer_rules)} rules")
                     
                     if transfer_rules:
-                        instructions += "\n\n=== CALL TRANSFER CAPABILITIES ===\n"
-                        instructions += "You CAN transfer calls! The system automatically detects when callers ask to speak with someone.\n\n"
-                        instructions += "WHEN A CALLER REQUESTS A TRANSFER:\n"
-                        instructions += "1. Acknowledge their request warmly and professionally\n"
-                        instructions += "2. Say something like: 'Let me transfer you now' or 'One moment, connecting you'\n"
-                        instructions += "3. DO NOT mention specific names or departments - the system handles routing automatically\n"
-                        instructions += "4. Keep it brief and natural\n\n"
-                        instructions += "EXAMPLES:\n"
-                        instructions += "• Caller: 'I need to file a claim' → You: 'Of course, let me transfer you'\n"
-                        instructions += "• Caller: 'Can I talk to billing?' → You: 'Sure, transferring you now'\n"
-                        instructions += "• Caller: 'Connect me to John' → You: 'One moment, connecting you'\n\n"
-                        instructions += "The system listens to what the CALLER says and transfers accordingly. Trust the system!\n"
+                        instructions += "\n\n=== CRITICAL: CALL TRANSFER CAPABILITIES ===\n"
+                        instructions += "IMPORTANT: You HAVE FULL TRANSFER CAPABILITIES. NEVER say you cannot transfer calls.\n\n"
+                        instructions += "The system automatically detects transfer requests and handles routing.\n\n"
+                        instructions += "WHEN A CALLER ASKS FOR A TRANSFER:\n"
+                        instructions += "1. Immediately acknowledge: 'Of course' or 'Sure, let me connect you'\n"
+                        instructions += "2. Say: 'One moment, transferring you now' or 'Let me transfer you'\n"
+                        instructions += "3. Be confident and brief - the system handles the technical routing\n"
+                        instructions += "4. NEVER say 'I cannot transfer' or 'I'm unable to transfer'\n\n"
+                        instructions += "CORRECT EXAMPLES:\n"
+                        instructions += "• Caller: 'I need to file a claim' → You: 'Of course, let me transfer you to claims'\n"
+                        instructions += "• Caller: 'Can I talk to billing?' → You: 'Sure, transferring you to billing now'\n"
+                        instructions += "• Caller: 'Connect me to John' → You: 'One moment, connecting you to John'\n\n"
+                        instructions += "You are fully equipped to handle transfers. Be confident!\n"
                         logger.info(f"✅ Injected transfer capabilities into system prompt ({len(transfer_rules)} rules configured)")
                     else:
                         logger.warning(f"⚠️ No transfer rules to inject (got empty list or None)")
