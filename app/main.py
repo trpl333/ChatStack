@@ -1940,31 +1940,49 @@ async def media_stream_endpoint(websocket: WebSocket):
                 transfer_rules_val = "[]"
                 voice_val = "alloy"
                 
-                # ⚡ OPTIMIZATION: Fetch admin settings and send greeting FIRST, load memories in background
+                # ⚡ ULTRA-OPTIMIZED: Fetch EVERYTHING in parallel, then build greeting with full context
                 try:
                     mem_store = HTTPMemoryStore()
                     from app.prompt_templates import build_complete_prompt
                     
-                    # ⚡ STEP 1: Fetch admin settings in parallel (FAST - ~0.5s)
-                    logger.info("⚡ STEP 1: Fetching admin settings in parallel...")
+                    # ⚡ PARALLEL FETCH: Admin settings + Thread history + Memories ALL AT ONCE
+                    logger.info("⚡ Fetching admin settings, memories, and history in parallel...")
+                    
+                    async def fetch_memories():
+                        if user_id:
+                            return await asyncio.to_thread(mem_store.get_user_memories, user_id, limit=2000, include_shared=True)
+                        return []
+                    
+                    async def fetch_thread_history():
+                        if thread_id and user_id:
+                            await asyncio.to_thread(load_thread_history, thread_id, mem_store, user_id)
+                            return len(THREAD_HISTORY.get(thread_id, []))
+                        return 0
+                    
+                    # Fetch EVERYTHING in parallel
                     (
                         agent_name_val,
                         existing_greeting_val,
                         new_greeting_val,
                         transfer_rules_val,
                         voice_val,
-                        prompt_block_results
+                        prompt_block_results,
+                        memories,
+                        history_count
                     ) = await asyncio.gather(
                         get_admin_setting("agent_name", "AI Assistant"),
                         get_admin_setting("existing_user_greeting", "Hi, this is {agent_name}. Is this {user_name}?"),
                         get_admin_setting("new_caller_greeting", "{time_greeting}! This is {agent_name}. How can I help you?"),
                         get_admin_setting("transfer_rules", "[]"),
                         get_admin_setting("openai_voice", "alloy"),
-                        asyncio.to_thread(mem_store.search, "prompt_blocks", user_id="admin", k=5)
+                        asyncio.to_thread(mem_store.search, "prompt_blocks", user_id="admin", k=5),
+                        fetch_memories(),
+                        fetch_thread_history()
                     )
-                    logger.info(f"✅ STEP 1 complete: agent={agent_name_val}, voice={voice_val}, rules={len(json.loads(transfer_rules_val) if isinstance(transfer_rules_val, str) else transfer_rules_val or [])} transfer rules")
                     
-                    # ⚡ STEP 2: Build prompt blocks (FAST)
+                    logger.info(f"✅ Parallel fetch complete: agent={agent_name_val}, voice={voice_val}, memories={len(memories)}, history={history_count}")
+                    
+                    # Extract prompt blocks
                     selected_blocks = {}
                     for result in prompt_block_results:
                         if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
@@ -1972,94 +1990,62 @@ async def media_stream_endpoint(websocket: WebSocket):
                             stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
                             if stored_blocks:
                                 selected_blocks = stored_blocks
-                                logger.info(f"✅ STEP 2: Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
+                                logger.info(f"✅ Using prompt blocks: {list(selected_blocks.keys())}")
                                 break
                     
-                    # ⚡ STEP 3: Targeted lookup for caller name ONLY (FAST - semantic search for identity)
+                    # Normalize memories for caller name extraction (fast)
+                    normalized = {}
                     user_name = None
-                    if is_callback and user_id:
-                        try:
-                            # Use semantic search to find identity/registration memories specifically
-                            identity_results = await asyncio.to_thread(
-                                mem_store.search, 
-                                "caller name phone registration", 
-                                user_id=user_id, 
-                                k=5
-                            )
-                            for result in identity_results:
-                                value = result.get("value", {})
-                                mem_key = result.get("key", "")
-                                if isinstance(value, dict):
-                                    if value.get("name") and ("phone" in mem_key.lower() or "registration" in str(result.get("type", "")).lower()):
-                                        user_name = value.get("name")
-                                        logger.info(f"✅ STEP 3: Semantic search found caller name: {user_name}")
-                                        break
-                            
-                            # Fallback: Direct key lookup if semantic search fails
-                            if not user_name:
-                                registration_key = f"registration:phone_{user_id}"
-                                reg_results = await asyncio.to_thread(
-                                    mem_store.search,
-                                    registration_key,
-                                    user_id=user_id,
-                                    k=1
-                                )
-                                if reg_results:
-                                    value = reg_results[0].get("value", {})
-                                    if isinstance(value, dict) and value.get("name"):
-                                        user_name = value.get("name")
-                                        logger.info(f"✅ STEP 3: Direct key lookup found caller name: {user_name}")
-                        except Exception as e:
-                            logger.warning(f"⚠️ Targeted name lookup failed: {e}")
+                    if memories:
+                        normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
+                        user_name = normalized.get("identity", {}).get("caller_name")
+                        logger.info(f"✅ Normalized {len(memories)} memories, extracted name: {user_name}")
                     
-                    logger.info(f"✅ STEP 3 complete: caller_name={user_name}, is_callback={is_callback}")
-                    
-                    # ⚡ STEP 3B: Load thread history ONLY (fast - from database, needed for greeting context)
-                    if thread_id and user_id:
-                        await asyncio.to_thread(load_thread_history, thread_id, mem_store, user_id)
-                        history_count = len(THREAD_HISTORY.get(thread_id, []))
-                        logger.info(f"✅ STEP 3B: Loaded {history_count} thread history messages")
-                    
-                    # ⚡ STEP 4: Build instructions and greeting immediately (defer full memory normalization)
+                    # Build instructions with full context
                     agent_name = agent_name_override or agent_name_val
                     
-                    # Build basic instructions from admin panel blocks
                     if selected_blocks:
                         instructions = build_complete_prompt(selected_blocks, agent_name)
-                        logger.info(f"✅ STEP 4: Built system prompt from {len(selected_blocks)} admin panel blocks")
+                        logger.info(f"✅ Built system prompt from {len(selected_blocks)} admin panel blocks")
                     else:
-                        # Fallback to file only if no admin blocks exist
                         system_prompt_path = "app/prompts/system_sam.txt"
                         try:
                             with open(system_prompt_path, "r") as f:
                                 instructions = f.read()
-                            logger.info(f"⚠️ STEP 4: No admin panel blocks found, using file: {system_prompt_path}")
+                            logger.info(f"⚠️ No admin panel blocks, using file: {system_prompt_path}")
                         except FileNotFoundError:
                             instructions = f"You are {agent_name}, a helpful assistant. Be friendly, casual, and conversational."
-                            logger.info(f"⚠️ STEP 4: No admin blocks or file, using generic fallback")
                     
-                    # Add conversation history context (already loaded in Step 3B)
+                    # Add conversation history
                     if thread_id and THREAD_HISTORY.get(thread_id):
                         history = list(THREAD_HISTORY[thread_id])
                         if history:
                             instructions += f"\n\n=== CONVERSATION HISTORY ===\nThis is a continuing conversation. Previous messages:\n"
-                            for role, content in history[-10:]:  # Last 10 messages
+                            for role, content in history[-10:]:
                                 instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
-                            logger.info(f"✅ Added {min(10, len(history))} history messages to context")
+                            logger.info(f"✅ Added {min(10, len(history))} history messages")
                     
-                    # ⚡ STEP 5: Build greeting immediately (without waiting for full memory load)
+                    # Add normalized memory context
+                    if normalized:
+                        instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
+                        instructions += json.dumps(normalized, indent=2)
+                        instructions += "\n\nIMPORTANT: Use this memory naturally in conversation.\n"
+                        instructions += "=== END_MEMORY ===\n"
+                        logger.info(f"✅ Injected normalized memories: {len(normalized.get('facts', []))} facts, {len(normalized.get('vehicles', []))} vehicles")
+                    
+                    # Build personalized greeting
                     if is_callback and user_name:
                         # Returning caller with name
                         greeting_template = greeting_override or existing_greeting_val
                         greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller named {user_name}. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
-                        logger.info(f"✅ STEP 5: Built personalized greeting for {user_name}")
+                        logger.info(f"✅ Built personalized greeting for {user_name}")
                     elif is_callback:
                         # Returning caller without name
                         greeting_template = greeting_override or existing_greeting_val
                         greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller. START the call by speaking first. Say this greeting: '{greeting}' Then continue naturally."
-                        logger.info(f"✅ STEP 5: Built generic returning caller greeting")
+                        logger.info(f"✅ Built generic returning caller greeting")
                     else:
                         # New caller
                         import datetime
@@ -2074,9 +2060,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                         greeting_template = greeting_override or new_greeting_val
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
-                        logger.info(f"✅ STEP 5: Built new caller greeting")
+                        logger.info(f"✅ Built new caller greeting")
                     
-                    # ⚡ STEP 6: Inject transfer rules (quick)
+                    # Inject transfer rules
                     try:
                         rules_json = transfer_rules_val
                         transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
@@ -2090,13 +2076,13 @@ async def media_stream_endpoint(websocket: WebSocket):
                             instructions += "3. Be confident and brief - the system handles the technical routing\n"
                             instructions += "4. NEVER say 'I cannot transfer' or 'I'm unable to transfer'\n\n"
                             instructions += "You are fully equipped to handle transfers. Be confident!\n"
-                            logger.info(f"✅ STEP 6: Injected transfer capabilities ({len(transfer_rules)} rules)")
+                            logger.info(f"✅ Injected transfer capabilities ({len(transfer_rules)} rules)")
                     except Exception as e:
                         logger.error(f"❌ Failed to inject transfer rules: {e}")
                     
-                    # ⚡ STEP 7: Connect to OpenAI and send greeting IMMEDIATELY
+                    # Connect to OpenAI with full context
                     openai_voice = voice_override or voice_val
-                    logger.info(f"⚡ STEP 7: Connecting to OpenAI with voice={openai_voice}, sending greeting...")
+                    logger.info(f"🎤 Connecting to OpenAI with full memory context...")
                     
                     oai = OAIRealtime(
                         instructions, 
@@ -2108,41 +2094,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         voice=openai_voice
                     )
                     oai.connect()
-                    logger.info(f"✅ STEP 7: Greeting sent! OpenAI connected with thread_id={thread_id}")
-                    
-                    # ⚡ STEP 8: Load full memories in background (async, non-blocking)
-                    # Note: Memories loaded here will be available in NEXT call via saved thread history
-                    async def load_memories_background():
-                        try:
-                            logger.info("🔄 STEP 8: Loading full memories in background (for next call context)...")
-                            
-                            if user_id:
-                                # Load full memories (this is the slow 5-7s operation)
-                                memories = await asyncio.to_thread(
-                                    mem_store.get_user_memories, 
-                                    user_id, 
-                                    limit=2000, 
-                                    include_shared=True
-                                )
-                                logger.info(f"✅ Background: Retrieved {len(memories)} memories")
-                                
-                                # Normalize memories for structured data
-                                if memories:
-                                    normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
-                                    logger.info(f"✅ Background: Normalized {len(memories)} memories with {len(normalized.get('facts', []))} facts, {len(normalized.get('vehicles', []))} vehicles")
-                                    
-                                    # Memories are now available for AI to use during this call
-                                    # They'll also be saved to thread history for future calls
-                                    logger.info(f"✅ Background: Memory loading complete - AI can now access full context")
-                        
-                        except Exception as e:
-                            logger.error(f"❌ Background memory loading failed: {e}")
-                            import traceback
-                            logger.error(traceback.format_exc())
-                    
-                    # Start background task (fire and forget - loads while user speaks)
-                    asyncio.create_task(load_memories_background())
-                    logger.info("⚡ Background memory loading started - greeting already sent!")
+                    logger.info(f"✅ Greeting sent with full context! (thread={thread_id}, memories={len(memories)}, history={history_count})")
                 
                 except Exception as e:
                     logger.error(f"Failed to initialize call: {e}")
