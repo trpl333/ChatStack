@@ -1940,169 +1940,126 @@ async def media_stream_endpoint(websocket: WebSocket):
                 transfer_rules_val = "[]"
                 voice_val = "alloy"
                 
-                # Build system instructions with memory context
+                # ⚡ OPTIMIZATION: Fetch admin settings and send greeting FIRST, load memories in background
                 try:
                     mem_store = HTTPMemoryStore()
-                    
-                    # ✅ CRITICAL: Load thread history from database for conversation continuity
-                    if thread_id and user_id:
-                        load_thread_history(thread_id, mem_store, user_id)
-                        logger.info(f"🔄 Loaded thread history for {thread_id}: {len(THREAD_HISTORY.get(thread_id, []))} messages")
-                    
-                    # ✅ CRITICAL FIX: Use paginated get_user_memories to retrieve ALL user memories
-                    if user_id:
-                        memories = mem_store.get_user_memories(user_id, limit=2000, include_shared=True)
-                        logger.info(f"🧠 Retrieved {len(memories)} memories for user {user_id}")
-                        # DEBUG: Log first few memories
-                        for i, mem in enumerate(memories[:5]):
-                            mem_type = mem.get('type', 'unknown')
-                            mem_key = mem.get('key') or mem.get('k', 'no-key')
-                            logger.info(f"  Memory {i+1}: {mem_type}:{mem_key}")
-                    else:
-                        memories = []
-                    
-                    # ✅ PRIORITY ORDER: Admin panel blocks > File fallback
-                    # Load prompt blocks from admin panel FIRST
                     from app.prompt_templates import build_complete_prompt
                     
-                    prompt_block_results = mem_store.search("prompt_blocks", user_id="admin", k=5)
-                    selected_blocks = {}
+                    # ⚡ STEP 1: Fetch admin settings in parallel (FAST - ~0.5s)
+                    logger.info("⚡ STEP 1: Fetching admin settings in parallel...")
+                    (
+                        agent_name_val,
+                        existing_greeting_val,
+                        new_greeting_val,
+                        transfer_rules_val,
+                        voice_val,
+                        prompt_block_results
+                    ) = await asyncio.gather(
+                        get_admin_setting("agent_name", "AI Assistant"),
+                        get_admin_setting("existing_user_greeting", "Hi, this is {agent_name}. Is this {user_name}?"),
+                        get_admin_setting("new_caller_greeting", "{time_greeting}! This is {agent_name}. How can I help you?"),
+                        get_admin_setting("transfer_rules", "[]"),
+                        get_admin_setting("openai_voice", "alloy"),
+                        asyncio.to_thread(mem_store.search, "prompt_blocks", user_id="admin", k=5)
+                    )
+                    logger.info(f"✅ STEP 1 complete: agent={agent_name_val}, voice={voice_val}, rules={len(json.loads(transfer_rules_val) if isinstance(transfer_rules_val, str) else transfer_rules_val or [])} transfer rules")
                     
+                    # ⚡ STEP 2: Build prompt blocks (FAST)
+                    selected_blocks = {}
                     for result in prompt_block_results:
                         if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
                             value = result.get("value", {})
                             stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
                             if stored_blocks:
                                 selected_blocks = stored_blocks
-                                logger.info(f"✅ Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
+                                logger.info(f"✅ STEP 2: Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
                                 break
                     
-                    # ⚡ PERFORMANCE: Parallelize all admin setting fetches to reduce startup latency
-                    logger.info("⚡ Fetching admin settings in parallel...")
-                    (
-                        agent_name_val,
-                        existing_greeting_val,
-                        new_greeting_val,
-                        transfer_rules_val,
-                        voice_val
-                    ) = await asyncio.gather(
-                        get_admin_setting("agent_name", "AI Assistant"),
-                        get_admin_setting("existing_user_greeting", "Hi, this is {agent_name}. Is this {user_name}?"),
-                        get_admin_setting("new_caller_greeting", "{time_greeting}! This is {agent_name}. How can I help you?"),
-                        get_admin_setting("transfer_rules", "[]"),
-                        get_admin_setting("openai_voice", "alloy")
-                    )
-                    logger.info(f"✅ Admin settings fetched in parallel: agent={agent_name_val}, voice={voice_val}, rules={len(json.loads(transfer_rules_val) if isinstance(transfer_rules_val, str) else transfer_rules_val or [])} transfer rules")
+                    # ⚡ STEP 3: Targeted lookup for caller name ONLY (FAST - semantic search for identity)
+                    user_name = None
+                    if is_callback and user_id:
+                        try:
+                            # Use semantic search to find identity/registration memories specifically
+                            identity_results = await asyncio.to_thread(
+                                mem_store.search, 
+                                "caller name phone registration", 
+                                user_id=user_id, 
+                                k=5
+                            )
+                            for result in identity_results:
+                                value = result.get("value", {})
+                                mem_key = result.get("key", "")
+                                if isinstance(value, dict):
+                                    if value.get("name") and ("phone" in mem_key.lower() or "registration" in str(result.get("type", "")).lower()):
+                                        user_name = value.get("name")
+                                        logger.info(f"✅ STEP 3: Semantic search found caller name: {user_name}")
+                                        break
+                            
+                            # Fallback: Direct key lookup if semantic search fails
+                            if not user_name:
+                                registration_key = f"registration:phone_{user_id}"
+                                reg_results = await asyncio.to_thread(
+                                    mem_store.search,
+                                    registration_key,
+                                    user_id=user_id,
+                                    k=1
+                                )
+                                if reg_results:
+                                    value = reg_results[0].get("value", {})
+                                    if isinstance(value, dict) and value.get("name"):
+                                        user_name = value.get("name")
+                                        logger.info(f"✅ STEP 3: Direct key lookup found caller name: {user_name}")
+                        except Exception as e:
+                            logger.warning(f"⚠️ Targeted name lookup failed: {e}")
                     
-                    # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
+                    logger.info(f"✅ STEP 3 complete: caller_name={user_name}, is_callback={is_callback}")
+                    
+                    # ⚡ STEP 3B: Load thread history ONLY (fast - from database, needed for greeting context)
+                    if thread_id and user_id:
+                        await asyncio.to_thread(load_thread_history, thread_id, mem_store, user_id)
+                        history_count = len(THREAD_HISTORY.get(thread_id, []))
+                        logger.info(f"✅ STEP 3B: Loaded {history_count} thread history messages")
+                    
+                    # ⚡ STEP 4: Build instructions and greeting immediately (defer full memory normalization)
                     agent_name = agent_name_override or agent_name_val
                     
-                    # Build instructions from admin panel blocks if available
+                    # Build basic instructions from admin panel blocks
                     if selected_blocks:
                         instructions = build_complete_prompt(selected_blocks, agent_name)
-                        logger.info(f"✅ Built system prompt from {len(selected_blocks)} admin panel blocks")
+                        logger.info(f"✅ STEP 4: Built system prompt from {len(selected_blocks)} admin panel blocks")
                     else:
                         # Fallback to file only if no admin blocks exist
                         system_prompt_path = "app/prompts/system_sam.txt"
                         try:
                             with open(system_prompt_path, "r") as f:
                                 instructions = f.read()
-                            logger.info(f"⚠️ No admin panel blocks found, using file: {system_prompt_path}")
+                            logger.info(f"⚠️ STEP 4: No admin panel blocks found, using file: {system_prompt_path}")
                         except FileNotFoundError:
                             instructions = f"You are {agent_name}, a helpful assistant. Be friendly, casual, and conversational."
-                            logger.info(f"⚠️ No admin blocks or file, using generic fallback")
+                            logger.info(f"⚠️ STEP 4: No admin blocks or file, using generic fallback")
                     
-                    # ✅ REMOVED: All hardcoded identity and personality instructions
-                    # The prompt blocks from admin panel already contain all necessary instructions
-                    # No need to append anything else
-                    
-                    # ✅ NORMALIZE MEMORIES FIRST (before greeting) to extract caller identity
-                    normalized = {}
-                    if memories:
-                        normalized = mem_store.normalize_memories(memories)
-                        logger.info(f"📝 Normalized {len(memories)} memories into structured format")
-                        # DEBUG: Log what we got from normalization
-                        caller_name_debug = normalized.get("identity", {}).get("caller_name")
-                        logger.info(f"🔍 DEBUG: normalized identity = {normalized.get('identity', {})}")
-                        logger.info(f"🔍 DEBUG: extracted caller_name = {caller_name_debug}")
-                    
-                    # Add conversation history context
+                    # Add conversation history context (already loaded in Step 3B)
                     if thread_id and THREAD_HISTORY.get(thread_id):
                         history = list(THREAD_HISTORY[thread_id])
                         if history:
                             instructions += f"\n\n=== CONVERSATION HISTORY ===\nThis is a continuing conversation. Previous messages:\n"
-                            for role, content in history[-10:]:  # Last 5 turns
+                            for role, content in history[-10:]:  # Last 10 messages
                                 instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
+                            logger.info(f"✅ Added {min(10, len(history))} history messages to context")
                     
-                    # Add caller context - extract from normalized structure
-                    if is_callback:
-                        # ✅ Extract caller name from normalized identity structure
-                        user_name = normalized.get("identity", {}).get("caller_name") if normalized else None
-                        spouse_name = normalized.get("contacts", {}).get("spouse", {}).get("name") if normalized else None
-                        
-                        # ✅ FALLBACK: If normalization didn't find name, check raw memories
-                        if not user_name and memories:
-                            logger.warning("⚠️ Normalization didn't find caller_name, checking raw memories...")
-                            import re
-                            for mem in memories[:50]:  # Check first 50 memories
-                                value = mem.get("value", {})
-                                mem_key = mem.get("key", "")
-                                
-                                # Method 1: Check for structured name field
-                                if isinstance(value, dict):
-                                    if value.get("name") and ("phone" in mem_key.lower() or "registration" in mem.get("type", "").lower()):
-                                        user_name = value.get("name")
-                                        logger.info(f"✅ Found caller name in structured memory: {user_name}")
-                                        break
-                                    
-                                    # Method 2: Extract from conversation summaries
-                                    summary = value.get("summary", "") or value.get("user_message", "")
-                                    if summary:
-                                        # Pattern: "I'm [Name]" or "This is [Name]" or "It's [Name]"
-                                        name_match = re.search(r"(?:I'm|I am|This is|It's)\s+([A-Z][a-z]+)", summary)
-                                        if name_match:
-                                            user_name = name_match.group(1)
-                                            logger.info(f"✅ Extracted caller name from conversation: {user_name}")
-                                            break
-                        
-                        # ✅ FALLBACK 2: Extract spouse name from memories if not in normalized data
-                        if not spouse_name and memories:
-                            import re
-                            for mem in memories[:50]:
-                                value = mem.get("value", {})
-                                if isinstance(value, dict):
-                                    summary = value.get("summary", "") or value.get("user_message", "")
-                                    # Pattern: "wife's name is [Name]" or "my wife [Name]" or just "[Name]."
-                                    spouse_match = re.search(r"(?:wife'?s? (?:name )?is |my wife )?([A-Z][a-z]+)(?:\.|,)", summary)
-                                    if spouse_match and "wife" in summary.lower():
-                                        spouse_name = spouse_match.group(1)
-                                        logger.info(f"✅ Extracted spouse name from conversation: {spouse_name}")
-                                        break
-                        
-                        logger.info(f"👤 Caller identity: user_name={user_name}, spouse={spouse_name}, is_callback={is_callback}")
-                        
-                        # MULTI-TENANT: Use customer-specific greeting or fallback to admin setting
-                        if greeting_override:
-                            greeting_template = greeting_override
-                            logger.info(f"🎤 Using customer-specific greeting: '{greeting_template}'")
-                        else:
-                            greeting_template = existing_greeting_val  # Pre-fetched in parallel
-                            logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
-                        
-                        # Build caller identity context
-                        identity_context = ""
-                        if user_name:
-                            greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
-                            identity_context = f"This is a returning caller named {user_name}."
-                            
-                            # Add family context if available
-                            if spouse_name:
-                                identity_context += f" Their spouse is {spouse_name}."
-                            
-                            instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\n{identity_context} START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
-                        else:
-                            greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
-                            instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller. START the call by speaking first. Say this greeting: '{greeting}' Then continue naturally."
+                    # ⚡ STEP 5: Build greeting immediately (without waiting for full memory load)
+                    if is_callback and user_name:
+                        # Returning caller with name
+                        greeting_template = greeting_override or existing_greeting_val
+                        greeting = greeting_template.replace("{user_name}", user_name).replace("{agent_name}", agent_name)
+                        instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller named {user_name}. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
+                        logger.info(f"✅ STEP 5: Built personalized greeting for {user_name}")
+                    elif is_callback:
+                        # Returning caller without name
+                        greeting_template = greeting_override or existing_greeting_val
+                        greeting = greeting_template.replace("{user_name}", "").replace("{agent_name}", agent_name)
+                        instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a returning caller. START the call by speaking first. Say this greeting: '{greeting}' Then continue naturally."
+                        logger.info(f"✅ STEP 5: Built generic returning caller greeting")
                     else:
                         # New caller
                         import datetime
@@ -2114,104 +2071,84 @@ async def media_stream_endpoint(websocket: WebSocket):
                         else:
                             time_greeting = "Good evening"
                         
-                        # MULTI-TENANT: Use customer-specific greeting or fallback to admin setting
-                        if greeting_override:
-                            greeting_template = greeting_override
-                            logger.info(f"🎤 Using customer-specific new caller greeting: '{greeting_template}'")
-                        else:
-                            greeting_template = new_greeting_val  # Pre-fetched in parallel
-                        
+                        greeting_template = greeting_override or new_greeting_val
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
+                        logger.info(f"✅ STEP 5: Built new caller greeting")
                     
-                    # Inject normalized memory context (organized dict instead of raw entries)
-                    if normalized:
-                        # Format as structured memory for AI
-                        instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
-                        instructions += "Below is everything you know about this caller, organized by category:\n\n"
-                        instructions += json.dumps(normalized, indent=2)
-                        instructions += "\n\nIMPORTANT: Use this structured data naturally in conversation. "
-                        instructions += "If you see a spouse name, use it. If you see a birthday, remember it. "
-                        instructions += "Empty fields (null values) mean you haven't learned that info yet.\n"
-                        instructions += "=== END_MEMORY ===\n"
-                        
-                        # Count actual populated data
-                        filled_contacts = sum(1 for rel in ["spouse", "father", "mother"] 
-                                            if normalized.get("contacts", {}).get(rel, {}).get("name"))
-                        filled_contacts += len(normalized.get("contacts", {}).get("children", []))
-                        
-                        stats = {
-                            "contacts": filled_contacts,
-                            "vehicles": len(normalized.get("vehicles", [])),
-                            "policies": len(normalized.get("policies", [])),
-                            "facts": len(normalized.get("facts", [])),
-                            "commitments": len(normalized.get("commitments", []))
-                        }
-                        
-                        logger.info(f"📝 Injected comprehensive memory template from {len(memories)} raw entries:")
-                        logger.info(f"   └─ Contacts: {stats['contacts']}, Vehicles: {stats['vehicles']}, Policies: {stats['policies']}, Facts: {stats['facts']}")
-                        
-                        # 🔍 DEBUG: Show what contacts were extracted
-                        if stats['contacts'] > 0:
-                            logger.info(f"   👥 Contacts found:")
-                            for rel in ["spouse", "father", "mother"]:
-                                contact = normalized.get("contacts", {}).get(rel, {})
-                                if contact.get("name"):
-                                    logger.info(f"      • {rel.title()}: {contact['name']}" + 
-                                              (f" (birthday: {contact['birthday']})" if contact.get("birthday") else ""))
+                    # ⚡ STEP 6: Inject transfer rules (quick)
+                    try:
+                        rules_json = transfer_rules_val
+                        transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
+                        if transfer_rules:
+                            instructions += "\n\n=== CRITICAL: CALL TRANSFER CAPABILITIES ===\n"
+                            instructions += "IMPORTANT: You HAVE FULL TRANSFER CAPABILITIES. NEVER say you cannot transfer calls.\n\n"
+                            instructions += "The system automatically detects transfer requests and handles routing.\n\n"
+                            instructions += "WHEN A CALLER ASKS FOR A TRANSFER:\n"
+                            instructions += "1. Immediately acknowledge: 'Of course' or 'Sure, let me connect you'\n"
+                            instructions += "2. Say: 'One moment, transferring you now' or 'Let me transfer you'\n"
+                            instructions += "3. Be confident and brief - the system handles the technical routing\n"
+                            instructions += "4. NEVER say 'I cannot transfer' or 'I'm unable to transfer'\n\n"
+                            instructions += "You are fully equipped to handle transfers. Be confident!\n"
+                            logger.info(f"✅ STEP 6: Injected transfer capabilities ({len(transfer_rules)} rules)")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to inject transfer rules: {e}")
+                    
+                    # ⚡ STEP 7: Connect to OpenAI and send greeting IMMEDIATELY
+                    openai_voice = voice_override or voice_val
+                    logger.info(f"⚡ STEP 7: Connecting to OpenAI with voice={openai_voice}, sending greeting...")
+                    
+                    oai = OAIRealtime(
+                        instructions, 
+                        on_oai_audio, 
+                        on_oai_text, 
+                        thread_id=thread_id, 
+                        user_id=user_id,
+                        call_sid=call_sid,
+                        voice=openai_voice
+                    )
+                    oai.connect()
+                    logger.info(f"✅ STEP 7: Greeting sent! OpenAI connected with thread_id={thread_id}")
+                    
+                    # ⚡ STEP 8: Load full memories in background (async, non-blocking)
+                    # Note: Memories loaded here will be available in NEXT call via saved thread history
+                    async def load_memories_background():
+                        try:
+                            logger.info("🔄 STEP 8: Loading full memories in background (for next call context)...")
                             
-                            for child in normalized.get("contacts", {}).get("children", []):
-                                logger.info(f"      • {child.get('relationship', 'child').title()}: {child.get('name', 'unknown')}")
-                
-                except Exception as e:
-                    logger.error(f"Failed to load memory context: {e}")
-                    instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun. You're everyone's fun friend who happens to know about insurance. No corporate talk, just real conversation with humor."
-                
-                # ✅ INJECT CURRENT TRANSFER RULES DYNAMICALLY
-                try:
-                    rules_json = transfer_rules_val  # Pre-fetched in parallel
-                    logger.info(f"🔧 Raw transfer_rules from admin: {rules_json}")
-                    transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
-                    logger.info(f"🔧 Parsed transfer_rules: {len(transfer_rules)} rules")
+                            if user_id:
+                                # Load full memories (this is the slow 5-7s operation)
+                                memories = await asyncio.to_thread(
+                                    mem_store.get_user_memories, 
+                                    user_id, 
+                                    limit=2000, 
+                                    include_shared=True
+                                )
+                                logger.info(f"✅ Background: Retrieved {len(memories)} memories")
+                                
+                                # Normalize memories for structured data
+                                if memories:
+                                    normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
+                                    logger.info(f"✅ Background: Normalized {len(memories)} memories with {len(normalized.get('facts', []))} facts, {len(normalized.get('vehicles', []))} vehicles")
+                                    
+                                    # Memories are now available for AI to use during this call
+                                    # They'll also be saved to thread history for future calls
+                                    logger.info(f"✅ Background: Memory loading complete - AI can now access full context")
+                        
+                        except Exception as e:
+                            logger.error(f"❌ Background memory loading failed: {e}")
+                            import traceback
+                            logger.error(traceback.format_exc())
                     
-                    if transfer_rules:
-                        instructions += "\n\n=== CRITICAL: CALL TRANSFER CAPABILITIES ===\n"
-                        instructions += "IMPORTANT: You HAVE FULL TRANSFER CAPABILITIES. NEVER say you cannot transfer calls.\n\n"
-                        instructions += "The system automatically detects transfer requests and handles routing.\n\n"
-                        instructions += "WHEN A CALLER ASKS FOR A TRANSFER:\n"
-                        instructions += "1. Immediately acknowledge: 'Of course' or 'Sure, let me connect you'\n"
-                        instructions += "2. Say: 'One moment, transferring you now' or 'Let me transfer you'\n"
-                        instructions += "3. Be confident and brief - the system handles the technical routing\n"
-                        instructions += "4. NEVER say 'I cannot transfer' or 'I'm unable to transfer'\n\n"
-                        instructions += "CORRECT EXAMPLES:\n"
-                        instructions += "• Caller: 'I need to file a claim' → You: 'Of course, let me transfer you to claims'\n"
-                        instructions += "• Caller: 'Can I talk to billing?' → You: 'Sure, transferring you to billing now'\n"
-                        instructions += "• Caller: 'Connect me to John' → You: 'One moment, connecting you to John'\n\n"
-                        instructions += "You are fully equipped to handle transfers. Be confident!\n"
-                        logger.info(f"✅ Injected transfer capabilities into system prompt ({len(transfer_rules)} rules configured)")
-                    else:
-                        logger.warning(f"⚠️ No transfer rules to inject (got empty list or None)")
+                    # Start background task (fire and forget - loads while user speaks)
+                    asyncio.create_task(load_memories_background())
+                    logger.info("⚡ Background memory loading started - greeting already sent!")
+                
                 except Exception as e:
-                    logger.error(f"❌ Failed to inject transfer rules: {e}")
+                    logger.error(f"Failed to initialize call: {e}")
                     import traceback
                     logger.error(traceback.format_exc())
-                
-                # Get voice from admin panel (alloy, echo, shimmer) - pre-fetched in parallel
-                openai_voice = voice_val  # Pre-fetched in parallel
-                logger.info(f"🎤 Using OpenAI voice from admin panel: {openai_voice}")
-                
-                # Connect to OpenAI with thread tracking
-                oai = OAIRealtime(
-                    instructions, 
-                    on_oai_audio, 
-                    on_oai_text, 
-                    thread_id=thread_id, 
-                    user_id=user_id,
-                    call_sid=call_sid,  # Pass call_sid for transfer functionality
-                    voice=openai_voice
-                )
-                oai.connect()
-                logger.info(f"🔗 OpenAI client initialized with thread_id={thread_id}, user_id={user_id}")
+                    instructions = "You are Barbara - the funniest person in insurance. Crack jokes, keep it casual, make insurance fun."
             
             elif event_type == "media":
                 # Audio from Twilio (mulaw 8kHz base64)
