@@ -697,16 +697,17 @@ def levenshtein_distance(s1: str, s2: str) -> int:
     
     return previous_row[-1]
 
-async def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
+def check_and_execute_transfer(transcript: str, call_sid: str) -> bool:
     """
     Check if transcript contains transfer intent and execute if rules match.
     Returns True if transfer was executed, False otherwise.
+    NOTE: This runs in OAIRealtime's websocket thread, so it's safe to use sync wrapper.
     """
     try:
         transcript_lower = transcript.lower()
         
-        # Load transfer rules from admin settings (async to prevent blocking)
-        rules_json = await get_admin_setting("transfer_rules", "[]")
+        # Load transfer rules from admin settings (using sync wrapper - we're in a separate thread)
+        rules_json = get_admin_setting_sync("transfer_rules", "[]")
         rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
         
         # Check for explicit transfer intent keywords (talk to, speak with, etc.)
@@ -1614,7 +1615,7 @@ class OAIRealtime:
                 
                 # ✅ Check for transfer intent ONLY on user input, not AI responses
                 if hasattr(self, 'call_sid') and self.call_sid:
-                    await check_and_execute_transfer(transcript, self.call_sid)
+                    check_and_execute_transfer(transcript, self.call_sid)
         
         elif event_type == "response.output_item.done":
             # Check if this is a function call
