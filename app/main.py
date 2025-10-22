@@ -1950,7 +1950,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                     
                     async def fetch_memories():
                         if user_id:
-                            return await asyncio.to_thread(mem_store.get_user_memories, user_id, limit=2000, include_shared=True)
+                            return await asyncio.to_thread(mem_store.get_user_memories, user_id, limit=500, include_shared=True)
                         return []
                     
                     async def fetch_thread_history():

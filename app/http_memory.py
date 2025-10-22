@@ -558,12 +558,21 @@ class HTTPMemoryStore:
             # -------------------
             # IDENTITY (Caller info)
             # -------------------
-            if "phone_number" in value_lower or mem_type == "registration":
+            if "phone_number" in value_lower or mem_type == "registration" or "registration" in mem_key:
                 if isinstance(value, dict):
                     if not result["identity"]["caller_phone"] and value.get("phone_number"):
                         result["identity"]["caller_phone"] = value["phone_number"]
-                    if not result["identity"]["caller_name"] and value.get("name"):
-                        result["identity"]["caller_name"] = value["name"]
+                    # Try multiple fields for name
+                    name_value = value.get("name") or value.get("caller_name") or value.get("user_name")
+                    if not result["identity"]["caller_name"] and name_value:
+                        result["identity"]["caller_name"] = name_value
+            
+            # Also check for caller name in "identity" type memories
+            if mem_type == "identity" or "identity" in mem_key or "caller" in mem_key:
+                if isinstance(value, dict):
+                    name_value = value.get("name") or value.get("caller_name") or value.get("user_name")
+                    if not result["identity"]["caller_name"] and name_value:
+                        result["identity"]["caller_name"] = name_value
             
             # -------------------
             # CONTACTS (Family, friends, relationships)
@@ -623,9 +632,37 @@ class HTTPMemoryStore:
                 if isinstance(value, dict) and "description" in value:
                     result["facts"].append(value["description"][:150])
                 elif isinstance(value, str) and len(value) > 10 and len(value) < 300:
-                    # Filter out conversational responses
-                    if not any(x in value_lower for x in ["assistant:", "user:", "hey", "how's it going", "great to"]):
+                    # Filter ONLY greeting templates, not legitimate facts
+                    
+                    # SPECIFIC template variable detection (not just any braces)
+                    has_template_vars = (
+                        "{agent_name}" in value or 
+                        "{user_name}" in value or 
+                        "{time_greeting}" in value
+                    )
+                    
+                    # SPECIFIC greeting template patterns (not generic phrases)
+                    # Only match if multiple greeting indicators appear together
+                    greeting_count = 0
+                    if "this is " in value_lower and ("from" in value_lower or "peterson" in value_lower):
+                        greeting_count += 1
+                    if "how can i help" in value_lower or "how's your day" in value_lower:
+                        greeting_count += 1
+                    if value_lower.startswith(("hi,", "hello,", "hey,", "good morning", "good afternoon", "good evening")):
+                        if len(value) < 100:  # Short greetings only
+                            greeting_count += 1
+                    
+                    # Conversational markers (clear indicators of dialogue, not facts)
+                    conversational_markers = ["assistant:", "user:", "system:"]
+                    is_conversational = any(m in value_lower for m in conversational_markers)
+                    
+                    # Filter ONLY if it has template vars OR looks like a greeting
+                    is_likely_greeting = has_template_vars or greeting_count >= 1
+                    
+                    if not (is_likely_greeting or is_conversational):
                         result["facts"].append(value[:150])
+                    else:
+                        logger.debug(f"⚠️ Filtered greeting template: {value[:50]}...")
         
         # Stage 4: Finalize - Clean up empty nested structures
         result = self._cleanup_template(result)
