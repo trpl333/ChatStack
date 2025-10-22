@@ -864,8 +864,8 @@ def handle_transfer():
     response = VoiceResponse()
     response.say(f"Transferring you to {keyword}. Please hold.", voice='Polly.Joanna')
     
-    # Dial the target number
-    response.dial(number, timeout=30, callerId=request.form.get('From'))
+    # Dial the target number (use Twilio number as caller ID)
+    response.dial(number, timeout=30)
     
     # If dial fails or completes
     response.say("The call could not be completed. Goodbye.")
