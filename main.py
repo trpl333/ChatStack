@@ -871,8 +871,10 @@ def handle_transfer():
     response.say("The call could not be completed. Goodbye.")
     response.hangup()
     
+    twiml_str = str(response)
     logging.info(f"✅ Transfer TwiML generated for {number}")
-    return str(response), 200, {'Content-Type': 'text/xml'}
+    logging.info(f"📄 TwiML Response:\n{twiml_str}")
+    return twiml_str, 200, {'Content-Type': 'text/xml'}
 
 @app.route('/api/internal/customer-context/<call_sid>', methods=['GET'])
 def get_customer_context(call_sid):
