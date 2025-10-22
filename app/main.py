@@ -1933,6 +1933,13 @@ async def media_stream_endpoint(websocket: WebSocket):
                 
                 logger.info(f"📞 Stream started: {stream_sid}, User: {user_id}, Call: {call_sid}, Thread: {thread_id}, Callback: {is_callback}")
                 
+                # Initialize admin settings with defaults (will be fetched in parallel inside try block)
+                agent_name_val = "AI Assistant"
+                existing_greeting_val = "Hi, this is {agent_name}. Is this {user_name}?"
+                new_greeting_val = "{time_greeting}! This is {agent_name}. How can I help you?"
+                transfer_rules_val = "[]"
+                voice_val = "alloy"
+                
                 # Build system instructions with memory context
                 try:
                     mem_store = HTTPMemoryStore()
@@ -1970,8 +1977,25 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 logger.info(f"✅ Using prompt blocks from admin panel: {list(selected_blocks.keys())}")
                                 break
                     
+                    # ⚡ PERFORMANCE: Parallelize all admin setting fetches to reduce startup latency
+                    logger.info("⚡ Fetching admin settings in parallel...")
+                    (
+                        agent_name_val,
+                        existing_greeting_val,
+                        new_greeting_val,
+                        transfer_rules_val,
+                        voice_val
+                    ) = await asyncio.gather(
+                        get_admin_setting("agent_name", "AI Assistant"),
+                        get_admin_setting("existing_user_greeting", "Hi, this is {agent_name}. Is this {user_name}?"),
+                        get_admin_setting("new_caller_greeting", "{time_greeting}! This is {agent_name}. How can I help you?"),
+                        get_admin_setting("transfer_rules", "[]"),
+                        get_admin_setting("openai_voice", "alloy")
+                    )
+                    logger.info(f"✅ Admin settings fetched in parallel: agent={agent_name_val}, voice={voice_val}, rules={len(json.loads(transfer_rules_val) if isinstance(transfer_rules_val, str) else transfer_rules_val or [])} transfer rules")
+                    
                     # MULTI-TENANT: Use customer-specific agent name or fallback to admin setting
-                    agent_name = agent_name_override or await get_admin_setting("agent_name", "AI Assistant")
+                    agent_name = agent_name_override or agent_name_val
                     
                     # Build instructions from admin panel blocks if available
                     if selected_blocks:
@@ -2062,8 +2086,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             greeting_template = greeting_override
                             logger.info(f"🎤 Using customer-specific greeting: '{greeting_template}'")
                         else:
-                            greeting_template = await get_admin_setting("existing_user_greeting", 
-                                                                 f"Hi, this is {agent_name}. Is this {{user_name}}?")
+                            greeting_template = existing_greeting_val  # Pre-fetched in parallel
                             logger.info(f"🎤 Admin greeting template: '{greeting_template}'")
                         
                         # Build caller identity context
@@ -2096,8 +2119,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                             greeting_template = greeting_override
                             logger.info(f"🎤 Using customer-specific new caller greeting: '{greeting_template}'")
                         else:
-                            greeting_template = await get_admin_setting("new_caller_greeting", 
-                                                                 f"{{time_greeting}}! This is {agent_name}. How can I help you?")
+                            greeting_template = new_greeting_val  # Pre-fetched in parallel
                         
                         greeting = greeting_template.replace("{time_greeting}", time_greeting).replace("{agent_name}", agent_name)
                         instructions += f"\n\n=== GREETING - START SPEAKING FIRST! ===\nThis is a new caller. START the call by speaking first. Say this exact greeting: '{greeting}' Then continue naturally."
@@ -2147,7 +2169,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                 
                 # ✅ INJECT CURRENT TRANSFER RULES DYNAMICALLY
                 try:
-                    rules_json = await get_admin_setting("transfer_rules", "[]")
+                    rules_json = transfer_rules_val  # Pre-fetched in parallel
                     logger.info(f"🔧 Raw transfer_rules from admin: {rules_json}")
                     transfer_rules = json.loads(rules_json) if isinstance(rules_json, str) else rules_json if isinstance(rules_json, list) else []
                     logger.info(f"🔧 Parsed transfer_rules: {len(transfer_rules)} rules")
@@ -2174,8 +2196,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                     import traceback
                     logger.error(traceback.format_exc())
                 
-                # Get voice from admin panel (alloy, echo, shimmer)
-                openai_voice = await get_admin_setting("openai_voice", "alloy")
+                # Get voice from admin panel (alloy, echo, shimmer) - pre-fetched in parallel
+                openai_voice = voice_val  # Pre-fetched in parallel
                 logger.info(f"🎤 Using OpenAI voice from admin panel: {openai_voice}")
                 
                 # Connect to OpenAI with thread tracking
