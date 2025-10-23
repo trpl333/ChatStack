@@ -18,6 +18,13 @@ Preferred communication style: Simple, everyday language.
 - Run `node fetch_repos.js` to update external repos with latest code from GitHub
 - This prevents API endpoint mismatches and ensures architectural consistency
 
+**Architecture Sync Protocol:**
+- Master architecture doc: `https://github.com/trpl333/ChatStack/blob/main/MULTI_PROJECT_ARCHITECTURE.md`
+- **Before working:** Run `./sync_architecture.sh pull` to get latest from GitHub
+- **After changes:** Run `./sync_architecture.sh push` to share updates with all projects
+- **For ChatGPT:** Use raw GitHub URL to always get latest: `https://raw.githubusercontent.com/trpl333/ChatStack/main/MULTI_PROJECT_ARCHITECTURE.md`
+- All 4 Replits use this same sync script to stay aligned
+
 ### System Architecture
 The system employs a microservices architecture with distinct components:
 

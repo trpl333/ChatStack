@@ -239,34 +239,73 @@ GET http://209.38.143.71:8100/caller/profile/{phone}
 
 ---
 
-## 📝 Update Protocol
+## 📝 Update Protocol (CRITICAL - READ THIS!)
 
-**When you make changes to your service:**
+**🎯 GitHub is the Single Source of Truth**
+- Master copy lives at: `https://github.com/trpl333/ChatStack/blob/main/MULTI_PROJECT_ARCHITECTURE.md`
+- All 4 Replits sync from GitHub (not from each other)
+- ChatGPT always reads from GitHub (always latest)
 
-1. **Update this file** with the change (endpoints, ports, data models)
-2. **Increment the version number** at the top
-3. **Commit and push to GitHub** in your service's repo
-4. **Copy updated file to other repos** (or sync via script)
+---
 
-**Example workflow:**
+### **When You Make Changes to ANY Service:**
+
+**Step 1: Pull Latest Before Working**
 ```bash
-# In AI-Memory Replit after adding new endpoint:
-nano MULTI_PROJECT_ARCHITECTURE.md   # Update endpoint list
-# Change version: 1.1.0 → 1.2.0
-git add MULTI_PROJECT_ARCHITECTURE.md
-git commit -m "AI-Memory: Added /v2/caller/profile endpoint - v1.2.0"
-git push origin main
-
-# Then copy to other projects:
-# Option A: Manual - download and upload to other Replits
-# Option B: Automated - use fetch_repos.js script in ChatStack to pull updates
+# In any Replit (ChatStack, AI-Memory, LeadFlowTracker, neurosphere_send_text)
+./sync_architecture.sh pull
 ```
 
-**Auto-sync in ChatStack Replit:**
+**Step 2: Make Your Changes**
+- Update your service code
+- Edit `MULTI_PROJECT_ARCHITECTURE.md` with new endpoints/changes
+- Update section for your service
+
+**Step 3: Push Updates to GitHub**
 ```bash
-# ChatStack has all repos cloned in external/
-# Run this to sync the latest architecture docs:
-node fetch_repos.js  # Re-downloads all repos with latest changes
+./sync_architecture.sh push
+# Script will:
+# - Ask you to update version number (e.g., 1.2.0 → 1.3.0)
+# - Update the "Last Updated" date automatically
+# - Commit and push to GitHub
+```
+
+**Step 4: Other Replits Auto-Sync**
+- Agents in other Replits run `./sync_architecture.sh pull` before working
+- They get your latest changes immediately
+
+---
+
+### **Quick Command Reference:**
+
+```bash
+# Pull latest from GitHub (do this BEFORE working)
+./sync_architecture.sh pull
+
+# Check current version
+./sync_architecture.sh version
+
+# Push your updates to GitHub (do this AFTER making changes)
+./sync_architecture.sh push
+```
+
+---
+
+### **For ChatGPT Consultation:**
+
+**Always use the latest version from GitHub:**
+```
+https://raw.githubusercontent.com/trpl333/ChatStack/main/MULTI_PROJECT_ARCHITECTURE.md
+```
+
+ChatGPT can read this URL directly and will always see the most current architecture!
+
+**Example ChatGPT prompt:**
+```
+Please read my architecture documentation from GitHub:
+https://raw.githubusercontent.com/trpl333/ChatStack/main/MULTI_PROJECT_ARCHITECTURE.md
+
+Question: [your question about the system]
 ```
 
 ---
