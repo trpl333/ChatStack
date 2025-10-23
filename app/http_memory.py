@@ -970,6 +970,55 @@ class HTTPMemoryStore:
             logger.error(f"Failed to get memory stats: {e}")
             return {"total": 0, "by_type": {}, "by_scope": {}}
 
+    def auto_register_caller(self, phone_number: str, user_id: Optional[str] = None) -> bool:
+        """
+        Automatically register a new caller when they first call in.
+        Creates an initial memory entry to track this caller.
+        
+        Args:
+            phone_number: Caller's phone number (from Twilio)
+            user_id: Optional user_id (defaults to phone_number)
+        
+        Returns:
+            True if registration successful
+        """
+        try:
+            user_id = user_id or phone_number
+            
+            # Create initial caller record in AI-Memory
+            registration_data = {
+                "type": "identity",
+                "key": "caller_registration",
+                "value": {
+                    "caller_phone": phone_number,
+                    "first_call_date": datetime.now().isoformat(),
+                    "status": "registered",
+                    "source": "auto_registration"
+                },
+                "ttl_days": 730
+            }
+            
+            result = self.save_memory(
+                user_id=user_id,
+                memory_type=registration_data["type"],
+                memory_key=registration_data["key"],
+                value=registration_data["value"],
+                ttl_days=registration_data["ttl_days"]
+            )
+            
+            if result:
+                logger.info(f"✅ Auto-registered new caller: {phone_number} as user_id: {user_id}")
+                return True
+            else:
+                logger.error(f"❌ Failed to auto-register caller: {phone_number}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error auto-registering caller {phone_number}: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False
+
     def close(self):
         """Close the HTTP session."""
         if hasattr(self, 'session'):

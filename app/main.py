@@ -2000,6 +2000,18 @@ async def media_stream_endpoint(websocket: WebSocket):
                         normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
                         user_name = normalized.get("identity", {}).get("caller_name")
                         logger.info(f"✅ Normalized {len(memories)} memories, extracted name: {user_name}")
+                    else:
+                        # 🆕 AUTO-REGISTER NEW CALLERS
+                        if user_id:
+                            logger.info(f"🆕 New caller detected! No existing memories for {user_id}")
+                            try:
+                                registered = await asyncio.to_thread(mem_store.auto_register_caller, user_id, user_id)
+                                if registered:
+                                    logger.info(f"✅ Auto-registered new caller: {user_id}")
+                                else:
+                                    logger.warning(f"⚠️ Failed to auto-register caller: {user_id}")
+                            except Exception as e:
+                                logger.error(f"❌ Error auto-registering caller {user_id}: {e}")
                     
                     # Build instructions with full context
                     agent_name = agent_name_override or agent_name_val
