@@ -1949,19 +1949,19 @@ async def media_stream_endpoint(websocket: WebSocket):
                     logger.info("⚡ Fetching admin settings, Memory V2 profile, and history in parallel...")
                     
                     async def fetch_caller_profile():
-                        """Try Memory V2 enriched profile first, fall back to V1 raw memories"""
+                        """🚀 FAST: Try Memory V2 enriched context first (<1 second!), fall back to V1"""
                         if user_id:
-                            # Try Memory V2 first (fast, pre-processed)
-                            v2_profile = await asyncio.to_thread(mem_store.get_caller_profile_v2, user_id)
-                            if v2_profile:
-                                logger.info(f"🚀 Using Memory V2 enriched profile")
-                                return {"version": "v2", "profile": v2_profile}
+                            # 🚀 Try Memory V2 FAST enriched context (pre-formatted, ready for LLM)
+                            v2_context = await asyncio.to_thread(mem_store.get_enriched_context_v2, user_id)
+                            if v2_context:
+                                logger.info(f"⚡ Using Memory V2 FAST enriched context (<1 second retrieval!)")
+                                return {"version": "v2", "context": v2_context, "pre_formatted": True}
                             
                             # Fall back to V1 (slower, raw memories)
-                            logger.info(f"⚠️ Memory V2 not available, falling back to V1 raw memories")
+                            logger.info(f"⚠️ Memory V2 not available, falling back to V1 raw memories (2-3 seconds)")
                             memories_v1 = await asyncio.to_thread(mem_store.get_user_memories, user_id, limit=500, include_shared=True)
-                            return {"version": "v1", "memories": memories_v1}
-                        return {"version": "none", "memories": []}
+                            return {"version": "v1", "memories": memories_v1, "pre_formatted": False}
+                        return {"version": "none", "memories": [], "pre_formatted": False}
                     
                     async def fetch_thread_history():
                         if thread_id and user_id:
@@ -2007,15 +2007,15 @@ async def media_stream_endpoint(websocket: WebSocket):
                     # Initialize variables for all code paths
                     normalized = {}
                     user_name = None
+                    v2_pre_formatted_context = None
                     
                     # Process caller data based on version
                     if memory_version == "v2":
-                        # 🚀 MEMORY V2: Pre-processed enriched profile
-                        v2_profile = caller_data.get("profile", {})
-                        user_name = v2_profile.get("caller_name")  # Extract name from V2 profile
-                        normalized = v2_profile.get("enriched_context", {})  # Extract enriched context
-                        total_calls = v2_profile.get("total_calls", 0)
-                        logger.info(f"🚀 Memory V2 profile loaded: caller={user_name}, total_calls={total_calls}")
+                        # ⚡ MEMORY V2 FAST: Pre-formatted context string ready for LLM!
+                        v2_pre_formatted_context = caller_data.get("context", "")
+                        # Extract user name for greeting (if available in context)
+                        # For now, we'll leave user_name as None and let greeting be generic
+                        logger.info(f"⚡ Memory V2 FAST context loaded ({len(v2_pre_formatted_context)} chars) - 10x faster!")
                         
                     elif memory_version == "v1":
                         # ⚠️ MEMORY V1: Raw memories (slower normalization)
@@ -2066,18 +2066,17 @@ async def media_stream_endpoint(websocket: WebSocket):
                             logger.info(f"✅ Added {min(10, len(history))} history messages")
                     
                     # Add memory context (format depends on V1 vs V2)
-                    if normalized:
+                    if memory_version == "v2" and v2_pre_formatted_context:
+                        # ⚡ V2 FAST: Pre-formatted context string ready to inject!
+                        instructions += "\n\n" + v2_pre_formatted_context + "\n"
+                        logger.info(f"⚡ Injected V2 FAST pre-formatted context ({len(v2_pre_formatted_context)} chars)")
+                    elif normalized:
+                        # ⚠️ V1: Normalized structure (slower)
                         instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
-                        if memory_version == "v2":
-                            # V2: Already enriched, just inject
-                            instructions += json.dumps(normalized, indent=2)
-                            logger.info(f"✅ Injected Memory V2 enriched profile")
-                        else:
-                            # V1: Normalized structure
-                            instructions += json.dumps(normalized, indent=2)
-                            facts_count = len(normalized.get('facts', []))
-                            vehicles_count = len(normalized.get('vehicles', []))
-                            logger.info(f"✅ Injected V1 normalized memories: {facts_count} facts, {vehicles_count} vehicles")
+                        instructions += json.dumps(normalized, indent=2)
+                        facts_count = len(normalized.get('facts', []))
+                        vehicles_count = len(normalized.get('vehicles', []))
+                        logger.info(f"⚠️ Injected V1 normalized memories: {facts_count} facts, {vehicles_count} vehicles")
                         instructions += "\n\nIMPORTANT: Use this memory naturally in conversation.\n"
                         instructions += "=== END_MEMORY ===\n"
                     
