@@ -1945,13 +1945,23 @@ async def media_stream_endpoint(websocket: WebSocket):
                     mem_store = HTTPMemoryStore()
                     from app.prompt_templates import build_complete_prompt
                     
-                    # ⚡ PARALLEL FETCH: Admin settings + Thread history + Memories ALL AT ONCE
-                    logger.info("⚡ Fetching admin settings, memories, and history in parallel...")
+                    # ⚡ PARALLEL FETCH: Admin settings + Thread history + Memory V2 Profile ALL AT ONCE
+                    logger.info("⚡ Fetching admin settings, Memory V2 profile, and history in parallel...")
                     
-                    async def fetch_memories():
+                    async def fetch_caller_profile():
+                        """Try Memory V2 enriched profile first, fall back to V1 raw memories"""
                         if user_id:
-                            return await asyncio.to_thread(mem_store.get_user_memories, user_id, limit=500, include_shared=True)
-                        return []
+                            # Try Memory V2 first (fast, pre-processed)
+                            v2_profile = await asyncio.to_thread(mem_store.get_caller_profile_v2, user_id)
+                            if v2_profile:
+                                logger.info(f"🚀 Using Memory V2 enriched profile")
+                                return {"version": "v2", "profile": v2_profile}
+                            
+                            # Fall back to V1 (slower, raw memories)
+                            logger.info(f"⚠️ Memory V2 not available, falling back to V1 raw memories")
+                            memories_v1 = await asyncio.to_thread(mem_store.get_user_memories, user_id, limit=500, include_shared=True)
+                            return {"version": "v1", "memories": memories_v1}
+                        return {"version": "none", "memories": []}
                     
                     async def fetch_thread_history():
                         if thread_id and user_id:
@@ -1967,7 +1977,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         transfer_rules_val,
                         voice_val,
                         prompt_block_results,
-                        memories,
+                        caller_data,
                         history_count
                     ) = await asyncio.gather(
                         get_admin_setting("agent_name", "AI Assistant"),
@@ -1976,11 +1986,12 @@ async def media_stream_endpoint(websocket: WebSocket):
                         get_admin_setting("transfer_rules", "[]"),
                         get_admin_setting("openai_voice", "alloy"),
                         asyncio.to_thread(mem_store.search, "prompt_blocks", user_id="admin", k=5),
-                        fetch_memories(),
+                        fetch_caller_profile(),
                         fetch_thread_history()
                     )
                     
-                    logger.info(f"✅ Parallel fetch complete: agent={agent_name_val}, voice={voice_val}, memories={len(memories)}, history={history_count}")
+                    memory_version = caller_data.get("version", "none")
+                    logger.info(f"✅ Parallel fetch complete: agent={agent_name_val}, voice={voice_val}, memory_version={memory_version}, history={history_count}")
                     
                     # Extract prompt blocks
                     selected_blocks = {}
@@ -1993,25 +2004,40 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 logger.info(f"✅ Using prompt blocks: {list(selected_blocks.keys())}")
                                 break
                     
-                    # Normalize memories for caller name extraction (fast)
+                    # Process caller data based on version
                     normalized = {}
                     user_name = None
-                    if memories:
-                        normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
-                        user_name = normalized.get("identity", {}).get("caller_name")
-                        logger.info(f"✅ Normalized {len(memories)} memories, extracted name: {user_name}")
+                    
+                    if memory_version == "v2":
+                        # 🚀 MEMORY V2: Pre-processed enriched profile
+                        v2_profile = caller_data.get("profile", {})
+                        user_name = v2_profile.get("caller_name")
+                        normalized = v2_profile.get("enriched_context", {})
+                        logger.info(f"🚀 Memory V2 profile: {user_name}, {v2_profile.get('total_calls', 0)} calls")
+                        
+                    elif memory_version == "v1":
+                        # ⚠️ MEMORY V1: Raw memories (slower normalization)
+                        memories = caller_data.get("memories", [])
+                        if memories:
+                            normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
+                            user_name = normalized.get("identity", {}).get("caller_name")
+                            logger.info(f"⚠️ Normalized {len(memories)} V1 memories, extracted name: {user_name}")
+                        else:
+                            # 🆕 AUTO-REGISTER NEW CALLERS
+                            if user_id:
+                                logger.info(f"🆕 New caller detected! No existing memories for {user_id}")
+                                try:
+                                    registered = await asyncio.to_thread(mem_store.auto_register_caller, user_id, user_id)
+                                    if registered:
+                                        logger.info(f"✅ Auto-registered new caller: {user_id}")
+                                    else:
+                                        logger.warning(f"⚠️ Failed to auto-register caller: {user_id}")
+                                except Exception as e:
+                                    logger.error(f"❌ Error auto-registering caller {user_id}: {e}")
+                    
                     else:
-                        # 🆕 AUTO-REGISTER NEW CALLERS
-                        if user_id:
-                            logger.info(f"🆕 New caller detected! No existing memories for {user_id}")
-                            try:
-                                registered = await asyncio.to_thread(mem_store.auto_register_caller, user_id, user_id)
-                                if registered:
-                                    logger.info(f"✅ Auto-registered new caller: {user_id}")
-                                else:
-                                    logger.warning(f"⚠️ Failed to auto-register caller: {user_id}")
-                            except Exception as e:
-                                logger.error(f"❌ Error auto-registering caller {user_id}: {e}")
+                        # No memories at all - new caller
+                        logger.info(f"🆕 New caller, no memory system data available")
                     
                     # Build instructions with full context
                     agent_name = agent_name_override or agent_name_val
@@ -2037,13 +2063,21 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
                             logger.info(f"✅ Added {min(10, len(history))} history messages")
                     
-                    # Add normalized memory context
+                    # Add memory context (format depends on V1 vs V2)
                     if normalized:
                         instructions += "\n\n=== YOUR_MEMORY_OF_THIS_CALLER ===\n"
-                        instructions += json.dumps(normalized, indent=2)
+                        if memory_version == "v2":
+                            # V2: Already enriched, just inject
+                            instructions += json.dumps(normalized, indent=2)
+                            logger.info(f"✅ Injected Memory V2 enriched profile")
+                        else:
+                            # V1: Normalized structure
+                            instructions += json.dumps(normalized, indent=2)
+                            facts_count = len(normalized.get('facts', []))
+                            vehicles_count = len(normalized.get('vehicles', []))
+                            logger.info(f"✅ Injected V1 normalized memories: {facts_count} facts, {vehicles_count} vehicles")
                         instructions += "\n\nIMPORTANT: Use this memory naturally in conversation.\n"
                         instructions += "=== END_MEMORY ===\n"
-                        logger.info(f"✅ Injected normalized memories: {len(normalized.get('facts', []))} facts, {len(normalized.get('vehicles', []))} vehicles")
                     
                     # Build personalized greeting
                     if is_callback and user_name:
@@ -2106,7 +2140,8 @@ async def media_stream_endpoint(websocket: WebSocket):
                         voice=openai_voice
                     )
                     oai.connect()
-                    logger.info(f"✅ Greeting sent with full context! (thread={thread_id}, memories={len(memories)}, history={history_count})")
+                    memory_info = f"v2_profile" if memory_version == "v2" else f"{len(caller_data.get('memories', []))} v1_memories"
+                    logger.info(f"✅ Greeting sent with full context! (thread={thread_id}, memory={memory_info}, history={history_count})")
                 
                 except Exception as e:
                     logger.error(f"Failed to initialize call: {e}")

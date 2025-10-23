@@ -1019,6 +1019,137 @@ class HTTPMemoryStore:
             logger.error(traceback.format_exc())
             return False
 
+    # ============================================================================
+    # MEMORY V2: Enriched Caller Profiles & Personality Tracking
+    # ============================================================================
+    
+    def get_caller_profile_v2(self, phone_number: str) -> Optional[Dict[str, Any]]:
+        """
+        Get enriched caller profile from Memory V2 system.
+        
+        Returns pre-processed, structured data instead of raw memories:
+        - Caller identity (name, phone, email)
+        - Call history summaries
+        - Personality averages (Big 5 + communication style)
+        - Key variables (relationships, vehicles, policies)
+        
+        Args:
+            phone_number: Caller's phone number
+        
+        Returns:
+            Enriched profile dict or None if not found
+        """
+        try:
+            logger.info(f"🚀 Fetching Memory V2 caller profile for {phone_number}")
+            
+            response = self.session.get(
+                f"{self.ai_memory_url}/caller/profile/{phone_number}",
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                profile = response.json()
+                logger.info(f"✅ Memory V2 profile retrieved: {profile.get('total_calls', 0)} calls, personality tracked")
+                return profile
+            elif response.status_code == 404:
+                logger.info(f"📭 No Memory V2 profile found for {phone_number} (new caller)")
+                return None
+            else:
+                logger.warning(f"⚠️ Memory V2 profile fetch failed ({response.status_code}), falling back to V1")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error fetching Memory V2 profile: {e}")
+            return None
+    
+    def save_call_summary_v2(
+        self,
+        phone_number: str,
+        call_sid: str,
+        summary: str,
+        extracted_facts: Dict[str, Any],
+        personality_signals: Dict[str, float],
+        call_flow: List[str],
+        transcript_pointer: Optional[str] = None
+    ) -> bool:
+        """
+        Save call summary to Memory V2 system.
+        
+        Args:
+            phone_number: Caller's phone number
+            call_sid: Twilio call SID
+            summary: Human-readable call summary
+            extracted_facts: Structured data extracted from call
+            personality_signals: Personality trait observations (0-100)
+            call_flow: Sequence of conversation stages
+            transcript_pointer: Path to raw transcript for audit
+        
+        Returns:
+            True if saved successfully
+        """
+        try:
+            logger.info(f"💾 Saving Memory V2 call summary for {call_sid}")
+            
+            payload = {
+                "phone_number": phone_number,
+                "call_sid": call_sid,
+                "summary": summary,
+                "extracted_facts": extracted_facts,
+                "personality_signals": personality_signals,
+                "call_flow": call_flow,
+                "transcript_pointer": transcript_pointer
+            }
+            
+            response = self.session.post(
+                f"{self.ai_memory_url}/call/summary",
+                json=payload,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
+            
+            if response.status_code == 201 or response.status_code == 200:
+                logger.info(f"✅ Memory V2 call summary saved successfully")
+                return True
+            else:
+                logger.error(f"❌ Failed to save Memory V2 call summary: {response.status_code}")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Error saving Memory V2 call summary: {e}")
+            return False
+    
+    def get_personality_averages_v2(self, phone_number: str) -> Optional[Dict[str, float]]:
+        """
+        Get running personality averages from Memory V2.
+        
+        Returns caller's average personality traits across all calls:
+        - Big 5: openness, conscientiousness, extraversion, agreeableness, neuroticism
+        - Communication: formality, directness, technical_level
+        - Satisfaction scores
+        
+        Args:
+            phone_number: Caller's phone number
+        
+        Returns:
+            Dict of personality averages or None
+        """
+        try:
+            response = self.session.get(
+                f"{self.ai_memory_url}/personality/averages/{phone_number}",
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                averages = response.json()
+                logger.info(f"✅ Memory V2 personality averages retrieved")
+                return averages
+            else:
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error fetching personality averages: {e}")
+            return None
+
     def close(self):
         """Close the HTTP session."""
         if hasattr(self, 'session'):

@@ -19,10 +19,16 @@ The system employs a microservices architecture with distinct components:
 -   **AI Engine**: A FastAPI backend manages LLM integration and conversation flow.
 -   **AI-Memory Service**: An external HTTP service for persistent memory and admin configuration, allowing dynamic configuration without code deployments.
 -   **LLM Integration**: Utilizes OpenAI Realtime API (gpt-realtime) for AI responses, achieving 2-2.5 second response times.
--   **Memory System**: A three-tier hybrid system for conversation memory:
+-   **Memory System**: A hybrid system with V1 (raw) and V2 (structured) storage:
     -   **Rolling Thread History**: FastAPI maintains a deque of up to 500 messages per unique `thread_id`, saved to and loaded from PostgreSQL. It includes automatic memory consolidation and provides both within-call and cross-call continuity.
     -   **Automatic Memory Consolidation**: Triggers at 400 messages, using an LLM to extract structured data (people, facts, preferences, commitments) from older messages, which are then de-duplicated and the thread history pruned.
-    -   **AI-Memory Service**: Permanent storage for structured facts, admin settings, and user registration.
+    -   **Memory V1 (Legacy)**: Raw memories stored as key-value pairs, requires normalization on retrieval (slower)
+    -   **Memory V2 (Recommended)**: Pre-processed enriched profiles with:
+        - Call summaries instead of raw transcripts
+        - Extracted key variables (identity, relationships, vehicles, policies)
+        - Personality trait running averages (Big 5 + communication style)
+        - Fast retrieval via dedicated endpoints: `/caller/profile/{phone}`, `/personality/averages/{phone}`, `/call/summary`
+    -   **AI-Memory Service**: External HTTP service at `http://209.38.143.71:8100` providing both V1 and V2 APIs.
 -   **Call Recording & Transcripts**: Every call automatically saves:
     -   **Transcript**: Retrieved from AI-Memory (authoritative source) and saved to `/opt/ChatStack/static/calls/{call_sid}.txt` with formatted conversation history
     -   **Audio Recording**: Downloaded from Twilio after call ends, saved to `/opt/ChatStack/static/calls/{call_sid}.mp3`
