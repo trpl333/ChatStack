@@ -1,6 +1,6 @@
 # NeuroSphere Multi-Project Architecture
 **Last Updated:** October 23, 2025  
-**Version:** 1.1.0 - Added real endpoints from GitHub repos
+**Version:** 1.2.0 - Complete API specs from all 4 repos
 
 > **⚠️ IMPORTANT**: This file is shared across ChatStack, AI-Memory, LeadFlowTracker, and NeuroSphere Send Text projects.  
 > When making changes, update the version number and commit to GitHub so all projects can sync.
@@ -9,7 +9,7 @@
 > - ChatStack: `trpl333/ChatStack`
 > - AI-Memory: `trpl333/ai-memory`
 > - LeadFlowTracker: `trpl333/LeadFlowTracker`
-> - NeuroSphere Send Text: `trpl333/neurosphere-send_text` (or similar)
+> - NeuroSphere Send Text: `trpl333/neurosphere_send_text`
 
 ---
 
@@ -141,33 +141,49 @@ PATCH  /api/leads/:id/stage           - Update lead stage
 ---
 
 ### 4. NeuroSphere Send Text (SMS Service)
-**Repository:** `neurosphere-send_text` (GitHub: trpl333/neurosphere-send_text)  
+**Repository:** `neurosphere_send_text` (GitHub: trpl333/neurosphere_send_text)  
 **Production:** DigitalOcean (/root/neurosphere_send_text/)  
 **Port:** 3000
 
-**Tech Stack:** Python (Flask or FastAPI)
+**Tech Stack:** Python, Flask, Twilio SDK
 
 **Key Responsibilities:**
-- Post-call SMS notifications
-- Call summary text messages
+- Post-call SMS notifications with summaries
+- Call transcript and audio file management
 - ElevenLabs webhook handler
-- Automated follow-up messaging
+- Multi-recipient SMS delivery
+- Call index maintenance (calls.json)
 
 **API Endpoints:**
 ```
-POST /call-summary    - Receive ElevenLabs post-call webhook, send SMS summary
-# Additional endpoints TBD
+POST /call-summary    - Receive ElevenLabs webhook, save transcript, send SMS
+                       - Extracts: call_sid, caller, transcript summary
+                       - Saves: {call_sid}.txt (transcript), {call_sid}.mp3 (audio chunks)
+                       - Updates: calls.json index
+                       - Sends: SMS to configured recipients with summary + links
 ```
 
+**Data Flow:**
+1. ElevenLabs calls POST /call-summary after call ends
+2. Extracts metadata from `data.metadata.phone_call`
+3. Saves transcript summary to `/opt/ChatStack/static/calls/{call_sid}.txt`
+4. Appends audio chunks (base64) to `/opt/ChatStack/static/calls/{call_sid}.mp3`
+5. Updates `/opt/ChatStack/static/calls/calls.json` with call record
+6. Sends SMS to recipients: +19493342332, +19495565379
+
+**SMS Recipients:**
+- Primary: +19493342332
+- Secondary: +19495565379
+
 **Dependencies:**
-- Twilio - SMS delivery
-- AI-Memory - Call summaries and caller data
-- ElevenLabs - Post-call webhook trigger
+- Twilio SMS API (from: +18633433339)
+- ElevenLabs (webhook trigger)
+- ChatStack filesystem (shares /opt/ChatStack/static/calls/)
 
 **Integration:**
 - Nginx forwards `/call-summary` → port 3000 (send_text.py)
-- Runs in tmux session on production server
-- Receives webhooks from ElevenLabs after calls end
+- Runs in tmux session: `cd /root/neurosphere_send_text && python3 send_text.py`
+- Shares call storage directory with ChatStack
 
 ---
 
@@ -337,7 +353,7 @@ This uses the GitHub integration to pull latest code from your private repos.
 - [ ] Document error codes and handling
 - [ ] Add sequence diagrams for complex flows
 - [ ] Create OpenAPI specs for each service
-- [ ] Find correct neurosphere-send_text repo name and add
+- [x] Find correct neurosphere_send_text repo name and add
 
 ---
 

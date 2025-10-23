@@ -111,7 +111,7 @@ async function main() {
   const repos = [
     { owner: 'trpl333', repo: 'ai-memory', dir: 'external/ai-memory' },
     { owner: 'trpl333', repo: 'LeadFlowTracker', dir: 'external/LeadFlowTracker' },
-    { owner: 'trpl333', repo: 'neurosphere-send_text', dir: 'external/neurosphere-send_text' }
+    { owner: 'trpl333', repo: 'neurosphere_send_text', dir: 'external/neurosphere_send_text' }
   ];
   
   for (const { owner, repo, dir } of repos) {
