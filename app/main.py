@@ -2004,26 +2004,28 @@ async def media_stream_endpoint(websocket: WebSocket):
                                 logger.info(f"✅ Using prompt blocks: {list(selected_blocks.keys())}")
                                 break
                     
-                    # Process caller data based on version
+                    # Initialize variables for all code paths
                     normalized = {}
                     user_name = None
                     
+                    # Process caller data based on version
                     if memory_version == "v2":
                         # 🚀 MEMORY V2: Pre-processed enriched profile
                         v2_profile = caller_data.get("profile", {})
-                        user_name = v2_profile.get("caller_name")
-                        normalized = v2_profile.get("enriched_context", {})
-                        logger.info(f"🚀 Memory V2 profile: {user_name}, {v2_profile.get('total_calls', 0)} calls")
+                        user_name = v2_profile.get("caller_name")  # Extract name from V2 profile
+                        normalized = v2_profile.get("enriched_context", {})  # Extract enriched context
+                        total_calls = v2_profile.get("total_calls", 0)
+                        logger.info(f"🚀 Memory V2 profile loaded: caller={user_name}, total_calls={total_calls}")
                         
                     elif memory_version == "v1":
                         # ⚠️ MEMORY V1: Raw memories (slower normalization)
                         memories = caller_data.get("memories", [])
                         if memories:
                             normalized = await asyncio.to_thread(mem_store.normalize_memories, memories)
-                            user_name = normalized.get("identity", {}).get("caller_name")
+                            user_name = normalized.get("identity", {}).get("caller_name")  # Extract from normalized V1 data
                             logger.info(f"⚠️ Normalized {len(memories)} V1 memories, extracted name: {user_name}")
                         else:
-                            # 🆕 AUTO-REGISTER NEW CALLERS
+                            # 🆕 AUTO-REGISTER NEW CALLERS (only for V1 empty case)
                             if user_id:
                                 logger.info(f"🆕 New caller detected! No existing memories for {user_id}")
                                 try:
@@ -2036,7 +2038,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                                     logger.error(f"❌ Error auto-registering caller {user_id}: {e}")
                     
                     else:
-                        # No memories at all - new caller
+                        # No memories at all - new caller (normalized and user_name remain empty/None)
                         logger.info(f"🆕 New caller, no memory system data available")
                     
                     # Build instructions with full context
