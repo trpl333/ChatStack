@@ -11,6 +11,13 @@ Preferred communication style: Simple, everyday language.
 - Examples: `docker-compose-cs.yml` (ChatStack), `docker-compose-ai.yml` (AI-Memory)
 - Prevents accidental overwrites when managing multiple services
 
+**Multi-Project Architecture:**
+- This project is part of a 4-service ecosystem (ChatStack, AI-Memory, LeadFlowTracker, NeuroSphere Send Text)
+- All repos are cloned locally in `external/` directory for full code visibility
+- Shared architecture documentation in `MULTI_PROJECT_ARCHITECTURE.md` keeps all services aligned
+- Run `node fetch_repos.js` to update external repos with latest code from GitHub
+- This prevents API endpoint mismatches and ensures architectural consistency
+
 ### System Architecture
 The system employs a microservices architecture with distinct components:
 

@@ -109,9 +109,9 @@ async function main() {
   console.log('🚀 Starting GitHub repo download...\n');
   
   const repos = [
-    { owner: 'trjp333', repo: 'ai-memory', dir: 'external/ai-memory' },
-    { owner: 'trjp333', repo: 'LeadFlowTracker', dir: 'external/LeadFlowTracker' },
-    { owner: 'trjp333', repo: 'neurosphere-send_text', dir: 'external/neurosphere-send_text' }
+    { owner: 'trpl333', repo: 'ai-memory', dir: 'external/ai-memory' },
+    { owner: 'trpl333', repo: 'LeadFlowTracker', dir: 'external/LeadFlowTracker' },
+    { owner: 'trpl333', repo: 'neurosphere-send_text', dir: 'external/neurosphere-send_text' }
   ];
   
   for (const { owner, repo, dir } of repos) {

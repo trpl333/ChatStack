@@ -1,9 +1,15 @@
 # NeuroSphere Multi-Project Architecture
 **Last Updated:** October 23, 2025  
-**Version:** 1.0.0
+**Version:** 1.1.0 - Added real endpoints from GitHub repos
 
-> **⚠️ IMPORTANT**: This file is shared across ChatStack, AI-Memory, LeadLow, and SentText projects.  
+> **⚠️ IMPORTANT**: This file is shared across ChatStack, AI-Memory, LeadFlowTracker, and NeuroSphere Send Text projects.  
 > When making changes, update the version number and commit to GitHub so all projects can sync.
+> 
+> **GitHub Repos:**
+> - ChatStack: `trpl333/ChatStack`
+> - AI-Memory: `trpl333/ai-memory`
+> - LeadFlowTracker: `trpl333/LeadFlowTracker`
+> - NeuroSphere Send Text: `trpl333/neurosphere-send_text` (or similar)
 
 ---
 
@@ -49,21 +55,37 @@ NeuroSphere is a multi-service AI phone system platform with 4 interconnected se
 ---
 
 ### 2. AI-Memory (Memory Service)
-**Repository:** `ai-memory`  
+**Repository:** `ai-memory` (GitHub: trpl333/ai-memory)  
 **Production:** DigitalOcean (209.38.143.71:8100)  
 **Port:** 8100
 
 **API Endpoints:**
 ```
-GET  /                      - Service info
-GET  /health                - Health check
-GET  /v1/memories           - Retrieve memories (user_id, limit, memory_type params)
-POST /v1/memories           - Store new memory
-POST /v1/memories/user      - Store user-specific memory
-DELETE /v1/memories/{id}    - Delete memory by ID
-GET  /caller/profile/{phone}        - [V2] Get enriched caller profile
-GET  /personality/averages/{phone}  - [V2] Get personality metrics
-POST /call/summary                  - [V2] Save call summary
+# Core Service
+GET  /                              - Service info & status
+GET  /admin                         - Admin interface
+GET  /health                        - Health check (DB status)
+
+# Memory V1 API (Legacy)
+GET  /v1/memories                   - Retrieve memories (params: user_id, limit, memory_type)
+POST /v1/memories                   - Store new memory
+POST /v1/memories/user              - Store user-specific memory
+POST /v1/memories/shared            - Store shared memory
+GET  /v1/memories/user/{user_id}    - Get all memories for user
+GET  /v1/memories/shared            - Get shared memories
+DELETE /v1/memories/{memory_id}     - Delete specific memory
+
+# Chat & LLM
+POST /v1/chat                       - Chat completion with memory context
+POST /v1/chat/completions           - OpenAI-compatible chat endpoint
+
+# Tools
+GET  /v1/tools                      - List available tools
+POST /v1/tools/{tool_name}          - Execute specific tool
+
+# Memory V2 (Advanced - if implemented)
+# Note: V2 endpoints for caller profiles, personality tracking, 
+# and call summaries may be accessed via memory V1 with specific keys
 ```
 
 **Data Models:**
@@ -81,48 +103,71 @@ POST /call/summary                  - [V2] Save call summary
 
 ---
 
-### 3. LeadLow (CRM/Lead Management)
-**Repository:** `leadlow`  
+### 3. LeadFlowTracker (CRM/Lead Management)
+**Repository:** `LeadFlowTracker` (GitHub: trpl333/LeadFlowTracker)  
 **Production:** TBD  
-**Port:** TBD
+**Port:** TBD (likely 3001 or 5001)
+
+**Tech Stack:** Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL
 
 **Key Responsibilities:**
 - Lead capture and management
-- CRM integration (Notion, HubSpot, etc.)
-- Lead scoring and qualification
-- Pipeline tracking
-
-**Dependencies:**
-- AI-Memory - Lead enrichment and history
-- TBD
+- Lead pipeline tracking with milestone system
+- Google Sheets integration for data sync
+- Lead status management (active/lost/reactivated)
+- Notes and stage tracking
 
 **API Endpoints:**
 ```
-# TODO: Add LeadLow endpoints
+# Lead Management
+GET    /api/leads              - Get all leads
+GET    /api/leads/:id          - Get lead by ID
+POST   /api/leads              - Create new lead
+DELETE /api/leads/:id          - Delete lead
+
+# Lead Actions
+POST   /api/leads/:id/milestone       - Toggle milestone for lead
+POST   /api/leads/:id/mark-lost       - Mark lead as lost
+POST   /api/leads/:id/reactivate      - Reactivate lost lead
+PATCH  /api/leads/:id/notes           - Update lead notes
+PATCH  /api/leads/:id/stage           - Update lead stage
 ```
+
+**Dependencies:**
+- PostgreSQL database (Drizzle ORM)
+- Google Sheets API (for data sync)
+- AI-Memory (potential - for lead enrichment)
 
 ---
 
-### 4. SentText (SMS Service)
-**Repository:** `senttext`  
-**Production:** TBD  
-**Port:** TBD
+### 4. NeuroSphere Send Text (SMS Service)
+**Repository:** `neurosphere-send_text` (GitHub: trpl333/neurosphere-send_text)  
+**Production:** DigitalOcean (/root/neurosphere_send_text/)  
+**Port:** 3000
+
+**Tech Stack:** Python (Flask or FastAPI)
 
 **Key Responsibilities:**
-- SMS campaign management
-- Automated text messaging
-- SMS template management
-- Delivery tracking
-
-**Dependencies:**
-- Twilio - SMS delivery
-- AI-Memory - Personalization data
-- TBD
+- Post-call SMS notifications
+- Call summary text messages
+- ElevenLabs webhook handler
+- Automated follow-up messaging
 
 **API Endpoints:**
 ```
-# TODO: Add SentText endpoints
+POST /call-summary    - Receive ElevenLabs post-call webhook, send SMS summary
+# Additional endpoints TBD
 ```
+
+**Dependencies:**
+- Twilio - SMS delivery
+- AI-Memory - Call summaries and caller data
+- ElevenLabs - Post-call webhook trigger
+
+**Integration:**
+- Nginx forwards `/call-summary` → port 3000 (send_text.py)
+- Runs in tmux session on production server
+- Receives webhooks from ElevenLabs after calls end
 
 ---
 
@@ -168,13 +213,13 @@ GET http://209.38.143.71:8100/caller/profile/{phone}
 
 ## 🚀 Deployment Locations
 
-| Service    | Environment | Location              | Port | Status  |
-|------------|-------------|-----------------------|------|---------|
-| ChatStack  | Production  | DO: 209.38.143.71    | 5000 | Running |
-| ChatStack  | Production  | DO: 209.38.143.71    | 8001 | Running |
-| AI-Memory  | Production  | DO: 209.38.143.71    | 8100 | Running |
-| LeadLow    | Production  | TBD                  | TBD  | TBD     |
-| SentText   | Production  | TBD                  | TBD  | TBD     |
+| Service           | Environment | Location                      | Port | Status  | Notes                    |
+|-------------------|-------------|-------------------------------|------|---------|--------------------------|
+| ChatStack (Flask) | Production  | DO: 209.38.143.71            | 5000 | Running | Admin UI                 |
+| ChatStack (FastAPI)| Production  | DO: 209.38.143.71            | 8001 | Running | Phone orchestrator       |
+| AI-Memory         | Production  | DO: 209.38.143.71            | 8100 | Running | Memory service           |
+| Send Text         | Production  | DO: /root/neurosphere_send_text | 3000 | Running | SMS service (tmux)      |
+| LeadFlowTracker   | Development | Replit/Local                 | TBD  | Dev     | CRM system               |
 
 ---
 
@@ -184,12 +229,28 @@ GET http://209.38.143.71:8100/caller/profile/{phone}
 
 1. **Update this file** with the change (endpoints, ports, data models)
 2. **Increment the version number** at the top
-3. **Commit and push to GitHub**
-4. **Notify other projects** (or they pull periodically)
+3. **Commit and push to GitHub** in your service's repo
+4. **Copy updated file to other repos** (or sync via script)
 
-**Example commit message:**
+**Example workflow:**
 ```bash
-git commit -m "AI-Memory: Added /v2/caller/profile endpoint - v1.1.0"
+# In AI-Memory Replit after adding new endpoint:
+nano MULTI_PROJECT_ARCHITECTURE.md   # Update endpoint list
+# Change version: 1.1.0 → 1.2.0
+git add MULTI_PROJECT_ARCHITECTURE.md
+git commit -m "AI-Memory: Added /v2/caller/profile endpoint - v1.2.0"
+git push origin main
+
+# Then copy to other projects:
+# Option A: Manual - download and upload to other Replits
+# Option B: Automated - use fetch_repos.js script in ChatStack to pull updates
+```
+
+**Auto-sync in ChatStack Replit:**
+```bash
+# ChatStack has all repos cloned in external/
+# Run this to sync the latest architecture docs:
+node fetch_repos.js  # Re-downloads all repos with latest changes
 ```
 
 ---
@@ -240,13 +301,43 @@ DATABASE_URL=postgresql://...
 
 ---
 
+## 🔗 Cross-Project Code Access (ChatStack Only)
+
+**ChatStack Replit has all 4 repos cloned locally** in the `external/` directory:
+
+```bash
+external/
+├── ai-memory/           # Full AI-Memory codebase
+├── LeadFlowTracker/     # Full CRM codebase  
+└── neurosphere-send_text/  # Full SMS service codebase
+```
+
+**Benefits:**
+- ✅ I can see actual endpoints and code from all services
+- ✅ No more endpoint mismatches (like the `/memory/retrieve` vs `/v1/memories` issue)
+- ✅ Architecture always stays aligned
+- ✅ Easy to search across all projects
+
+**To Update:**
+```bash
+# Re-download latest code from all repos
+node fetch_repos.js
+```
+
+This uses the GitHub integration to pull latest code from your private repos.
+
+---
+
 ## 🎯 Future Enhancements
 
-- [ ] Complete LeadLow and SentText sections
+- [x] Clone all 4 repos into ChatStack for full visibility
+- [x] Document real endpoints from actual code
+- [ ] Add Memory V2 endpoint specifications when implemented
 - [ ] Add webhook specifications
 - [ ] Document error codes and handling
 - [ ] Add sequence diagrams for complex flows
 - [ ] Create OpenAPI specs for each service
+- [ ] Find correct neurosphere-send_text repo name and add
 
 ---
 

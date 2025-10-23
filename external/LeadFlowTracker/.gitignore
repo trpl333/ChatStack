@@ -1,0 +1,34 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment variables (keep .env.example)
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+/tmp/
+/var/log/
+
+# Replit specific
+.replit
+.upm/
+.cache/
+.config/
+replit.nix
+
+# Setup scripts
+setup-github.js
+push-to-github.sh
+
+# PM2
+.pm2
+pids
+*.pid
+*.seed
+*.pid.lockattached_assets/
