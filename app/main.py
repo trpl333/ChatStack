@@ -2196,6 +2196,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                 # Use the SAME thread_id that was used during the call
                 logger.info(f"🔍 Retrieving transcript from AI-Memory for call {call_sid}, thread_id={thread_id}...")
                 
+                # Initialize messages for V2 summarization (populated in try or except)
+                messages = []
+                
                 try:
                     memory_response = requests.post(
                         "http://209.38.143.71:8100/memory/retrieve",
@@ -2269,6 +2272,9 @@ async def media_stream_endpoint(websocket: WebSocket):
                     # Fallback: use local THREAD_HISTORY if AI-Memory fails
                     logger.warning(f"⚠️ AI-Memory retrieval failed ({e}), using local THREAD_HISTORY")
                     history = THREAD_HISTORY.get(thread_id, deque()) if thread_id else deque()
+                    
+                    # Build messages for V2 from local history
+                    messages = [{"role": role, "content": content} for role, content in history]
                     
                     transcript_lines = []
                     for role, content in history:
