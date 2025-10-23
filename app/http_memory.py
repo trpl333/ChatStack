@@ -1070,7 +1070,7 @@ class HTTPMemoryStore:
             logger.info(f"🚀 Fetching Memory V2 caller profile for {phone_number}")
             
             response = self.session.get(
-                f"{self.ai_memory_url}/caller/profile/{phone_number}",
+                f"{self.ai_memory_url}/v2/profile/{phone_number}",
                 timeout=5
             )
             
@@ -1089,56 +1089,96 @@ class HTTPMemoryStore:
             logger.error(f"❌ Error fetching Memory V2 profile: {e}")
             return None
     
+    def get_enriched_context_v2(self, phone_number: str) -> Optional[str]:
+        """
+        🚀 FAST: Get enriched caller context for new call (<1 second!).
+        
+        This is the fastest way to retrieve caller info. Uses pre-processed
+        summaries and personality data instead of raw memories.
+        
+        Args:
+            phone_number: Caller's phone number
+        
+        Returns:
+            Formatted context string ready for LLM prompt, or None if error
+        """
+        try:
+            logger.info(f"⚡ Fetching FAST enriched context for {phone_number}")
+            
+            response = self.session.post(
+                f"{self.ai_memory_url}/v2/context/enriched",
+                json={"user_id": phone_number},
+                headers={"Content-Type": "application/json"},
+                timeout=3  # Should be <1 second!
+            )
+            
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("success"):
+                    context = result.get("context", "")
+                    logger.info(f"✅ V2 enriched context retrieved ({result.get('summary_count', 0)} summaries)")
+                    return context
+                else:
+                    logger.warning(f"⚠️ V2 context fetch failed: {result.get('error')}")
+                    return None
+            else:
+                logger.warning(f"⚠️ V2 context endpoint returned {response.status_code}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"❌ Error fetching V2 enriched context: {e}")
+            return None
+    
     def save_call_summary_v2(
         self,
         phone_number: str,
         call_sid: str,
-        summary: str,
-        extracted_facts: Dict[str, Any],
-        personality_signals: Dict[str, float],
-        call_flow: List[str],
-        transcript_pointer: Optional[str] = None
+        conversation_history: List[tuple]
     ) -> bool:
         """
-        Save call summary to Memory V2 system.
+        Auto-summarize completed call using Memory V2 AI processing.
+        
+        The AI-Memory service will:
+        - Generate call summary automatically
+        - Extract personality metrics
+        - Save structured data
         
         Args:
-            phone_number: Caller's phone number
+            phone_number: Caller's phone number  
             call_sid: Twilio call SID
-            summary: Human-readable call summary
-            extracted_facts: Structured data extracted from call
-            personality_signals: Personality trait observations (0-100)
-            call_flow: Sequence of conversation stages
-            transcript_pointer: Path to raw transcript for audit
+            conversation_history: List of (role, message) tuples
         
         Returns:
             True if saved successfully
         """
         try:
-            logger.info(f"💾 Saving Memory V2 call summary for {call_sid}")
+            logger.info(f"💾 Processing V2 call summary for {call_sid}")
             
             payload = {
-                "phone_number": phone_number,
-                "call_sid": call_sid,
-                "summary": summary,
-                "extracted_facts": extracted_facts,
-                "personality_signals": personality_signals,
-                "call_flow": call_flow,
-                "transcript_pointer": transcript_pointer
+                "user_id": phone_number,
+                "thread_id": call_sid,
+                "conversation_history": conversation_history
             }
             
             response = self.session.post(
-                f"{self.ai_memory_url}/call/summary",
+                f"{self.ai_memory_url}/v2/process-call",
                 json=payload,
                 headers={"Content-Type": "application/json"},
-                timeout=10
+                timeout=15  # AI processing may take longer
             )
             
-            if response.status_code == 201 or response.status_code == 200:
-                logger.info(f"✅ Memory V2 call summary saved successfully")
-                return True
+            if response.status_code == 200:
+                result = response.json()
+                if result.get("success"):
+                    summary = result.get("summary", "")
+                    sentiment = result.get("sentiment", "")
+                    logger.info(f"✅ V2 call processed: {summary[:50]}... (sentiment: {sentiment})")
+                    return True
+                else:
+                    logger.error(f"❌ V2 call processing failed: {result.get('error')}")
+                    return False
             else:
-                logger.error(f"❌ Failed to save Memory V2 call summary: {response.status_code}")
+                logger.error(f"❌ V2 process-call returned {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
@@ -1162,7 +1202,7 @@ class HTTPMemoryStore:
         """
         try:
             response = self.session.get(
-                f"{self.ai_memory_url}/personality/averages/{phone_number}",
+                f"{self.ai_memory_url}/v2/personality/{phone_number}",
                 timeout=5
             )
             
