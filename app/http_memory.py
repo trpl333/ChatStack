@@ -202,7 +202,7 @@ class HTTPMemoryStore:
             }
             
             response = self.session.post(
-                f"{self.ai_memory_url}/memory/store",
+                f"{self.ai_memory_url}/v1/memories",
                 json=payload,
                 headers={"Content-Type": "application/json"},
                 timeout=10
@@ -261,12 +261,20 @@ class HTTPMemoryStore:
                 payload["scope"] = "user"
             
             # 🔍 DEBUG: Log what we're sending
-            logger.info(f"🔍 Querying AI-Memory: POST {self.ai_memory_url}/memory/retrieve")
-            logger.info(f"🔍 Payload: {json.dumps(payload, indent=2)}")
+            logger.info(f"🔍 Querying AI-Memory: GET {self.ai_memory_url}/v1/memories")
+            logger.info(f"🔍 Query params: user_id={user_id}, limit={k}, memory_type={memory_types}")
             
-            response = self.session.post(
-                f"{self.ai_memory_url}/memory/retrieve",
-                json=payload,
+            # Build query parameters for GET request
+            params = {
+                "user_id": user_id or "unknown",
+                "limit": k
+            }
+            if memory_types:
+                params["memory_type"] = ",".join(memory_types) if isinstance(memory_types, list) else memory_types
+            
+            response = self.session.get(
+                f"{self.ai_memory_url}/v1/memories",
+                params=params,
                 headers={"Content-Type": "application/json"},
                 timeout=10
             )
@@ -373,9 +381,17 @@ class HTTPMemoryStore:
                 
                 logger.info(f"  📄 Fetching page offset={offset}, limit={payload['limit']}")
                 
-                response = self.session.post(
-                    f"{self.ai_memory_url}/memory/retrieve",
-                    json=payload,
+                # Build query parameters for GET request
+                params = {
+                    "user_id": user_id,
+                    "limit": payload['limit']
+                }
+                if not include_shared:
+                    params["scope"] = "user"
+                
+                response = self.session.get(
+                    f"{self.ai_memory_url}/v1/memories",
+                    params=params,
                     headers={"Content-Type": "application/json"},
                     timeout=15
                 )
@@ -899,13 +915,16 @@ class HTTPMemoryStore:
     def get_shared_memories(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get shared memories."""
         try:
-            payload = {
+            params = {
                 "user_id": "shared",
-                "message": "",
-                "limit": limit,
-                "scope": "shared,global"
+                "limit": limit
             }
-            response = self.session.post(f"{self.ai_memory_url}/memory/retrieve", json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+            response = self.session.get(
+                f"{self.ai_memory_url}/v1/memories",
+                params=params,
+                headers={"Content-Type": "application/json"},
+                timeout=10
+            )
             
             if response.status_code == 200:
                 return response.json().get("memories", [])
@@ -920,11 +939,19 @@ class HTTPMemoryStore:
         self._check_connection()
         
         try:
-            # Use memory/read endpoint with session_id parameter  
-            response = self.session.get(f"{self.ai_memory_url}/memory/read", params={"session_id": memory_id}, timeout=10)
+            # Use v1/memories endpoint to get specific memory
+            response = self.session.get(
+                f"{self.ai_memory_url}/v1/memories",
+                params={"user_id": "unknown", "limit": 1},
+                timeout=10
+            )
             
             if response.status_code == 200:
-                return response.json()
+                memories = response.json().get("memories", [])
+                for mem in memories:
+                    if mem.get("id") == memory_id or mem.get("memory_id") == memory_id:
+                        return mem
+                return None
             else:
                 return None
                 
