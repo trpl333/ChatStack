@@ -57,10 +57,30 @@ The system employs a microservices architecture with distinct components:
 -   **Environment Configuration**: Production secrets are stored in `/opt/ChatStack/.env` on DigitalOcean, non-secrets in `config.json`.
 
 **Deployment Procedures:**
--   **Critical**: After code changes, the `orchestrator-worker` service (FastAPI backend on port 8001) must be rebuilt to pick up new code: `docker-compose up -d --build orchestrator-worker`
--   **Web service** (Flask admin on port 5000) auto-reloads with gunicorn `--reload` flag for most changes.
--   **Nginx changes**: Copy config to `/etc/nginx/sites-enabled/`, test with `nginx -t`, reload with `systemctl reload nginx`.
--   **Voice settings**: Loaded from AI-Memory service at startup; orchestrator restart required after admin panel changes to apply new voice/personality.
+
+**Standard Update Process** (Use this for all code deployments):
+```bash
+# SSH into DigitalOcean server
+ssh root@your-digitalocean-ip
+cd /opt/ChatStack
+
+# Run the standardized update script
+./update.sh
+```
+
+The `update.sh` script is the **one consistent way** to deploy updates. It:
+- Pulls latest code from GitHub
+- Rebuilds all Docker services (including orchestrator-worker)
+- Restarts everything properly
+- Shows status and logs
+
+**Technical Details:**
+-   **orchestrator-worker** (FastAPI backend on port 8001): Must be rebuilt after code changes to pick up new Python code
+-   **web service** (Flask admin on port 5000): Auto-reloads with gunicorn `--reload` flag for most changes
+-   **Nginx changes**: Copy config to `/etc/nginx/sites-enabled/`, test with `nginx -t`, reload with `systemctl reload nginx`
+-   **Voice settings**: Loaded from AI-Memory service at startup; orchestrator restart required after admin panel changes to apply new voice/personality
+-   **Production location**: `/opt/ChatStack/` on DigitalOcean droplet
+-   **Secrets**: Stored in `/opt/ChatStack/.env` (never commit to GitHub)
 
 ### External Dependencies
 
