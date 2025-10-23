@@ -2288,6 +2288,32 @@ async def media_stream_endpoint(websocket: WebSocket):
                     f.write(summary_text)
                 logger.info(f"📝 Transcript saved: {transcript_path}")
                 
+                # ⚡ AUTO-SUMMARIZE CALL USING MEMORY V2
+                try:
+                    logger.info(f"⚡ Auto-summarizing call using Memory V2...")
+                    # Convert messages to V2 format: [(role, content), ...]
+                    if messages:
+                        conversation_history = [(msg.get("role", "user"), msg.get("content", "")) for msg in messages]
+                    else:
+                        # Fallback to local thread history
+                        conversation_history = list(THREAD_HISTORY.get(thread_id, [])) if thread_id else []
+                    
+                    if conversation_history:
+                        mem_store = HTTPMemoryStore()
+                        success = mem_store.save_call_summary_v2(
+                            phone_number=user_id,
+                            call_sid=call_sid,
+                            conversation_history=conversation_history
+                        )
+                        if success:
+                            logger.info(f"✅ Memory V2 call summarization complete!")
+                        else:
+                            logger.warning(f"⚠️ Memory V2 call summarization failed")
+                    else:
+                        logger.warning(f"⚠️ No conversation history to summarize")
+                except Exception as e:
+                    logger.error(f"❌ Error during V2 call summarization: {e}")
+                
                 # Update calls.json index with file locking to prevent race conditions
                 import fcntl
                 calls_index_path = os.path.join(calls_dir, "calls.json")
