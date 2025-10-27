@@ -189,21 +189,33 @@ class HTTPMemoryStore:
             scope = "shared"
         
         try:
-            # Prepare payload for AI-Memory service
+            # Prepare payload matching AI-Memory's MemoryObject model
             payload = {
-                "user_id": user_id or "unknown",
-                "message": json.dumps(value) if isinstance(value, dict) else str(value),
                 "type": memory_type,
-                "k": key,
-                "value_json": value,
-                "scope": scope,
+                "key": key,
+                "value": value,
                 "ttl_days": ttl_days,
                 "source": source
             }
             
+            # Route to correct endpoint based on scope
+            if scope == "user" and user_id:
+                # User-scoped memory: POST /v1/memories/user?user_id={user_id}
+                endpoint = f"{self.ai_memory_url}/v1/memories/user"
+                params = {"user_id": user_id}
+            elif scope in ("shared", "global"):
+                # Shared/global memory: POST /v1/memories/shared
+                endpoint = f"{self.ai_memory_url}/v1/memories/shared"
+                params = {}
+            else:
+                # Default: POST /v1/memories
+                endpoint = f"{self.ai_memory_url}/v1/memories"
+                params = {}
+            
             response = self.session.post(
-                f"{self.ai_memory_url}/memory/store",
+                endpoint,
                 json=payload,
+                params=params,
                 headers={"Content-Type": "application/json"},
                 timeout=10
             )
