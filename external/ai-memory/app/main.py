@@ -666,11 +666,13 @@ async def get_memories(
     limit: int = 50,
     memory_type: Optional[str] = None,
     user_id: Optional[str] = None,
+    include_shared: bool = False,
     mem_store: MemoryStore = Depends(get_memory_store)
 ):
     try:
         if user_id:
-            memories = mem_store.get_user_memories(user_id, limit=limit, include_shared=True)
+            # Only return user-specific memories by default, not shared admin settings
+            memories = mem_store.get_user_memories(user_id, limit=limit, include_shared=include_shared)
         else:
             query = "general" if not memory_type else memory_type
             memories = mem_store.search(query, k=limit)
