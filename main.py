@@ -167,68 +167,43 @@ def get_admin_setting(setting_key, default=None):
         import requests
         import json as json_module
         
-        # ✅ Use retrieve endpoint to get all admin settings
+        # Use new /v1/memories GET endpoint
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
-        response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
-            json={"user_id": "admin", "key": f"admin:{setting_key}"},
+        response = requests.get(
+            f"{ai_memory_url}/v1/memories",
+            params={
+                "user_id": "admin",
+                "memory_type": "admin_setting",
+                "limit": 50
+            },
             headers={"Content-Type": "application/json"},
             timeout=5
         )
         
         if response.status_code == 200:
             data = response.json()
+            memories = data.get("memories", [])
             
-            # ✅ FIX: Handle multiple AI-Memory response formats
-            # Format 1: {"memory": "concatenated\nJSON\nlines"}
-            # Format 2: {"memory": {...single object...}}
-            # Format 3: {"memory": [{...array...}]}
-            memory_data = data.get("memory", "")
+            # Find the setting by key - use LAST match (most recent)
+            last_value = None
+            for memory in memories:
+                if memory.get("key") == setting_key:
+                    # Parse value field - it may be a JSON string or dict
+                    value_field = memory.get("value")
+                    if isinstance(value_field, str):
+                        try:
+                            value_obj = json_module.loads(value_field)
+                            last_value = value_obj.get("value") or value_obj.get("setting_value")
+                        except:
+                            last_value = value_field
+                    elif isinstance(value_field, dict):
+                        last_value = value_field.get("value") or value_field.get("setting_value")
             
-            matches = []
-            
-            # If memory is already a dict (single object response)
-            if isinstance(memory_data, dict):
-                if memory_data.get("setting_key") == setting_key or memory_data.get("key") == setting_key:
-                    value = memory_data.get("value") or memory_data.get("setting_value") or memory_data.get(setting_key)
-                    if value:
-                        logging.info(f"📖 Retrieved admin setting {setting_key}: {value}")
-                        return value
-            
-            # If memory is a list (array response)
-            elif isinstance(memory_data, list):
-                for item in memory_data:
-                    if item.get("setting_key") == setting_key or item.get("key") == setting_key:
-                        value = item.get("value") or item.get("setting_value") or item.get(setting_key)
-                        timestamp = item.get("timestamp", 0)
-                        if value:
-                            matches.append({"value": value, "timestamp": float(timestamp)})
-            
-            # If memory is a string (concatenated JSON lines)
-            elif isinstance(memory_data, str):
-                for line in memory_data.split('\n'):
-                    line = line.strip()
-                    if not line or line == "test":
-                        continue
-                    try:
-                        setting_obj = json_module.loads(line)
-                        if setting_obj.get("setting_key") == setting_key or setting_obj.get("key") == setting_key:
-                            value = setting_obj.get("value") or setting_obj.get("setting_value") or setting_obj.get(setting_key)
-                            timestamp = setting_obj.get("timestamp", 0)
-                            if value:
-                                matches.append({"value": value, "timestamp": float(timestamp)})
-                    except json_module.JSONDecodeError:
-                        continue
-            
-            # Return most recent match if any found
-            if matches:
-                matches.sort(key=lambda x: x["timestamp"], reverse=True)
-                latest_value = matches[0]["value"]
-                logging.info(f"📖 Retrieved admin setting {setting_key}: {latest_value}")
-                return latest_value
-            
-            # If still nothing found, log for debugging
-            logging.warning(f"⚠️ No value found for {setting_key} in AI-Memory response: {type(memory_data).__name__}")
+            if last_value is not None:
+                logging.info(f"📖 Retrieved admin setting {setting_key}: {last_value}")
+                return last_value
+            else:
+                logging.warning(f"⚠️ Admin setting '{setting_key}' not found")
         
         # Fallback to config.json
         config_value = get_setting(setting_key, default)
@@ -441,28 +416,25 @@ def admin():
 def add_knowledge():
     """Add new knowledge to shared knowledge base"""
     try:
-        # ✅ Use correct AI-Memory service endpoints instead of /v1/memories
+        # Use new /v1/memories/shared POST endpoint
         data = {
-            "user_id": "admin",  # For shared knowledge
-            "message": request.form.get('value'),
             "type": request.form.get('type'),
-            "k": request.form.get('key'),
-            "value_json": {
+            "key": request.form.get('key'),
+            "value": {
                 "summary": request.form.get('value'),
                 "key": request.form.get('key')
             },
-            "scope": "shared",
             "ttl_days": 365,
             "source": "admin_web_interface"
         }
         
-        # Call AI-Memory service directly with correct endpoint
+        # Call AI-Memory service with new endpoint
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
-        resp = requests.post(f"{ai_memory_url}/memory/store", json=data, timeout=10)
+        resp = requests.post(f"{ai_memory_url}/v1/memories/shared", json=data, timeout=10)
         
         if resp.status_code == 200:
             result = resp.json()
-            flash(f"✅ Knowledge added: {data['k']} (ID: {result.get('id', 'unknown')})")
+            flash(f"✅ Knowledge added: {data['key']} (ID: {result.get('id', 'unknown')})")
         else:
             flash(f"❌ Failed to add knowledge: {resp.text}")
             

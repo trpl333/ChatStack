@@ -31,39 +31,45 @@ async def get_admin_setting(setting_key, default=None):
         # Use AI-Memory service URL from config
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
-        # Run blocking requests.post in thread pool to not block event loop
+        # Run blocking requests.get in thread pool to not block event loop
         def _fetch():
-            return requests.post(
-                f"{ai_memory_url}/memory/retrieve",
-                json={"user_id": "admin", "key": f"admin:{setting_key}"},
+            return requests.get(
+                f"{ai_memory_url}/v1/memories",
+                params={
+                    "user_id": "admin",
+                    "memory_type": "admin_setting",
+                    "limit": 50
+                },
                 headers={"Content-Type": "application/json"},
-                timeout=2  # Reduced from 5s to 2s
+                timeout=2
             )
         
         response = await asyncio.to_thread(_fetch)
         
         if response.status_code == 200:
             data = response.json()
-            memory_text = data.get("memory", "")
+            memories = data.get("memories", [])
             
-            # Parse concatenated JSON to find setting - use LAST match (most recent)
+            # Find the setting by key - use LAST match (most recent)
             last_value = None
-            for line in memory_text.split('\n'):
-                line = line.strip()
-                if not line or line == "test":
-                    continue
-                try:
-                    setting_obj = json.loads(line)
-                    if setting_obj.get("setting_key") == setting_key:
-                        last_value = setting_obj.get("value") or setting_obj.get("setting_value")
-                except:
-                    continue
+            for memory in memories:
+                if memory.get("key") == setting_key:
+                    # Parse value field - it may be a JSON string or dict
+                    value_field = memory.get("value")
+                    if isinstance(value_field, str):
+                        try:
+                            value_obj = json.loads(value_field)
+                            last_value = value_obj.get("value") or value_obj.get("setting_value")
+                        except:
+                            last_value = value_field
+                    elif isinstance(value_field, dict):
+                        last_value = value_field.get("value") or value_field.get("setting_value")
             
             if last_value is not None:
                 logger.info(f"📖 Retrieved admin setting {setting_key}: {last_value}")
                 return last_value
             else:
-                logger.warning(f"⚠️ Admin setting '{setting_key}' exists but has no value, using default: {default}")
+                logger.warning(f"⚠️ Admin setting '{setting_key}' not found, using default: {default}")
         else:
             logger.warning(f"⚠️ Failed to retrieve admin setting '{setting_key}' (status {response.status_code}), using default: {default}")
         
