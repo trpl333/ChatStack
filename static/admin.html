@@ -712,8 +712,12 @@
                             </div>
                         </div>
                     </div>
-                    <button class="btn btn-info mt-2" onclick="refreshStatus()">🔄 Refresh Status</button>
-                </div>
+                <!-- Live Service Health (auto-refreshing grid) -->
+                <div class="admin-section">
+                    <h3 class="section-header">🩺 Live Service Health</h3>
+                    <div id="system-status"></div>
+                </div><button class="btn btn-info mt-2" onclick="refreshStatus()">🔄 Refresh Status</button>
+            </div>
 
                 <!-- Service Architecture -->
                 <div class="admin-section">
