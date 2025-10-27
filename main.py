@@ -77,6 +77,10 @@ if not SESSION_SECRET:
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1, x_for=1)
 
+# Register status API blueprint
+from app.status_routes import status_bp
+app.register_blueprint(status_bp)
+
 # Create calls directory for storing transcripts and recordings
 CALLS_DIR = os.path.join(os.path.dirname(__file__), 'static', 'calls')
 os.makedirs(CALLS_DIR, exist_ok=True)
