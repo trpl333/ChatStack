@@ -50,8 +50,7 @@ async def get_admin_setting(setting_key, default=None):
             data = response.json()
             memories = data.get("memories", [])
             
-            # Find the setting by key - use LAST match (most recent)
-            last_value = None
+            # Find the setting by key - memories are ordered newest-first, so take FIRST match
             for memory in memories:
                 if memory.get("key") == setting_key:
                     # Parse value field - it may be a JSON string or dict
@@ -59,17 +58,22 @@ async def get_admin_setting(setting_key, default=None):
                     if isinstance(value_field, str):
                         try:
                             value_obj = json.loads(value_field)
-                            last_value = value_obj.get("value") or value_obj.get("setting_value")
+                            result = value_obj.get("value") or value_obj.get("setting_value")
+                            if result is not None:
+                                logger.info(f"📖 Retrieved admin setting {setting_key}: {result}")
+                                return result
                         except:
-                            last_value = value_field
+                            # If JSON parse fails, use the string directly
+                            logger.info(f"📖 Retrieved admin setting {setting_key}: {value_field}")
+                            return value_field
                     elif isinstance(value_field, dict):
-                        last_value = value_field.get("value") or value_field.get("setting_value")
+                        result = value_field.get("value") or value_field.get("setting_value")
+                        if result is not None:
+                            logger.info(f"📖 Retrieved admin setting {setting_key}: {result}")
+                            return result
             
-            if last_value is not None:
-                logger.info(f"📖 Retrieved admin setting {setting_key}: {last_value}")
-                return last_value
-            else:
-                logger.warning(f"⚠️ Admin setting '{setting_key}' not found, using default: {default}")
+            # Not found in any memory
+            logger.warning(f"⚠️ Admin setting '{setting_key}' not found, using default: {default}")
         else:
             logger.warning(f"⚠️ Failed to retrieve admin setting '{setting_key}' (status {response.status_code}), using default: {default}")
         
