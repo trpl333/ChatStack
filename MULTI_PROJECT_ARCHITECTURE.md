@@ -1,21 +1,39 @@
 # NeuroSphere Multi-Project Architecture
 **Last Updated:** October 23, 2025  
-**Version:** 1.2.0 - Complete API specs from all 4 repos
+**Version:** 1.3.0 - Clarified separate GitHub repos per project
 
-> **⚠️ IMPORTANT**: This file is shared across ChatStack, AI-Memory, LeadFlowTracker, and NeuroSphere Send Text projects.  
-> When making changes, update the version number and commit to GitHub so all projects can sync.
+> **⚠️ CRITICAL ARCHITECTURE PRINCIPLE:**  
+> **This is NOT a monorepo!** NeuroSphere consists of **4 SEPARATE PROJECTS**, each with its own **SEPARATE GitHub REPOSITORY** and **SEPARATE CODEBASE**.
 > 
-> **GitHub Repos:**
-> - ChatStack: `trpl333/ChatStack`
-> - AI-Memory: `trpl333/ai-memory`
-> - LeadFlowTracker: `trpl333/LeadFlowTracker`
-> - NeuroSphere Send Text: `trpl333/neurosphere_send_text`
+> **📁 Four Independent GitHub Repositories:**
+> 
+> 1. **ChatStack** - `https://github.com/trpl333/ChatStack`
+>    - Phone system orchestrator (Flask + FastAPI)
+>    - Own codebase, own deployment
+> 
+> 2. **AI-Memory** - `https://github.com/trpl333/ai-memory`
+>    - Memory storage service (FastAPI + PostgreSQL)
+>    - Own codebase, own deployment
+> 
+> 3. **LeadFlowTracker** - `https://github.com/trpl333/LeadFlowTracker`
+>    - CRM system (Node.js + Express + TypeScript)
+>    - Own codebase, own deployment
+> 
+> 4. **NeuroSphere Send Text** - `https://github.com/trpl333/neurosphere_send_text`
+>    - SMS notification service (Python + Flask)
+>    - Own codebase, own deployment
+>
+> **💡 How They Work Together:**
+> - Each service runs independently
+> - They communicate via **HTTP REST APIs** (not direct code imports)
+> - This documentation is copied to all 4 repos to keep them aligned
+> - Changes to one service require updating its own GitHub repo
 
 ---
 
 ## 🏗️ System Overview
 
-NeuroSphere is a multi-service AI phone system platform with 4 interconnected services:
+NeuroSphere is a **multi-service AI phone system platform** with **4 independent services**, each living in its own GitHub repository:
 
 ```
 ┌─────────────┐      ┌──────────────┐      ┌─────────────┐      ┌─────────────┐
@@ -32,8 +50,11 @@ NeuroSphere is a multi-service AI phone system platform with 4 interconnected se
 
 ## 📡 Service Details
 
+> **📍 Repository Locations:** Each service below is a **separate GitHub repository** with its own codebase, deployment, and development workflow.
+
 ### 1. ChatStack (AI Phone System)
-**Repository:** `chatstack`  
+**GitHub Repository:** `https://github.com/trpl333/ChatStack`  
+**Tech Stack:** Python, Flask, FastAPI, Twilio, OpenAI  
 **Production:** DigitalOcean (209.38.143.71)  
 **Ports:**
 - 5000: Flask Admin Panel (Web UI)
@@ -55,7 +76,8 @@ NeuroSphere is a multi-service AI phone system platform with 4 interconnected se
 ---
 
 ### 2. AI-Memory (Memory Service)
-**Repository:** `ai-memory` (GitHub: trpl333/ai-memory)  
+**GitHub Repository:** `https://github.com/trpl333/ai-memory`  
+**Tech Stack:** Python, FastAPI, PostgreSQL, pgvector  
 **Production:** DigitalOcean (209.38.143.71:8100)  
 **Port:** 8100
 
@@ -104,11 +126,10 @@ POST /v1/tools/{tool_name}          - Execute specific tool
 ---
 
 ### 3. LeadFlowTracker (CRM/Lead Management)
-**Repository:** `LeadFlowTracker` (GitHub: trpl333/LeadFlowTracker)  
+**GitHub Repository:** `https://github.com/trpl333/LeadFlowTracker`  
+**Tech Stack:** Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL  
 **Production:** TBD  
 **Port:** TBD (likely 3001 or 5001)
-
-**Tech Stack:** Node.js, Express, TypeScript, Drizzle ORM, PostgreSQL
 
 **Key Responsibilities:**
 - Lead capture and management
@@ -141,11 +162,10 @@ PATCH  /api/leads/:id/stage           - Update lead stage
 ---
 
 ### 4. NeuroSphere Send Text (SMS Service)
-**Repository:** `neurosphere_send_text` (GitHub: trpl333/neurosphere_send_text)  
+**GitHub Repository:** `https://github.com/trpl333/neurosphere_send_text`  
+**Tech Stack:** Python, Flask, Twilio SDK  
 **Production:** DigitalOcean (/root/neurosphere_send_text/)  
 **Port:** 3000
-
-**Tech Stack:** Python, Flask, Twilio SDK
 
 **Key Responsibilities:**
 - Post-call SMS notifications with summaries
@@ -356,30 +376,34 @@ DATABASE_URL=postgresql://...
 
 ---
 
-## 🔗 Cross-Project Code Access (ChatStack Only)
+## 🔗 Cross-Project Code Visibility
 
-**ChatStack Replit has all 4 repos cloned locally** in the `external/` directory:
+**IMPORTANT:** While each service is in a **separate GitHub repository**, the ChatStack Replit has **read-only copies** of all other repos in the `external/` directory for reference:
 
 ```bash
+# ChatStack Replit only:
 external/
-├── ai-memory/           # Full AI-Memory codebase
-├── LeadFlowTracker/     # Full CRM codebase  
-└── neurosphere-send_text/  # Full SMS service codebase
+├── ai-memory/              # Read-only clone from https://github.com/trpl333/ai-memory
+├── LeadFlowTracker/        # Read-only clone from https://github.com/trpl333/LeadFlowTracker
+└── neurosphere-send_text/  # Read-only clone from https://github.com/trpl333/neurosphere_send_text
+```
+
+**Purpose:** Reference only - to verify API endpoints and prevent integration errors  
+**Editing:** Changes must be made in each service's own GitHub repository  
+
+**To Update Reference Copies:**
+```bash
+# In ChatStack Replit only
+node fetch_repos.js  # Pulls latest from all 4 GitHub repos
 ```
 
 **Benefits:**
-- ✅ I can see actual endpoints and code from all services
-- ✅ No more endpoint mismatches (like the `/memory/retrieve` vs `/v1/memories` issue)
-- ✅ Architecture always stays aligned
-- ✅ Easy to search across all projects
+- ✅ Can verify actual endpoints from source code
+- ✅ Prevents API mismatches (like the `/memory/retrieve` vs `/v1/memories` issue)
+- ✅ Architecture documentation stays accurate
+- ✅ Can search across all projects for integration points
 
-**To Update:**
-```bash
-# Re-download latest code from all repos
-node fetch_repos.js
-```
-
-This uses the GitHub integration to pull latest code from your private repos.
+**Remember:** These are **READ-ONLY references**. To modify a service, work in its own GitHub repository.
 
 ---
 
