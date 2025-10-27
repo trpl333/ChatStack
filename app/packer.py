@@ -113,6 +113,13 @@ def pack_prompt(
             for result in prompt_block_results:
                 if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
                     value = result.get("value", {})
+                    # Parse JSON string if needed
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            logger.warning(f"⚠️ Failed to parse prompt_blocks JSON string")
+                            continue
                     stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
                     if stored_blocks:
                         selected_blocks = stored_blocks  # Keep updating to get the LAST (newest)
@@ -141,6 +148,13 @@ def pack_prompt(
             for result in slider_results:
                 if result.get("key") == "personality_sliders" or result.get("setting_key") == "personality_sliders":
                     value = result.get("value", {})
+                    # Parse JSON string if needed
+                    if isinstance(value, str):
+                        try:
+                            value = json.loads(value)
+                        except json.JSONDecodeError:
+                            logger.warning(f"⚠️ Failed to parse personality_sliders JSON string")
+                            continue
                     stored_sliders = value.get("value") or value.get("setting_value") or value.get("sliders")
                     if stored_sliders:
                         personality_sliders = stored_sliders  # Keep updating to get the LAST (newest)
