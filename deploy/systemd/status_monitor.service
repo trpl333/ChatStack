@@ -1,0 +1,16 @@
+[Unit]
+Description=ChatStack System Status Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /opt/ChatStack/scripts/status_monitor.py --config /opt/ChatStack/config/monitor.yml --status-file /var/lib/chatstack/status.json --interval 30
+Restart=always
+RestartSec=5
+Environment=CHATSTACK_STATUS_FILE=/var/lib/chatstack/status.json
+WorkingDirectory=/opt/ChatStack
+
+[Install]
+WantedBy=multi-user.target
