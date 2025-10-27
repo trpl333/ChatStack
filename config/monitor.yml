@@ -48,3 +48,11 @@ services:
     process_match:
       - send_text.py
       - neurosphere_send_text
+
+  # LeadFlowTracker (Replit-hosted)
+  - key: leadflow
+    name: "LeadFlowTracker"
+    url: https://leadflowtracker.repl.co/health
+    expected_http: 200
+    # Replit-hosted: no local port/systemd checks
+    process_match: []
