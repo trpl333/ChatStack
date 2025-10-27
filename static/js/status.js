@@ -3,7 +3,7 @@
 //   <div id="system-status"></div>
 //   <script src="/static/js/status.js"></script>
 //   <script>SystemStatus.mount('#system-status');</script>
-const SystemStatus = (() => {
+window.SystemStatus = (() => {
   const tplCard = (s) => {
     const http = s.http || {};
     const port = s.port || {};
