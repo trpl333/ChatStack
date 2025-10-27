@@ -1,0 +1,50 @@
+# ChatStack System Monitor Configuration
+# This file defines which services to monitor and how to check their health
+
+services:
+  # ChatStack Flask Admin Panel
+  - key: chatstack_web
+    name: "ChatStack Web (Flask)"
+    url: http://127.0.0.1:5000/health
+    expected_http: 200
+    host: 127.0.0.1
+    port: 5000
+    systemd: chatstack-web.service
+    process_match:
+      - gunicorn
+      - main:app
+
+  # ChatStack FastAPI Orchestrator
+  - key: chatstack_orchestrator
+    name: "ChatStack Orchestrator (FastAPI)"
+    url: http://127.0.0.1:8001/health
+    expected_http: 200
+    host: 127.0.0.1
+    port: 8001
+    systemd: chatstack-orchestrator.service
+    process_match:
+      - uvicorn
+      - orchestrator
+
+  # AI-Memory Service
+  - key: ai_memory
+    name: "AI-Memory Service"
+    url: http://209.38.143.71:8100/health
+    expected_http: 200
+    host: 209.38.143.71
+    port: 8100
+    systemd: ai-memory.service
+    process_match:
+      - ai-memory
+      - fastapi
+
+  # NeuroSphere Send Text (SMS Service)
+  - key: send_text
+    name: "NeuroSphere Send Text"
+    url: http://127.0.0.1:3000/health
+    expected_http: 200
+    host: 127.0.0.1
+    port: 3000
+    process_match:
+      - send_text.py
+      - neurosphere_send_text
