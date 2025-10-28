@@ -990,7 +990,13 @@ def handle_incoming_call_realtime():
     response = VoiceResponse()
     
     # Play brief hold message to fill initialization time (prevents dead air during 5-second connection delay)
-    response.say("Thank you for calling Farmers Insurance, please hold while we connect you.", voice="Google.en-US-Wavenet-C", language="en-US")
+    # MULTI-TENANT: Use customer's business name if found, otherwise generic greeting
+    if customer and customer.business_name:
+        hold_message = f"Thank you for calling {customer.business_name}, please hold while we connect you."
+    else:
+        hold_message = "Thank you for calling, please hold while we connect you."
+    
+    response.say(hold_message, voice="Google.en-US-Wavenet-C", language="en-US")
     
     # Connect to WebSocket for bidirectional audio streaming
     connect = Connect()
