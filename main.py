@@ -2209,51 +2209,69 @@ def update_llm():
 
 @app.route('/phone/list-users')
 def list_users():
-    """List all users who have memories in the system"""
+    """List all users who have memories in the system - dynamically discovered from AI-Memory"""
     try:
+        # Simple cache to avoid repeated large queries (60 second TTL)
+        import time
+        cache_key = "_user_list_cache"
+        cache_ttl = 60  # seconds
+        
+        if hasattr(list_users, cache_key):
+            cached_data, cached_time = getattr(list_users, cache_key)
+            if time.time() - cached_time < cache_ttl:
+                logging.info(f"✅ Returning cached user list ({len(cached_data.get('users', []))} users)")
+                return jsonify(cached_data)
+        
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
-        logging.info(f"🔍 Querying ai-memory service directly for user list")
+        logging.info(f"🔍 Querying AI-Memory service for all users dynamically")
         
-        # Try to query for specific known users from recent calls
-        # First, get the call logs or check common user IDs
-        potential_user_ids = ["9495565377", "9494449988"]  # Add known test numbers
+        # Query AI-Memory for all memories and extract unique user IDs
+        response = requests.get(
+            f"{ai_memory_url}/v1/memories",
+            params={"limit": 1000},  # Get many memories to find all users
+            timeout=10
+        )
         
-        all_users = []
+        if response.status_code != 200:
+            logging.error(f"❌ AI-Memory query failed: {response.status_code}")
+            return jsonify({"success": False, "error": "AI-Memory service unavailable", "users": []}), 500
+        
+        data = response.json()
+        all_memories = data.get("memories", [])
+        
+        # Group memories by user_id and count
         user_memory_map = {}
+        for memory in all_memories:
+            user_id = memory.get("user_id")
+            # Skip shared/admin memories (user_id is None)
+            if user_id and memory.get("scope") == "user":
+                user_memory_map[user_id] = user_memory_map.get(user_id, 0) + 1
         
-        for test_user_id in potential_user_ids:
-            try:
-                response = requests.post(
-                    f"{ai_memory_url}/memory/retrieve",
-                    json={"user_id": test_user_id, "message": "", "limit": 100},
-                    timeout=5
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    if "memory" in data and data["memory"].strip():
-                        # Parse memories
-                        memory_count = len([line for line in data["memory"].split('\n') if line.strip()])
-                        if memory_count > 0:
-                            user_memory_map[test_user_id] = memory_count
-                            logging.info(f"✅ Found {memory_count} memories for user {test_user_id}")
-            except:
-                continue
-        
-        # Format as list
+        # Format as list sorted by memory count (most active users first)
         users = [
             {"user_id": uid, "memory_count": count} 
-            for uid, count in user_memory_map.items()
+            for uid, count in sorted(user_memory_map.items(), key=lambda x: x[1], reverse=True)
         ]
         
-        logging.info(f"✅ Found {len(users)} users with memories")
+        total_memories = sum(user_memory_map.values())
+        logging.info(f"✅ Found {len(users)} users with {total_memories} total user memories")
         
-        return jsonify({"success": True, "users": users, "total_memories": sum(user_memory_map.values())})
+        result = {
+            "success": True, 
+            "users": users, 
+            "total_memories": total_memories,
+            "total_in_system": len(all_memories)
+        }
+        
+        # Cache the result
+        setattr(list_users, cache_key, (result, time.time()))
+        
+        return jsonify(result)
             
     except Exception as e:
         logging.error(f"❌ Failed to list users: {e}", exc_info=True)
-        return jsonify({"success": False, "error": str(e)}), 500
+        return jsonify({"success": False, "error": str(e), "users": []}), 500
 
 @app.route('/phone/user-memories/<user_id>')
 def get_user_memories(user_id):
