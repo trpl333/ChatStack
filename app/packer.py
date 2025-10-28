@@ -456,7 +456,7 @@ def extract_carry_kit_items(message_content: str) -> List[Dict[str, Any]]:
     name_patterns = [
         r"my name is (\w+)",
         r"i'?m (\w+)",
-        r"this is (\w+) (?:calling|speaking)",
+        r"this is (\w+)\s*(?:calling|speaking|\.|\,|$)",  # "This is John" or "This is John calling"
         r"call me (\w+)"
     ]
     
