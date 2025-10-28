@@ -68,3 +68,4 @@ openai>=1.52.0
 python-socketio
 websockets
 flask-sock
+databases
