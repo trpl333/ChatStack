@@ -784,6 +784,31 @@ async def get_user_memories(
         logger.error(f"Failed to get user memories: {e}")
         raise HTTPException(status_code=500, detail="Failed to retrieve user memories")
 
+@app.get("/v1/users")
+async def list_all_users(
+    mem_store: MemoryStore = Depends(get_memory_store)
+):
+    """List all unique user IDs who have memories in the system"""
+    try:
+        # Query database directly for all unique user IDs
+        conn = mem_store.conn
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT user_id, COUNT(*) as memory_count
+            FROM memories
+            WHERE user_id IS NOT NULL AND scope = 'user'
+            GROUP BY user_id
+            ORDER BY COUNT(*) DESC
+        """)
+        results = cursor.fetchall()
+        cursor.close()
+        
+        users = [{"user_id": row[0], "memory_count": row[1]} for row in results]
+        return {"users": users, "count": len(users)}
+    except Exception as e:
+        logger.error(f"Failed to list users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list users")
+
 @app.get("/v1/memories/shared")
 async def get_shared_memories(
     query: str = "",

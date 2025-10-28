@@ -2224,37 +2224,22 @@ def list_users():
         
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
-        logging.info(f"🔍 Querying AI-Memory service for all users dynamically")
+        logging.info(f"🔍 Querying AI-Memory /v1/users endpoint for all users")
         
-        # Query AI-Memory for all memories and extract unique user IDs
+        # Use the new dedicated /v1/users endpoint that queries the database directly
         response = requests.get(
-            f"{ai_memory_url}/v1/memories",
-            params={"limit": 1000},  # Get many memories to find all users
+            f"{ai_memory_url}/v1/users",
             timeout=10
         )
         
         if response.status_code != 200:
-            logging.error(f"❌ AI-Memory query failed: {response.status_code}")
+            logging.error(f"❌ AI-Memory /v1/users query failed: {response.status_code}")
             return jsonify({"success": False, "error": "AI-Memory service unavailable", "users": []}), 500
         
         data = response.json()
-        all_memories = data.get("memories", [])
+        users = data.get("users", [])
+        total_memories = sum(u.get("memory_count", 0) for u in users)
         
-        # Group memories by user_id and count
-        user_memory_map = {}
-        for memory in all_memories:
-            user_id = memory.get("user_id")
-            # Skip shared/admin memories (user_id is None)
-            if user_id and memory.get("scope") == "user":
-                user_memory_map[user_id] = user_memory_map.get(user_id, 0) + 1
-        
-        # Format as list sorted by memory count (most active users first)
-        users = [
-            {"user_id": uid, "memory_count": count} 
-            for uid, count in sorted(user_memory_map.items(), key=lambda x: x[1], reverse=True)
-        ]
-        
-        total_memories = sum(user_memory_map.values())
         logging.info(f"✅ Found {len(users)} users with {total_memories} total user memories")
         
         result = {
