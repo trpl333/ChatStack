@@ -11,6 +11,9 @@ from datetime import datetime, timedelta
 # Import centralized configuration
 from config_loader import get_setting
 
+# Import JWT token generation for multi-tenant authentication
+from app.jwt_utils import generate_memory_token
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -212,11 +215,19 @@ class HTTPMemoryStore:
                 endpoint = f"{self.ai_memory_url}/v1/memories"
                 params = {}
             
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            # TODO: Get customer_id from session/config - hardcoded to 1 (Peterson) for Phase A
+            customer_id = 1  # Peterson Insurance
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.post(
                 endpoint,
                 json=payload,
                 params=params,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {jwt_token}"
+                },
                 timeout=10
             )
             
@@ -284,10 +295,17 @@ class HTTPMemoryStore:
             if memory_types:
                 params["memory_type"] = ",".join(memory_types) if isinstance(memory_types, list) else memory_types
             
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.get(
                 f"{self.ai_memory_url}/v1/memories",
                 params=params,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {jwt_token}"
+                },
                 timeout=10
             )
             
@@ -401,10 +419,17 @@ class HTTPMemoryStore:
                 if not include_shared:
                     params["scope"] = "user"
                 
+                # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+                customer_id = 1  # Peterson Insurance - Phase A
+                jwt_token = generate_memory_token(customer_id=customer_id)
+                
                 response = self.session.get(
                     f"{self.ai_memory_url}/v1/memories",
                     params=params,
-                    headers={"Content-Type": "application/json"},
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {jwt_token}"
+                    },
                     timeout=15
                 )
                 
@@ -931,10 +956,18 @@ class HTTPMemoryStore:
                 "user_id": "shared",
                 "limit": limit
             }
+            
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.get(
                 f"{self.ai_memory_url}/v1/memories",
                 params=params,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {jwt_token}"
+                },
                 timeout=10
             )
             
@@ -951,10 +984,15 @@ class HTTPMemoryStore:
         self._check_connection()
         
         try:
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             # Use v1/memories endpoint to get specific memory
             response = self.session.get(
                 f"{self.ai_memory_url}/v1/memories",
                 params={"user_id": "unknown", "limit": 1},
+                headers={"Authorization": f"Bearer {jwt_token}"},
                 timeout=10
             )
             
@@ -1081,8 +1119,13 @@ class HTTPMemoryStore:
         try:
             logger.info(f"🚀 Fetching Memory V2 caller profile for {phone_number}")
             
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.get(
                 f"{self.ai_memory_url}/v2/profile/{phone_number}",
+                headers={"Authorization": f"Bearer {jwt_token}"},
                 timeout=5
             )
             
@@ -1117,10 +1160,17 @@ class HTTPMemoryStore:
         try:
             logger.info(f"⚡ Fetching FAST enriched context for {phone_number}")
             
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.post(
                 f"{self.ai_memory_url}/v2/context/enriched",
                 json={"user_id": phone_number},
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {jwt_token}"
+                },
                 timeout=3  # Should be <1 second!
             )
             
@@ -1172,10 +1222,17 @@ class HTTPMemoryStore:
                 "conversation_history": conversation_history
             }
             
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.post(
                 f"{self.ai_memory_url}/v2/process-call",
                 json=payload,
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {jwt_token}"
+                },
                 timeout=15  # AI processing may take longer
             )
             
@@ -1213,8 +1270,13 @@ class HTTPMemoryStore:
             Dict of personality averages or None
         """
         try:
+            # 🔐 Week 2: Generate JWT token for multi-tenant authentication
+            customer_id = 1  # Peterson Insurance - Phase A
+            jwt_token = generate_memory_token(customer_id=customer_id)
+            
             response = self.session.get(
                 f"{self.ai_memory_url}/v2/personality/{phone_number}",
+                headers={"Authorization": f"Bearer {jwt_token}"},
                 timeout=5
             )
             
