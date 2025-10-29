@@ -166,9 +166,14 @@ def get_admin_setting(setting_key, default=None):
     try:
         import requests
         import json as json_module
+        from app.jwt_utils import generate_memory_token
         
         # Use new /v1/memories GET endpoint
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        
+        # MULTI-TENANT: Generate JWT token for customer_id=1 (hardcoded for now, will be dynamic in Week 4)
+        token = generate_memory_token(customer_id=1, scope="memory:read")
+        
         response = requests.get(
             f"{ai_memory_url}/v1/memories",
             params={
@@ -176,7 +181,10 @@ def get_admin_setting(setting_key, default=None):
                 "memory_type": "admin_setting",
                 "limit": 50
             },
-            headers={"Content-Type": "application/json"},
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {token}"
+            },
             timeout=5
         )
         
