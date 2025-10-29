@@ -478,21 +478,9 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
         
         logger.info(f"🔍 Loading thread history: key={history_key}, user_id={user_id}")
         
-        # ✅ FIX: Use get_user_memories() instead of search() for more reliable key matching
-        # search() uses semantic similarity which doesn't work well for exact key lookups
-        if user_id:
-            # Use high limit to ensure we don't miss thread history for users with many memories
-            # Match the limit used elsewhere in the code (line 1870) for consistency
-            results = mem_store.get_user_memories(user_id, limit=3000, include_shared=False)
-            logger.info(f"🔍 Retrieved {len(results)} total memories for user {user_id}")
-            
-            # If we hit the limit, warn that some memories might be missing
-            if len(results) >= 3000:
-                logger.warning(f"⚠️ Hit memory limit (3000) - some older memories may be missing. Consider pagination.")
-        else:
-            # Fallback to search if no user_id
-            results = mem_store.search(history_key, user_id=user_id, k=200)
-            logger.info(f"🔍 Search returned {len(results)} results for key: {history_key}")
+        # Use search() with exact key matching - faster than get_user_memories()
+        results = mem_store.search(history_key, user_id=user_id, k=50)
+        logger.info(f"🔍 Search returned {len(results)} results for key: {history_key}")
         
         # Filter for exact key match (case-insensitive for safety)
         matching_memory = None
