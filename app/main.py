@@ -1505,10 +1505,10 @@ class OAIRealtime:
         # Load and send thread history so AI remembers previous calls
         if self.thread_id and THREAD_HISTORY.get(self.thread_id):
             history = list(THREAD_HISTORY[self.thread_id])
-            # Send last 20 messages (10 exchanges) to avoid overwhelming the context
-            recent_history = history[-20:] if len(history) > 20 else history
+            # Send last 6 messages (3 exchanges) to keep context focused and allow V2 memory to be prominent
+            recent_history = history[-6:] if len(history) > 6 else history
             
-            logger.info(f"🧠 Sending {len(recent_history)} previous messages to OpenAI for context")
+            logger.info(f"🧠 Sending {len(recent_history)} previous messages to OpenAI for context (limited to keep V2 memory prominent)")
             
             for role, content in recent_history:
                 # Create conversation item for each previous message
@@ -1532,8 +1532,8 @@ class OAIRealtime:
             logger.info("🧠 No previous conversation history found - starting fresh")
         
         # Trigger immediate greeting - tell AI to start speaking first
-        # Get the appropriate greeting from session instructions
-        greeting_instruction = "Start the call by speaking first. Say your greeting exactly as specified in your GREETING GUIDANCE section. Speak in English."
+        # CRITICAL: Reference the exact section header used in system instructions
+        greeting_instruction = "IMPORTANT: You MUST start the call by speaking first. Look at the === GREETING - START SPEAKING FIRST! === section in your instructions and say that exact greeting now. Do not wait for the caller to speak. Speak in English."
         
         response_create = {
             "type": "response.create",
@@ -1543,7 +1543,7 @@ class OAIRealtime:
             }
         }
         ws.send(json.dumps(response_create))
-        logger.info(f"📞 Triggered AI greeting: {greeting_instruction}")
+        logger.info(f"📞 Triggered AI greeting with correct section reference")
         
         self._connected.set()
     
