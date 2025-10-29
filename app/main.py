@@ -2223,9 +2223,16 @@ async def media_stream_endpoint(websocket: WebSocket):
                 messages = []
                 
                 try:
+                    # ✅ FIX: Generate JWT token for AI-Memory authentication
+                    from app.jwt_utils import generate_memory_token
+                    transcript_token = generate_memory_token(customer_id=1, scope="memory:read")
+                    
                     memory_response = requests.post(
                         "http://209.38.143.71:8100/memory/retrieve",
-                        headers={"Content-Type": "application/json"},
+                        headers={
+                            "Content-Type": "application/json",
+                            "Authorization": f"Bearer {transcript_token}"  # ✅ ADD JWT AUTH
+                        },
                         json={
                             "user_id": user_id,
                             "message": f"thread_history:{thread_id}",  # Use actual thread_id
