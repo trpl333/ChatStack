@@ -31,6 +31,10 @@ async def get_admin_setting(setting_key, default=None):
         # Use AI-Memory service URL from config
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
+        # MULTI-TENANT: Generate JWT token for authentication
+        from app.jwt_utils import generate_memory_token
+        token = generate_memory_token(customer_id=1, scope="memory:read")
+        
         # Run blocking requests.get in thread pool to not block event loop
         def _fetch():
             return requests.get(
@@ -40,7 +44,10 @@ async def get_admin_setting(setting_key, default=None):
                     "memory_type": "admin_setting",
                     "limit": 50
                 },
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {token}"
+                },
                 timeout=2
             )
         
