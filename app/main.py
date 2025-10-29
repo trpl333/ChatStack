@@ -512,6 +512,16 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
         
         if matching_memory:
             value = matching_memory.get("value", {})
+            
+            # ✅ FIX: Parse JSON string if needed
+            if isinstance(value, str):
+                try:
+                    value = json.loads(value)
+                    logger.info(f"🔧 Parsed JSON string value for thread history")
+                except json.JSONDecodeError as e:
+                    logger.error(f"❌ Failed to parse thread history JSON: {e}")
+                    value = {}
+            
             if isinstance(value, dict) and "messages" in value:
                 messages = value["messages"]
                 # Restore to in-memory deque
