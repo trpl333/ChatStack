@@ -470,6 +470,8 @@ def load_thread_history(thread_id: str, mem_store: HTTPMemoryStore, user_id: Opt
     # Always reload on new calls (don't cache) to ensure fresh memory
     # The THREAD_LOADED cache was preventing memory from loading on subsequent calls
     
+    logger.info(f"🔍 load_thread_history CALLED with thread_id={thread_id}, user_id={user_id}")
+    
     try:
         # Search for stored thread history with exact key match
         history_key = f"thread_history:{thread_id}"
@@ -1991,9 +1993,14 @@ async def media_stream_endpoint(websocket: WebSocket):
                         return {"version": "none", "memories": [], "pre_formatted": False}
                     
                     async def fetch_thread_history():
+                        logger.info(f"🔍 fetch_thread_history CALLED: thread_id={thread_id}, user_id={user_id}")
                         if thread_id and user_id:
+                            logger.info(f"✅ Calling load_thread_history with thread_id={thread_id}, user_id={user_id}")
                             await asyncio.to_thread(load_thread_history, thread_id, mem_store, user_id)
-                            return len(THREAD_HISTORY.get(thread_id, []))
+                            count = len(THREAD_HISTORY.get(thread_id, []))
+                            logger.info(f"✅ fetch_thread_history complete: {count} messages in THREAD_HISTORY")
+                            return count
+                        logger.warning(f"⚠️ Skipping thread history load: thread_id={thread_id}, user_id={user_id}")
                         return 0
                     
                     # Fetch EVERYTHING in parallel
