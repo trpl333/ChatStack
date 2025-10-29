@@ -2303,43 +2303,36 @@ def get_user_memories(user_id):
         from app.jwt_utils import generate_memory_token
         token = generate_memory_token(customer_id=1, scope="memory:read")
         
-        # Query ai-memory directly for this user
-        response = requests.post(
-            f"{ai_memory_url}/memory/retrieve",
-            json={"user_id": normalized_user_id, "message": "", "limit": 200},
+        # Use the V1 API to get user memories
+        response = requests.get(
+            f"{ai_memory_url}/v1/memories",
+            params={"user_id": normalized_user_id, "limit": 500},
             headers={"Authorization": f"Bearer {token}"},
             timeout=10
         )
         
         if response.status_code == 200:
             data = response.json()
-            memories = []
+            memories = data.get("memories", [])
             
-            # Parse newline-separated JSON format
-            if "memory" in data and data["memory"].strip():
-                for idx, line in enumerate(data["memory"].split('\n')):
-                    line = line.strip()
-                    if line:
-                        try:
-                            mem_obj = json.loads(line)
-                            # Normalize format
-                            normalized = {
-                                "id": mem_obj.get("id") or f"mem_{idx}",
-                                "type": mem_obj.get("type", "fact"),
-                                "k": mem_obj.get("k") or mem_obj.get("key") or mem_obj.get("summary", "")[:50],
-                                "key": mem_obj.get("key") or mem_obj.get("k"),
-                                "value": mem_obj.get("value") or mem_obj.get("content") or mem_obj,
-                                "value_json": mem_obj,
-                                "user_id": mem_obj.get("user_id"),
-                                "scope": mem_obj.get("scope", "user"),
-                                "created_at": mem_obj.get("created_at")
-                            }
-                            memories.append(normalized)
-                        except:
-                            pass
+            # Normalize format for admin panel
+            normalized_memories = []
+            for idx, mem in enumerate(memories):
+                normalized = {
+                    "id": mem.get("id") or f"mem_{idx}",
+                    "type": mem.get("type", "fact"),
+                    "k": mem.get("k") or mem.get("key") or mem.get("summary", "")[:50] if isinstance(mem.get("summary"), str) else "",
+                    "key": mem.get("key") or mem.get("k"),
+                    "value": mem.get("value") or mem.get("content") or mem.get("v") or str(mem),
+                    "value_json": mem,
+                    "user_id": mem.get("user_id"),
+                    "scope": mem.get("scope", "user"),
+                    "created_at": mem.get("created_at")
+                }
+                normalized_memories.append(normalized)
             
-            logging.info(f"✅ Found {len(memories)} memories for user {normalized_user_id}")
-            return jsonify({"success": True, "memories": memories, "user_id": normalized_user_id})
+            logging.info(f"✅ Found {len(normalized_memories)} memories for user {normalized_user_id}")
+            return jsonify({"success": True, "memories": normalized_memories, "user_id": normalized_user_id})
         else:
             return jsonify({"success": False, "error": f"Query failed with status {response.status_code}"}), 500
             
