@@ -1519,7 +1519,7 @@ class OAIRealtime:
                         "role": role,  # "user" or "assistant"
                         "content": [
                             {
-                                "type": "input_text",
+                                "type": "text",
                                 "text": content
                             }
                         ]
@@ -1600,17 +1600,18 @@ class OAIRealtime:
             if role in ("user", "assistant"):
                 content_list = item.get("content", [])
                 for content in content_list:
-                    if content.get("type") == "input_text":
+                    content_type = content.get("type")
+                    # Handle both old API (input_text) and new API (text) formats
+                    if content_type in ("input_text", "text"):
                         text = content.get("text", "")
-                        logger.info(f"💬 User said: {text}")
-                        # Store in thread history
-                        if hasattr(self, 'thread_id') and self.thread_id:
-                            THREAD_HISTORY[self.thread_id].append(("user", text))
-                    elif content.get("type") == "text":
-                        text = content.get("text", "")
-                        logger.info(f"🤖 Assistant said: {text}")
-                        if hasattr(self, 'thread_id') and self.thread_id:
-                            THREAD_HISTORY[self.thread_id].append(("assistant", text))
+                        if role == "user":
+                            logger.info(f"💬 User said: {text}")
+                            if hasattr(self, 'thread_id') and self.thread_id:
+                                THREAD_HISTORY[self.thread_id].append(("user", text))
+                        elif role == "assistant":
+                            logger.info(f"🤖 Assistant said: {text}")
+                            if hasattr(self, 'thread_id') and self.thread_id:
+                                THREAD_HISTORY[self.thread_id].append(("assistant", text))
         
         elif event_type == "response.audio_transcript.done":
             # Capture assistant's spoken response transcript

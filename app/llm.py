@@ -243,7 +243,7 @@ def chat_realtime_stream(messages: List[Dict[str, str]], temperature: float = 0.
                             "role": "user",
                             "content": [
                                 {
-                                    "type": "input_text",
+                                    "type": "text",
                                     "text": message["content"]
                                 }
                             ]
