@@ -2002,7 +2002,7 @@ async def media_stream_endpoint(websocket: WebSocket):
                         get_admin_setting("new_caller_greeting", "{time_greeting}! This is {agent_name}. How can I help you?"),
                         get_admin_setting("transfer_rules", "[]"),
                         get_admin_setting("openai_voice", "alloy"),
-                        asyncio.to_thread(mem_store.search, "prompt_blocks", user_id="admin", k=5),
+                        get_admin_setting("prompt_blocks", {}),
                         fetch_caller_profile(),
                         fetch_thread_history()
                     )
@@ -2010,23 +2010,12 @@ async def media_stream_endpoint(websocket: WebSocket):
                     memory_version = caller_data.get("version", "none")
                     logger.info(f"✅ Parallel fetch complete: agent={agent_name_val}, voice={voice_val}, memory_version={memory_version}, history={history_count}")
                     
-                    # Extract prompt blocks
-                    selected_blocks = {}
-                    for result in prompt_block_results:
-                        if result.get("key") == "prompt_blocks" or result.get("setting_key") == "prompt_blocks":
-                            value = result.get("value", {})
-                            # Parse JSON string if needed
-                            if isinstance(value, str):
-                                try:
-                                    value = json.loads(value)
-                                except json.JSONDecodeError:
-                                    logger.warning(f"⚠️ Failed to parse prompt_blocks JSON string")
-                                    continue
-                            stored_blocks = value.get("value") or value.get("setting_value") or value.get("blocks")
-                            if stored_blocks:
-                                selected_blocks = stored_blocks
-                                logger.info(f"✅ Using prompt blocks: {list(selected_blocks.keys())}")
-                                break
+                    # Extract prompt blocks (now directly from get_admin_setting)
+                    selected_blocks = prompt_block_results or {}
+                    if selected_blocks:
+                        logger.info(f"✅ Using prompt blocks from AI-Memory: {list(selected_blocks.keys())}")
+                    else:
+                        logger.warning(f"⚠️ No prompt blocks found in AI-Memory, will use fallback file")
                     
                     # Initialize variables for all code paths
                     normalized = {}
