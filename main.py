@@ -2240,9 +2240,14 @@ def list_users():
         
         logging.info(f"🔍 Querying AI-Memory /v1/users endpoint for all users")
         
+        # MULTI-TENANT: Generate JWT token for authentication
+        from app.jwt_utils import generate_memory_token
+        token = generate_memory_token(customer_id=1, scope="memory:read")
+        
         # Use the new dedicated /v1/users endpoint that queries the database directly
         response = requests.get(
             f"{ai_memory_url}/v1/users",
+            headers={"Authorization": f"Bearer {token}"},
             timeout=10
         )
         
@@ -2287,10 +2292,15 @@ def get_user_memories(user_id):
         
         logging.info(f"🔍 Getting memories for user: {normalized_user_id}")
         
+        # MULTI-TENANT: Generate JWT token for authentication
+        from app.jwt_utils import generate_memory_token
+        token = generate_memory_token(customer_id=1, scope="memory:read")
+        
         # Query ai-memory directly for this user
         response = requests.post(
             f"{ai_memory_url}/memory/retrieve",
             json={"user_id": normalized_user_id, "message": "", "limit": 200},
+            headers={"Authorization": f"Bearer {token}"},
             timeout=10
         )
         
