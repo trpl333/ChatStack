@@ -2238,34 +2238,41 @@ def list_users():
         
         ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
         
-        logging.info(f"🔍 Querying AI-Memory /v1/users endpoint for all users")
+        logging.info(f"🔍 Querying AI-Memory /v2/profiles endpoint for all caller profiles")
         
         # MULTI-TENANT: Generate JWT token for authentication
         from app.jwt_utils import generate_memory_token
         token = generate_memory_token(customer_id=1, scope="memory:read")
         
-        # Use the new dedicated /v1/users endpoint that queries the database directly
+        # Use the new dedicated /v2/profiles endpoint that queries caller_profiles table
         response = requests.get(
-            f"{ai_memory_url}/v1/users",
+            f"{ai_memory_url}/v2/profiles",
             headers={"Authorization": f"Bearer {token}"},
             timeout=10
         )
         
         if response.status_code != 200:
-            logging.error(f"❌ AI-Memory /v1/users query failed: {response.status_code}")
+            logging.error(f"❌ AI-Memory /v2/profiles query failed: {response.status_code}")
             return jsonify({"success": False, "error": "AI-Memory service unavailable", "users": []}), 500
         
         data = response.json()
-        users = data.get("users", [])
-        total_memories = sum(u.get("memory_count", 0) for u in users)
+        profiles = data.get("profiles", [])
         
-        logging.info(f"✅ Found {len(users)} users with {total_memories} total user memories")
+        # Convert profiles to user format for admin panel compatibility
+        users = [{
+            "user_id": p.get("user_id"),
+            "preferred_name": p.get("preferred_name"),
+            "total_calls": p.get("total_calls", 0),
+            "last_call_date": p.get("last_call_date"),
+            "memory_count": 0  # Profiles don't have memory_count, will be populated if needed
+        } for p in profiles]
+        
+        logging.info(f"✅ Found {len(users)} caller profiles from AI-Memory")
         
         result = {
             "success": True, 
             "users": users, 
-            "total_memories": total_memories,
-            "total_in_system": len(all_memories)
+            "total_profiles": len(users)
         }
         
         # Cache the result
