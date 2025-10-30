@@ -2032,8 +2032,15 @@ async def media_stream_endpoint(websocket: WebSocket):
                     if memory_version == "v2":
                         # ⚡ MEMORY V2 FAST: Pre-formatted context string ready for LLM!
                         v2_pre_formatted_context = caller_data.get("context", "")
-                        # Extract user name for greeting (if available in context)
-                        # For now, we'll leave user_name as None and let greeting be generic
+                        
+                        # 🔧 FIX: Extract caller name from V2 profile for personalized greeting
+                        v2_profile = await asyncio.to_thread(mem_store.get_caller_profile_v2, user_id) if user_id else None
+                        if v2_profile:
+                            user_name = v2_profile.get("caller_name")
+                            logger.info(f"✅ Extracted caller name from V2 profile: {user_name}")
+                        else:
+                            logger.warning(f"⚠️ No V2 profile found, using generic greeting")
+                        
                         logger.info(f"⚡ Memory V2 FAST context loaded ({len(v2_pre_formatted_context)} chars) - 10x faster!")
                         
                     elif memory_version == "v1":

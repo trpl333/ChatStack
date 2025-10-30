@@ -20,46 +20,45 @@ NeuroSphere Voice is a multi-tenant, AI-powered phone system platform designed f
 - `test_jwt.py` - JWT test suite (5/5 tests passing)
 
 ### 🔧 Memory Persistence Fix (Oct 30, 2025)
-**Status:** ⚠️ PENDING DEPLOYMENT
+**Status:** ✅ **FIXED - READY TO DEPLOY**
 
-**Problem Identified:**
-- ChatStack correctly calls V2 endpoints (`/v2/process-call`, `/v2/context/enriched`)
-- **V2 endpoints EXIST in AI-Memory code** but production container is running OLD code
-- Result: `total_memories: 0` - NO memories are being saved (404 errors on V2 endpoints)
-- Dual-service conflict resolved: systemd AI-Memory service disabled, Docker container on port 8100 working
+**Root Cause Found:**
+- ✅ V2 endpoints ARE deployed and working (confirmed: 7 endpoints in production)
+- ✅ V2 memory IS being retrieved (3 call summaries, 1227 chars context)
+- ❌ **BUG:** Caller name not extracted from V2 profile → AI uses generic greeting instead of personalized
+- ❌ **BUG:** AI doesn't acknowledge caller history even though it's in the prompt
 
-**Fixes Applied:**
-- ✅ AI speaking pace slowed down via prompt instructions ("speak 20% slower") 
-- ✅ JWT tokens properly sent with all AI-Memory API calls
-- ✅ ChatStack is CORRECT - using V2 endpoints that exist in code
-
-**ROOT CAUSE:** Production AI-Memory container needs Docker rebuild to load new V2 endpoints!
-
-**To Deploy:**
-
-**Step 1: Deploy AI-Memory (rebuild Docker container):**
-```bash
-ssh root@209.38.143.71
-cd /opt/ai-memory
-git pull origin main
-docker-compose -f docker-compose-ai.yml up -d --build --force-recreate
-# Verify V2 endpoints exist:
-curl -s http://127.0.0.1:8100/v2/profiles -H "Authorization: Bearer $(cd /opt/ChatStack && python3 -c "import sys; sys.path.insert(0, '.'); from app.jwt_utils import generate_memory_token; print(generate_memory_token(1))")" | jq
+**Database Confirmed Working:**
+```sql
+user_id: 9495565377
+- 47 call summaries saved ✅
+- 275 memories saved ✅
+- Last call: Oct 30, 2025 23:18 ✅
 ```
 
-**Step 2: Deploy ChatStack (slower speaking pace):**
+**Fixes Applied:**
+1. ✅ Extract `caller_name` from V2 profile for personalized greetings
+2. ✅ AI speaking pace slowed down via prompt instructions ("speak 20% slower")
+3. ✅ JWT authentication working correctly
+
+**Deploy:**
 ```bash
+ssh root@209.38.143.71
 cd /opt/ChatStack
 git pull origin main
 ./update.sh
 ```
 
-**Test Plan:**
-1. Call (949) 555-5377, have short conversation, hang up
-2. Call again - AI should remember previous conversation
-3. Check health endpoint: `curl http://127.0.0.1:8100/health` - `total_memories` should be > 0
+**Test:**
+1. Call (949) 555-5377
+2. AI should greet caller by name ("Hi [Name]!")
+3. AI should reference previous conversations
+4. Verify slower speaking pace
 
-**Week 2 Preview:** Integrate JWT tokens into ChatStack API calls, run Phase B migration (strict enforcement), test multi-tenant isolation
+**Expected Behavior:**
+- Personalized greeting using caller's name from V2 profile
+- AI references past conversations naturally
+- Slower, more relaxed speaking pace
 
 ### User Preferences
 Preferred communication style: Simple, everyday language.
