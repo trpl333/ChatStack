@@ -23,20 +23,35 @@ NeuroSphere Voice is a multi-tenant, AI-powered phone system platform designed f
 **Status:** ⚠️ PENDING DEPLOYMENT
 
 **Problem Identified:**
-- ChatStack was calling non-existent V2 endpoints (`/v2/process-call`, `/v2/context/enriched`)
-- AI-Memory only has V1 endpoints (`/memory/store`, `/memory/retrieve`)
-- Result: `total_memories: 0` - NO memories were being saved at all
+- ChatStack correctly calls V2 endpoints (`/v2/process-call`, `/v2/context/enriched`)
+- **V2 endpoints EXIST in AI-Memory code** but production container is running OLD code
+- Result: `total_memories: 0` - NO memories are being saved (404 errors on V2 endpoints)
 - Dual-service conflict resolved: systemd AI-Memory service disabled, Docker container on port 8100 working
 
 **Fixes Applied:**
-- ✅ `save_call_summary_v2()` now uses `/memory/store` instead of `/v2/process-call`
-- ✅ `get_enriched_context_v2()` now uses `/memory/retrieve` instead of `/v2/context/enriched`
-- ✅ AI speaking pace slowed down via prompt instructions ("speak 20% slower")
+- ✅ AI speaking pace slowed down via prompt instructions ("speak 20% slower") 
 - ✅ JWT tokens properly sent with all AI-Memory API calls
+- ✅ ChatStack is CORRECT - using V2 endpoints that exist in code
+
+**ROOT CAUSE:** Production AI-Memory container needs Docker rebuild to load new V2 endpoints!
 
 **To Deploy:**
+
+**Step 1: Deploy AI-Memory (rebuild Docker container):**
 ```bash
-cd /opt/ChatStack && git pull origin main && ./update.sh
+ssh root@209.38.143.71
+cd /opt/ai-memory
+git pull origin main
+docker-compose -f docker-compose-ai.yml up -d --build --force-recreate
+# Verify V2 endpoints exist:
+curl -s http://127.0.0.1:8100/v2/profiles -H "Authorization: Bearer $(cd /opt/ChatStack && python3 -c "import sys; sys.path.insert(0, '.'); from app.jwt_utils import generate_memory_token; print(generate_memory_token(1))")" | jq
+```
+
+**Step 2: Deploy ChatStack (slower speaking pace):**
+```bash
+cd /opt/ChatStack
+git pull origin main
+./update.sh
 ```
 
 **Test Plan:**

@@ -1146,54 +1146,49 @@ class HTTPMemoryStore:
     
     def get_enriched_context_v2(self, phone_number: str) -> Optional[str]:
         """
-        Get caller's previous conversation history from AI-Memory.
+        🚀 FAST: Get enriched caller context for new call (<1 second!).
         
-        Retrieves stored memories using V1 /memory/retrieve endpoint.
+        This is the fastest way to retrieve caller info. Uses pre-processed
+        summaries and personality data instead of raw memories.
         
         Args:
             phone_number: Caller's phone number
         
         Returns:
-            Formatted context string with previous conversations, or None if no history
+            Formatted context string ready for LLM prompt, or None if error
         """
         try:
-            logger.info(f"⚡ Fetching conversation history for {phone_number}")
+            logger.info(f"⚡ Fetching FAST enriched context for {phone_number}")
             
             # 🔐 Week 2: Generate JWT token for multi-tenant authentication
             customer_id = 1  # Peterson Insurance - Phase A
             jwt_token = generate_memory_token(customer_id=customer_id)
             
             response = self.session.post(
-                f"{self.ai_memory_url}/memory/retrieve",
+                f"{self.ai_memory_url}/v2/context/enriched",
                 json={"user_id": phone_number},
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {jwt_token}"
                 },
-                timeout=5
+                timeout=3  # Should be <1 second!
             )
             
             if response.status_code == 200:
                 result = response.json()
-                memory_text = result.get("memory", "")
-                
-                if memory_text and memory_text.strip():
-                    # Format memory for LLM context
-                    formatted_context = f"\n\n=== PREVIOUS CONVERSATIONS WITH {phone_number} ===\n"
-                    formatted_context += memory_text
-                    formatted_context += "\n=== END OF PREVIOUS CONVERSATIONS ===\n\n"
-                    
-                    logger.info(f"✅ Retrieved {len(memory_text)} chars of conversation history")
-                    return formatted_context
+                if result.get("success"):
+                    context = result.get("context", "")
+                    logger.info(f"✅ V2 enriched context retrieved ({result.get('summary_count', 0)} summaries)")
+                    return context
                 else:
-                    logger.info(f"📭 No previous conversation history for {phone_number}")
+                    logger.warning(f"⚠️ V2 context fetch failed: {result.get('error')}")
                     return None
             else:
-                logger.warning(f"⚠️ Memory retrieval returned {response.status_code}")
+                logger.warning(f"⚠️ V2 context endpoint returned {response.status_code}")
                 return None
                 
         except Exception as e:
-            logger.error(f"❌ Error fetching conversation history: {e}")
+            logger.error(f"❌ Error fetching V2 enriched context: {e}")
             return None
     
     def save_call_summary_v2(
@@ -1203,9 +1198,12 @@ class HTTPMemoryStore:
         conversation_history: List[tuple]
     ) -> bool:
         """
-        Save call conversation to AI-Memory using V1 /memory/store endpoint.
+        Auto-summarize completed call using Memory V2 AI processing.
         
-        Formats conversation history as a readable message and stores it.
+        The AI-Memory service will:
+        - Generate call summary automatically
+        - Extract personality metrics
+        - Save structured data
         
         Args:
             phone_number: Caller's phone number  
@@ -1216,19 +1214,12 @@ class HTTPMemoryStore:
             True if saved successfully
         """
         try:
-            logger.info(f"💾 Saving call conversation for {call_sid}")
+            logger.info(f"💾 Processing V2 call summary for {call_sid}")
             
-            # Format conversation history into readable message
-            formatted_conversation = f"Call {call_sid}\n"
-            formatted_conversation += "=" * 50 + "\n"
-            for role, message in conversation_history:
-                speaker = "User" if role == "user" else "AI"
-                formatted_conversation += f"{speaker}: {message}\n"
-            
-            # Use V1 /memory/store endpoint that actually exists
             payload = {
                 "user_id": phone_number,
-                "message": formatted_conversation
+                "thread_id": call_sid,
+                "conversation_history": conversation_history
             }
             
             # 🔐 Week 2: Generate JWT token for multi-tenant authentication
@@ -1236,25 +1227,31 @@ class HTTPMemoryStore:
             jwt_token = generate_memory_token(customer_id=customer_id)
             
             response = self.session.post(
-                f"{self.ai_memory_url}/memory/store",
+                f"{self.ai_memory_url}/v2/process-call",
                 json=payload,
                 headers={
                     "Content-Type": "application/json",
                     "Authorization": f"Bearer {jwt_token}"
                 },
-                timeout=15
+                timeout=15  # AI processing may take longer
             )
             
             if response.status_code == 200:
                 result = response.json()
-                logger.info(f"✅ Call conversation saved: {len(conversation_history)} messages stored")
-                return True
+                if result.get("success"):
+                    summary = result.get("summary", "")
+                    sentiment = result.get("sentiment", "")
+                    logger.info(f"✅ V2 call processed: {summary[:50]}... (sentiment: {sentiment})")
+                    return True
+                else:
+                    logger.error(f"❌ V2 call processing failed: {result.get('error')}")
+                    return False
             else:
-                logger.error(f"❌ Memory save returned {response.status_code}: {response.text}")
+                logger.error(f"❌ V2 process-call returned {response.status_code}: {response.text}")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Error saving call conversation: {e}")
+            logger.error(f"❌ Error saving Memory V2 call summary: {e}")
             return False
     
     def get_personality_averages_v2(self, phone_number: str) -> Optional[Dict[str, float]]:
