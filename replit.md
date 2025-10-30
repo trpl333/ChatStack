@@ -19,6 +19,31 @@ NeuroSphere Voice is a multi-tenant, AI-powered phone system platform designed f
 - `IMPLEMENTATION_PLAN_PHASE1.md` - 4-week execution plan
 - `test_jwt.py` - JWT test suite (5/5 tests passing)
 
+### 🔧 Memory Persistence Fix (Oct 30, 2025)
+**Status:** ⚠️ PENDING DEPLOYMENT
+
+**Problem Identified:**
+- ChatStack was calling non-existent V2 endpoints (`/v2/process-call`, `/v2/context/enriched`)
+- AI-Memory only has V1 endpoints (`/memory/store`, `/memory/retrieve`)
+- Result: `total_memories: 0` - NO memories were being saved at all
+- Dual-service conflict resolved: systemd AI-Memory service disabled, Docker container on port 8100 working
+
+**Fixes Applied:**
+- ✅ `save_call_summary_v2()` now uses `/memory/store` instead of `/v2/process-call`
+- ✅ `get_enriched_context_v2()` now uses `/memory/retrieve` instead of `/v2/context/enriched`
+- ✅ AI speaking pace slowed down via prompt instructions ("speak 20% slower")
+- ✅ JWT tokens properly sent with all AI-Memory API calls
+
+**To Deploy:**
+```bash
+cd /opt/ChatStack && git pull origin main && ./update.sh
+```
+
+**Test Plan:**
+1. Call (949) 555-5377, have short conversation, hang up
+2. Call again - AI should remember previous conversation
+3. Check health endpoint: `curl http://127.0.0.1:8100/health` - `total_memories` should be > 0
+
 **Week 2 Preview:** Integrate JWT tokens into ChatStack API calls, run Phase B migration (strict enforcement), test multi-tenant isolation
 
 ### User Preferences
