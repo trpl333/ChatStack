@@ -130,7 +130,14 @@ CONVERSATIONAL_STYLE_PRESETS = {
 - Include natural filler words occasionally (um, uh, well, you know)
 - Pause and think out loud when appropriate
 - Keep responses conversational and flowing
-- Mirror the client's communication style"""
+- Mirror the client's communication style
+
+SPEAKING PACE:
+- Speak slowly and deliberately - take your time
+- Use a relaxed, unhurried pace
+- Pause naturally between sentences
+- Don't rush through information
+- Let words breathe - speak 20% slower than normal conversation"""
     },
     
     "concise_clear": {
