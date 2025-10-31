@@ -169,7 +169,7 @@ def get_admin_setting(setting_key, default=None):
         from app.jwt_utils import generate_memory_token
         
         # Use new /v1/memories GET endpoint
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://ai-memory:8100")
         
         # MULTI-TENANT: Generate JWT token for customer_id=1 (hardcoded for now, will be dynamic in Week 4)
         token = generate_memory_token(customer_id=1, scope="memory:read")
@@ -416,6 +416,11 @@ ADMIN_TEMPLATE = """
 </html>
 """
 
+@app.route('/health')
+def health():
+    """Health check endpoint for monitoring"""
+    return jsonify({"status": "healthy", "service": "chatstack-web"}), 200
+
 @app.route('/')
 def home():
     return redirect(url_for('admin'))
@@ -441,7 +446,7 @@ def add_knowledge():
         }
         
         # Call AI-Memory service with new endpoint
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://ai-memory:8100")
         resp = requests.post(f"{ai_memory_url}/v1/memories/shared", json=data, timeout=10)
         
         if resp.status_code == 200:
