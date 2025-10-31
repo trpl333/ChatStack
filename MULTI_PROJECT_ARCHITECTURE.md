@@ -249,13 +249,91 @@ GET http://209.38.143.71:8100/caller/profile/{phone}
 
 ## 🚀 Deployment Locations
 
-| Service           | Environment | Location                      | Port | Status  | Notes                    |
-|-------------------|-------------|-------------------------------|------|---------|--------------------------|
-| ChatStack (Flask) | Production  | DO: 209.38.143.71            | 5000 | Running | Admin UI                 |
-| ChatStack (FastAPI)| Production  | DO: 209.38.143.71            | 8001 | Running | Phone orchestrator       |
-| AI-Memory         | Production  | DO: 209.38.143.71            | 8100 | Running | Memory service           |
-| Send Text         | Production  | DO: /root/neurosphere_send_text | 3000 | Running | SMS service (tmux)      |
-| LeadFlowTracker   | Development | Replit/Local                 | TBD  | Dev     | CRM system               |
+### Production (DigitalOcean: 209.38.143.71)
+
+**🐳 Unified Docker Compose Deployment** (as of Oct 31, 2025)
+
+All ChatStack and AI-Memory services now run in a **single unified Docker Compose network** (`chatstack-network`):
+
+| Container              | Service Role            | Port     | Docker DNS Name | Status  | 
+|------------------------|-------------------------|----------|-----------------|---------|
+| `chatstack-nginx`      | Reverse Proxy + SSL     | 80 / 443 | `nginx`         | Running |
+| `chatstack-web`        | Flask Admin Panel       | 5000     | `web`           | Running |
+| `chatstack-orchestrator` | FastAPI Phone AI      | 8001     | `orchestrator`  | Running |
+| `ai-memory`            | Memory Microservice     | 8100     | `ai-memory`     | Running |
+| `chatstack-status-monitor` | Health Checker    | -        | -               | Running |
+
+**Host-Based Services** (not yet containerized):
+
+| Service           | Location                      | Port | Status  | Notes                    |
+|-------------------|-------------------------------|------|---------|--------------------------|
+| Send Text         | /root/neurosphere_send_text   | 3000 | Running | SMS service (tmux)       |
+| PostgreSQL        | Managed DB (DigitalOcean)     | 5432 | Running | External managed service |
+
+**Development:**
+
+| Service           | Environment | Location                 | Port | Status  | Notes                    |
+|-------------------|-------------|--------------------------|------|---------|--------------------------|
+| LeadFlowTracker   | Development | Replit/Local            | TBD  | Dev     | CRM system               |
+
+### Docker Compose Architecture
+
+All services communicate via **Docker DNS** instead of `127.0.0.1`:
+
+```yaml
+# Internal communication examples:
+http://web:5000           # Flask admin panel
+http://orchestrator:8001  # FastAPI phone orchestrator
+http://ai-memory:8100     # Memory service
+http://nginx:80           # Nginx (internal only)
+```
+
+**Network Diagram:**
+```
+┌──────────────────────────────────────────────┐
+│  Docker Network: chatstack-network           │
+│                                              │
+│  ┌──────────────┐                           │
+│  │    Nginx     │ :80/:443 (public)         │
+│  │  (SSL/Proxy) │                           │
+│  └──────┬───────┘                           │
+│         │                                    │
+│    ┌────┴─────┬─────────┬─────────┐        │
+│    ▼          ▼         ▼         ▼        │
+│  ┌──────┐  ┌────────┐  ┌────────┐  ┌──────┐
+│  │ Web  │  │ Orch.  │  │AI-Mem. │  │Status│
+│  │:5000 │  │:8001   │  │:8100   │  │Monitor│
+│  └──────┘  └────────┘  └────────┘  └──────┘
+└──────────────────────────────────────────────┘
+         │
+         ▼
+   External Services
+   (PostgreSQL, Twilio, OpenAI)
+```
+
+### Deployment Commands
+
+**Start all services:**
+```bash
+cd /opt/ChatStack
+docker-compose up -d --build
+```
+
+**View logs:**
+```bash
+docker-compose logs -f
+docker logs chatstack-orchestrator  # specific container
+```
+
+**Stop all services:**
+```bash
+docker-compose down
+```
+
+**Restart single service:**
+```bash
+docker-compose restart orchestrator
+```
 
 ---
 

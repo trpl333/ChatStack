@@ -37,8 +37,8 @@ user_id: 9495565377
 ```
 
 **Fixes Applied:**
-1. ✅ Extract `caller_name` from V2 profile for personalized greetings
-2. ✅ AI speaking pace slowed down via prompt instructions ("speak 20% slower")
+1. ✅ Extract `caller_name` from V2 context by parsing enriched profile string
+2. ✅ AI speaking pace slowed down - VAD silence threshold increased from 600ms → 1200ms
 3. ✅ JWT authentication working correctly
 
 **Deploy:**
@@ -46,19 +46,44 @@ user_id: 9495565377
 ssh root@209.38.143.71
 cd /opt/ChatStack
 git pull origin main
-./update.sh
+docker-compose up -d --build
 ```
 
 **Test:**
 1. Call (949) 555-5377
 2. AI should greet caller by name ("Hi [Name]!")
 3. AI should reference previous conversations
-4. Verify slower speaking pace
+4. AI should wait for full sentences (no mid-sentence interruptions)
 
 **Expected Behavior:**
-- Personalized greeting using caller's name from V2 profile
+- Personalized greeting using caller's name from V2 enriched context
 - AI references past conversations naturally
-- Slower, more relaxed speaking pace
+- No interruptions - AI waits 1.2 seconds of silence before responding
+
+### 🐳 Unified Docker Architecture (Oct 31, 2025)
+**Status:** ✅ **READY TO DEPLOY**
+
+**Major Architectural Change:**
+- Consolidated all services into **single Docker Compose setup**
+- Moved Nginx into Docker container (no more host-level systemd service)
+- All services communicate via Docker DNS names (`web:5000`, `orchestrator:8001`, `ai-memory:8100`)
+- Single unified network: `chatstack-network`
+
+**What Changed:**
+1. **docker-compose.yml** - Now includes nginx, web, orchestrator, ai-memory, and status-monitor
+2. **Nginx Config** - Updated to use Docker DNS names instead of `127.0.0.1`
+3. **Monitor Config** - Updated to check Docker containers via internal DNS
+4. **Network** - All services on single `chatstack-network` bridge
+
+**Benefits:**
+- ✅ Fixes JWT authentication issues (consistent internal networking)
+- ✅ Eliminates 403 errors in admin panel
+- ✅ Enables reliable multi-tenant scaling
+- ✅ Simplifies deployment (one command starts everything)
+- ✅ Improves monitoring and observability
+
+**Deployment Guide:**
+See `DOCKER_DEPLOYMENT_GUIDE.md` for detailed step-by-step instructions.
 
 ### User Preferences
 Preferred communication style: Simple, everyday language.
