@@ -18,7 +18,6 @@ services:
     depends_on:
       - web
       - orchestrator
-      - ai-memory
     restart: always
     networks:
       - chatstack-network
@@ -43,8 +42,6 @@ services:
       - .env
     volumes:
       - ./static:/app/static:rw
-    depends_on:
-      - ai-memory
     restart: always
     networks:
       - chatstack-network
