@@ -1469,7 +1469,7 @@ class OAIRealtime:
                     "type": "server_vad",
                     "threshold": 0.5,
                     "prefix_padding_ms": 300,
-                    "silence_duration_ms": 600
+                    "silence_duration_ms": 1200
                 },
                 "temperature": 0.7,
                 "voice": self.voice,  # Dynamic voice from admin panel
@@ -2033,13 +2033,16 @@ async def media_stream_endpoint(websocket: WebSocket):
                         # ⚡ MEMORY V2 FAST: Pre-formatted context string ready for LLM!
                         v2_pre_formatted_context = caller_data.get("context", "")
                         
-                        # 🔧 FIX: Extract caller name from V2 profile for personalized greeting
-                        v2_profile = await asyncio.to_thread(mem_store.get_caller_profile_v2, user_id) if user_id else None
-                        if v2_profile:
-                            user_name = v2_profile.get("caller_name")
-                            logger.info(f"✅ Extracted caller name from V2 profile: {user_name}")
+                        # 🔧 FIX: Extract caller name by parsing the enriched context
+                        # Look for patterns like "Name: John" or "caller_name: John"
+                        import re
+                        name_match = re.search(r'(?:Name|caller[_\s]name|identity[_\s]name):\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)', v2_pre_formatted_context, re.IGNORECASE)
+                        if name_match:
+                            user_name = name_match.group(1).strip()
+                            logger.info(f"✅ Extracted caller name from V2 context: '{user_name}'")
                         else:
-                            logger.warning(f"⚠️ No V2 profile found, using generic greeting")
+                            logger.warning(f"⚠️ Could not extract caller name from V2 context, using generic greeting")
+                            logger.debug(f"V2 context preview: {v2_pre_formatted_context[:200]}")
                         
                         logger.info(f"⚡ Memory V2 FAST context loaded ({len(v2_pre_formatted_context)} chars) - 10x faster!")
                         
