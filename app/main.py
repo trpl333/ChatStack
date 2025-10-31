@@ -2085,14 +2085,10 @@ async def media_stream_endpoint(websocket: WebSocket):
                         except FileNotFoundError:
                             instructions = f"You are {agent_name}, a helpful assistant. Be friendly, casual, and conversational."
                     
-                    # Add conversation history
-                    if thread_id and THREAD_HISTORY.get(thread_id):
-                        history = list(THREAD_HISTORY[thread_id])
-                        if history:
-                            instructions += f"\n\n=== CONVERSATION HISTORY ===\nThis is a continuing conversation. Previous messages:\n"
-                            for role, content in history[-10:]:
-                                instructions += f"{role}: {content[:200]}...\n" if len(content) > 200 else f"{role}: {content}\n"
-                            logger.info(f"✅ Added {min(10, len(history))} history messages")
+                    # DON'T add conversation history on new calls - each call should start fresh with greeting
+                    # Thread history is saved for analytics but shouldn't affect new call greeting
+                    # The V2 enriched context already contains call summaries for memory
+                    logger.info(f"🆕 Starting fresh call - no conversation history added (call starts with greeting)")
                     
                     # Add memory context (format depends on V1 vs V2)
                     if memory_version == "v2" and v2_pre_formatted_context:
