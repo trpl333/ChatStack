@@ -1500,36 +1500,12 @@ class OAIRealtime:
         logger.info(f"✅ OpenAI Realtime session configured with voice: {self.voice} and time tool")
         
         # =====================================================
-        # 🧠 SEND PREVIOUS CONVERSATION HISTORY TO OPENAI
+        # 🆕 EACH PHONE CALL STARTS FRESH - NO OLD MESSAGES
         # =====================================================
-        # Load and send thread history so AI remembers previous calls
-        if self.thread_id and THREAD_HISTORY.get(self.thread_id):
-            history = list(THREAD_HISTORY[self.thread_id])
-            # Send last 6 messages (3 exchanges) to keep context focused and allow V2 memory to be prominent
-            recent_history = history[-6:] if len(history) > 6 else history
-            
-            logger.info(f"🧠 Sending {len(recent_history)} previous messages to OpenAI for context (limited to keep V2 memory prominent)")
-            
-            for role, content in recent_history:
-                # Create conversation item for each previous message
-                conversation_item = {
-                    "type": "conversation.item.create",
-                    "item": {
-                        "type": "message",
-                        "role": role,  # "user" or "assistant"
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": content
-                            }
-                        ]
-                    }
-                }
-                ws.send(json.dumps(conversation_item))
-            
-            logger.info(f"✅ Loaded {len(recent_history)} previous messages into AI context")
-        else:
-            logger.info("🧠 No previous conversation history found - starting fresh")
+        # Thread history is saved for analytics/transcripts but NOT sent to OpenAI
+        # V2 enriched context (call summaries, personality) provides memory instead
+        # This ensures each call starts with a proper greeting, not mid-conversation
+        logger.info("🆕 Starting fresh call - AI has no old conversation messages (will greet properly)")
         
         # Trigger immediate greeting - tell AI to start speaking first
         # CRITICAL: Reference the exact section header used in system instructions
