@@ -1,58 +1,81 @@
-# ChatStack System Monitor Configuration
-# This file defines which services to monitor and how to check their health
+# NeuroSphere Service Health Monitor Configuration
+# Updated for unified Docker Compose deployment
+# All services now communicate via Docker DNS names
 
 services:
-  # ChatStack Flask Admin Panel
+  # ChatStack Flask Admin Panel (Docker container: chatstack-web)
   - key: chatstack_web
-    name: "ChatStack Web (Flask)"
-    url: http://127.0.0.1:5000/health
+    name: "ChatStack Web (Flask Admin)"
+    url: http://web:5000/health
     expected_http: 200
-    host: 127.0.0.1
+    host: web
     port: 5000
-    systemd: chatstack-web.service
-    process_match:
-      - gunicorn
-      - main:app
+    container: chatstack-web
+    description: "Flask admin panel and main web interface"
 
-  # ChatStack FastAPI Orchestrator
+  # ChatStack FastAPI Orchestrator (Docker container: chatstack-orchestrator)
   - key: chatstack_orchestrator
     name: "ChatStack Orchestrator (FastAPI)"
-    url: http://127.0.0.1:8001/health
+    url: http://orchestrator:8001/health
     expected_http: 200
-    host: 127.0.0.1
+    host: orchestrator
     port: 8001
-    systemd: chatstack-orchestrator.service
-    process_match:
-      - uvicorn
-      - orchestrator
+    container: chatstack-orchestrator
+    description: "FastAPI phone orchestrator for Twilio WebSocket handling"
 
-  # AI-Memory Service
+  # AI-Memory Service (Docker container: ai-memory)
   - key: ai_memory
     name: "AI-Memory Service"
-    url: http://209.38.143.71:8100/health
+    url: http://ai-memory:8100/health
     expected_http: 200
-    host: 209.38.143.71
+    host: ai-memory
     port: 8100
-    systemd: ai-memory.service
-    process_match:
-      - ai-memory
-      - fastapi
+    container: ai-memory
+    description: "Memory storage and retrieval microservice"
 
-  # NeuroSphere Send Text (SMS Service)
+  # Nginx Reverse Proxy (Docker container: chatstack-nginx)
+  - key: nginx
+    name: "Nginx Reverse Proxy"
+    url: http://nginx:80/health
+    expected_http: 200
+    host: nginx
+    port: 80
+    container: chatstack-nginx
+    description: "HTTPS termination and reverse proxy"
+
+  # NeuroSphere Send Text (SMS Service - runs on host, not containerized yet)
   - key: send_text
     name: "NeuroSphere Send Text"
-    url: http://127.0.0.1:3000/health
+    url: http://host.docker.internal:3000/health
     expected_http: 200
-    host: 127.0.0.1
+    host: host.docker.internal
     port: 3000
     process_match:
       - send_text.py
       - neurosphere_send_text
+    description: "SMS notification service (host-based)"
 
   # LeadFlowTracker (Replit-hosted)
   - key: leadflow
     name: "LeadFlowTracker"
     url: https://leadflowtracker.repl.co/health
     expected_http: 200
-    # Replit-hosted: no local port/systemd checks
+    description: "CRM and lead management system (Replit)"
     process_match: []
+
+# Monitor settings
+monitor:
+  check_interval: 30  # seconds between health checks
+  retry_attempts: 3   # number of retries before marking service as down
+  retry_delay: 2      # seconds to wait between retries
+  
+  # Alerting thresholds
+  alerts:
+    consecutive_failures: 3  # Alert after N consecutive failures
+    recovery_notification: true  # Send notification when service recovers
+
+# Logging
+logging:
+  level: INFO
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "/var/log/chatstack/monitor.log"

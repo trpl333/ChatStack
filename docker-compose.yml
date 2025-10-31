@@ -1,52 +1,135 @@
-version: "3.8"
+version: "3.9"
 
 services:
-  # ────────────────────────────────
-  #  ChatStack Web Admin (Port 5000)
-  # ────────────────────────────────
+  # ────────────────────────────────────────────────────────
+  # Nginx Reverse Proxy (Port 80/443)
+  # ────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: chatstack-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/voice-theinsurancedoctors-com.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - ./static:/var/www/static:ro
+    depends_on:
+      - web
+      - orchestrator
+      - ai-memory
+    restart: always
+    networks:
+      - chatstack-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ────────────────────────────────────────────────────────
+  # ChatStack Web Admin (Flask on Port 5000)
+  # ────────────────────────────────────────────────────────
   web:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: chatstack-web
     command: gunicorn --bind 0.0.0.0:5000 --workers 1 --threads 4 --timeout 120 --reuse-port --reload main:app
-    env_file:
-      - .env
-    restart: always
-    volumes:
-      - /opt/ChatStack/static:/app/static:rw
     ports:
       - "5000:5000"
+    env_file:
+      - .env
+    volumes:
+      - ./static:/app/static:rw
+    depends_on:
+      - ai-memory
+    restart: always
+    networks:
+      - chatstack-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    networks: [appnet]
 
-  # ────────────────────────────────
-  #  Orchestrator / ChatStack Core (Port 8001)
-  # ────────────────────────────────
-  orchestrator-worker:
+  # ────────────────────────────────────────────────────────
+  # ChatStack Orchestrator (FastAPI on Port 8001)
+  # ────────────────────────────────────────────────────────
+  orchestrator:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: chatstack-orchestrator
     command: uvicorn app.main:app --host 0.0.0.0 --port 8001
-    env_file:
-      - .env
-    restart: always
-    volumes:
-      - /opt/ChatStack/static:/app/static:rw
     ports:
       - "8001:8001"
+    env_file:
+      - .env
+    volumes:
+      - ./static:/app/static:rw
+    depends_on:
+      - ai-memory
+    restart: always
+    networks:
+      - chatstack-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    networks: [appnet]
 
-# ────────────────────────────────
-# Shared internal Docker network
-# ────────────────────────────────
+  # ────────────────────────────────────────────────────────
+  # AI-Memory Service (FastAPI on Port 8100)
+  # ────────────────────────────────────────────────────────
+  ai-memory:
+    build:
+      context: ./external/ai-memory
+      dockerfile: Dockerfile
+    container_name: ai-memory
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8100
+    ports:
+      - "8100:8100"
+    env_file:
+      - .env
+    restart: always
+    networks:
+      - chatstack-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - AI_MEMORY_INTERNAL=true
+
+  # ────────────────────────────────────────────────────────
+  # Status Monitor (Health Checker)
+  # ────────────────────────────────────────────────────────
+  status-monitor:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: chatstack-status-monitor
+    command: python3 scripts/status_monitor.py --config config/monitor.yml --interval 30
+    depends_on:
+      - nginx
+      - web
+      - orchestrator
+      - ai-memory
+    restart: always
+    networks:
+      - chatstack-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+# ────────────────────────────────────────────────────────
+# Unified Docker Network for All Services
+# ────────────────────────────────────────────────────────
 networks:
-  appnet:
+  chatstack-network:
+    driver: bridge
+    name: chatstack-network
