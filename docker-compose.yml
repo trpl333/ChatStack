@@ -1,4 +1,5 @@
-version: "3.9"
+# Docker Compose for NeuroSphere Voice / ChatStack - Unified Architecture
+# All services run in single chatstack-network for consistent DNS-based communication
 
 services:
   # ────────────────────────────────────────────────────────
@@ -106,25 +107,26 @@ services:
   # ────────────────────────────────────────────────────────
   # Status Monitor (Health Checker)
   # ────────────────────────────────────────────────────────
-  status-monitor:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: chatstack-status-monitor
-    command: python3 scripts/status_monitor.py --config config/monitor.yml --interval 30
-    depends_on:
-      - nginx
-      - web
-      - orchestrator
-      - ai-memory
-    restart: always
-    networks:
-      - chatstack-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "5m"
-        max-file: "2"
+  # Temporarily disabled - needs psutil in requirements.txt
+  # status-monitor:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: chatstack-status-monitor
+  #   command: python3 scripts/status_monitor.py --config config/monitor.yml --interval 30
+  #   depends_on:
+  #     - nginx
+  #     - web
+  #     - orchestrator
+  #     - ai-memory
+  #   restart: always
+  #   networks:
+  #     - chatstack-network
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
 
 # ────────────────────────────────────────────────────────
 # Unified Docker Network for All Services

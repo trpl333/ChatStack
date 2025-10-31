@@ -129,7 +129,7 @@ class HTTPMemoryStore:
     
     def __init__(self):
         """Initialize connection to AI-Memory service."""
-        ai_memory_url = get_setting("ai_memory_url", "http://209.38.143.71:8100")
+        ai_memory_url = get_setting("ai_memory_url", "http://ai-memory:8100")
         
         self.ai_memory_url = ai_memory_url
         
