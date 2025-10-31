@@ -1002,14 +1002,7 @@ def handle_incoming_call_realtime():
     # Create TwiML response with Media Streams
     response = VoiceResponse()
     
-    # Play brief hold message to fill initialization time (prevents dead air during 5-second connection delay)
-    # MULTI-TENANT: Use customer's business name if found, otherwise generic greeting
-    if customer and customer.business_name:
-        hold_message = f"Thank you for calling {customer.business_name}, please hold while we connect you."
-    else:
-        hold_message = "Thank you for calling, please hold while we connect you."
-    
-    response.say(hold_message, voice="Google.en-US-Wavenet-C", language="en-US")
+    # NO GREETING - Connect directly to AI for natural conversation start
     
     # Connect to WebSocket for bidirectional audio streaming
     connect = Connect()
