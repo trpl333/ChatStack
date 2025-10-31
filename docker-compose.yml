@@ -69,8 +69,6 @@ services:
       - .env
     volumes:
       - ./static:/app/static:rw
-    depends_on:
-      - ai-memory
     restart: always
     networks:
       - chatstack-network
@@ -79,30 +77,14 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   # ────────────────────────────────────────────────────────
-  # AI-Memory Service (FastAPI on Port 8100)
+  # AI-Memory Service runs EXTERNALLY at /opt/ai-memory
+  # Not included in this docker-compose - runs as separate service
+  # ChatStack services connect to it at http://127.0.0.1:8100
   # ────────────────────────────────────────────────────────
-  ai-memory:
-    build:
-      context: ./external/ai-memory
-      dockerfile: Dockerfile
-    container_name: ai-memory
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8100
-    ports:
-      - "8100:8100"
-    env_file:
-      - .env
-    restart: always
-    networks:
-      - chatstack-network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      - AI_MEMORY_INTERNAL=true
 
   # ────────────────────────────────────────────────────────
   # Status Monitor (Health Checker)
